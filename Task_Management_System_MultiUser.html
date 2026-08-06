@@ -293,6 +293,14 @@
         <label for="nt-title">Title</label>
         <input type="text" id="nt-title" placeholder="Short summary of the task">
       </div>
+      <div>
+        <label for="nt-agreement-id">Agreement ID (optional)</label>
+        <input type="text" id="nt-agreement-id" placeholder="Enter value here">
+      </div>
+      <div>
+        <label for="nt-company-name">Company Name (optional)</label>
+        <input type="text" id="nt-company-name" placeholder="Enter value here">
+      </div>
       <div style="grid-column:1/-1;">
         <label for="nt-description">Description</label>
         <textarea id="nt-description" placeholder="What needs to be done, and any relevant details"></textarea>
@@ -419,7 +427,7 @@
   <div class="modal-box" style="max-width:440px;">
     <h2>Assign task <span id="am-taskid"></span></h2>
     <div>
-      <label for="am-assignee">Assign to (Admin)</label>
+      <label for="am-assignee">Assign to</label>
       <select id="am-assignee"></select>
     </div>
     <div>
@@ -457,6 +465,8 @@
 
    1) "Job Distribution Tracker" (existing list) — one item per task:
         Title              Single line of text   (built-in column — used for the task title)
+        Agreement ID       Single line of text   (optional — requester leaves blank if N/A)
+        Company Name       Single line of text   (optional — requester leaves blank if N/A)
         Description        Multiple lines of text
         Request Type       Choice: Out Right Purchase, Self Manage, Proceeds Share,
                                     Inventory, Stock-In (T), Stock-Out (T), Stock-Out (R),
@@ -906,14 +916,20 @@ function allTasksFiltered(){
     .sort((a,b)=> new Date(b['Requested Date']) - new Date(a['Requested Date']));
 }
 function populateAssigneeDropdowns(){
+  // Assignable pool = everyone with the Admin role, plus Super Admin
+  // themselves — Super Admin can pick themselves as the doer of a task,
+  // same as any Admin can, not just create/oversee requests.
   const admins = emailsForRole('admin');
+  const superadminLower = SUPERADMIN_EMAILS.map(e=>e.toLowerCase());
+  const pool = SUPERADMIN_EMAILS.concat(admins.filter(e => !superadminLower.includes(e.toLowerCase())));
+  const optionLabel = e => escapeHtml(e) + (superadminLower.includes(e.toLowerCase()) ? ' (Super Admin)' : '');
   const filterSel = document.getElementById('filter-assignee');
   const currentFilter = filterSel.value;
-  filterSel.innerHTML = '<option value="">All</option>' + admins.map(e=>'<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>').join('');
+  filterSel.innerHTML = '<option value="">All</option>' + pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
   filterSel.value = currentFilter;
   const amSel = document.getElementById('am-assignee');
-  amSel.innerHTML = admins.length
-    ? admins.map(e=>'<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>').join('')
+  amSel.innerHTML = pool.length
+    ? pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('')
     : '<option value="">No Admins assigned yet — add one under User management</option>';
 }
 
@@ -939,6 +955,8 @@ function taskCardHtml(v, showAssignee){
       '</div>'+
     '</div>'+
     '<div class="task-card-meta">'+
+      (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
+      (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
       (v['Request Type'] ? '<span>Type: '+escapeHtml(v['Request Type'])+'</span>' : '')+
       (v['Task'] ? '<span>Task: '+escapeHtml(v['Task'])+'</span>' : '')+
       '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
@@ -960,6 +978,8 @@ function renderAssignQueue(){
         priorityBadgeHtml(v)+
       '</div>'+
       '<div class="task-card-meta">'+
+        (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
+        (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
         (v['Request Type'] ? '<span>Type: '+escapeHtml(v['Request Type'])+'</span>' : '')+
         (v['Task'] ? '<span>Task: '+escapeHtml(v['Task'])+'</span>' : '')+
         '<span>Requested by: '+escapeHtml(v['Requested By'])+'</span>'+
@@ -1033,6 +1053,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('new-task-error');
   errEl.style.display = 'none';
   const title = document.getElementById('nt-title').value.trim();
+  const agreementId = document.getElementById('nt-agreement-id').value.trim();
+  const companyName = document.getElementById('nt-company-name').value.trim();
   const description = document.getElementById('nt-description').value.trim();
   const requestType = document.getElementById('nt-request-type').value;
   const task = document.getElementById('nt-task').value;
@@ -1046,6 +1068,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     const nowIso = new Date().toISOString();
     const created = await createListItem(MAIN_LIST_NAME, {
       'Title': title,
+      'Agreement ID': agreementId || null,
+      'Company Name': companyName || null,
       'Description': description,
       'Request Type': requestType,
       'Task': task,
@@ -1057,6 +1081,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
       'Last Updated Date': nowIso
     });
     document.getElementById('nt-title').value = '';
+    document.getElementById('nt-agreement-id').value = '';
+    document.getElementById('nt-company-name').value = '';
     document.getElementById('nt-description').value = '';
     document.getElementById('nt-request-type').value = '';
     document.getElementById('nt-task').value = '';
@@ -1160,6 +1186,8 @@ function renderTaskModal(taskId){
   '</div>';
 
   html += '<div style="display:flex;flex-direction:column;gap:6px;">'+
+    (v['Agreement ID'] ? '<div class="detail-row"><span class="k">Agreement ID</span><span class="v">'+escapeHtml(v['Agreement ID'])+'</span></div>' : '')+
+    (v['Company Name'] ? '<div class="detail-row"><span class="k">Company Name</span><span class="v">'+escapeHtml(v['Company Name'])+'</span></div>' : '')+
     '<div class="detail-row"><span class="k">Request type</span><span class="v">'+escapeHtml(v['Request Type']||'—')+'</span></div>'+
     '<div class="detail-row"><span class="k">Task</span><span class="v">'+escapeHtml(v['Task']||'—')+'</span></div>'+
     '<div class="detail-row"><span class="k">Requested by</span><span class="v">'+escapeHtml(v['Requested By'])+'</span></div>'+
