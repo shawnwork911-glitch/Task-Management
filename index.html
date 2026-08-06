@@ -149,19 +149,32 @@
 
   /* ---- Badges ---- */
   .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;white-space:nowrap;}
+  .badge-not-started{background:var(--surface-2);color:var(--text-secondary);border:1px dashed var(--border-strong);}
   .badge-pending{background:#f4e6cc;color:#8a6d1f;}
-  .badge-assigned{background:#dbe6fb;color:#2c4f96;}
+  .badge-blocked{background:#fbdcd6;color:#93291a;}
   .badge-progress{background:#e3d9f7;color:#5b3b9c;}
   .badge-completed{background:#d9f0dd;color:#256b38;}
   html[data-theme="dark"] .badge-pending{background:#4a3d1f;color:#e0c98a;}
-  html[data-theme="dark"] .badge-assigned{background:#233a63;color:#a9c3ef;}
+  html[data-theme="dark"] .badge-blocked{background:#5c2a20;color:#f0a996;}
   html[data-theme="dark"] .badge-progress{background:#3a2c5c;color:#cbb6f2;}
   html[data-theme="dark"] .badge-completed{background:#1f4a2c;color:#a3dcae;}
-  .badge-priority-low{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border);}
+  .badge-priority-unset{background:var(--surface-2);color:var(--text-secondary);border:1px dashed var(--border-strong);}
+  .badge-priority-critical{background:#d7e6fb;color:#264c8c;}
+  .badge-priority-high{background:#d9f0dd;color:#256b38;}
   .badge-priority-medium{background:#f4e6cc;color:#8a6d1f;}
-  .badge-priority-high{background:#fbdcd6;color:#93291a;}
+  .badge-priority-low{background:#fbdcd6;color:#93291a;}
+  .badge-priority-not-urgent-important{background:#fbd9cd;color:#96401a;}
+  .badge-priority-not-urgent-not-important{background:#cdeee3;color:#1f7a5c;}
+  .badge-priority-urgent-not-important{background:#2d2f6b;color:#e3e4f7;}
+  .badge-priority-urgent-important{background:#7a1f22;color:#f7dcdd;}
+  html[data-theme="dark"] .badge-priority-critical{background:#233a63;color:#a9c3ef;}
+  html[data-theme="dark"] .badge-priority-high{background:#1f4a2c;color:#a3dcae;}
   html[data-theme="dark"] .badge-priority-medium{background:#4a3d1f;color:#e0c98a;}
-  html[data-theme="dark"] .badge-priority-high{background:#5c2a20;color:#f0a996;}
+  html[data-theme="dark"] .badge-priority-low{background:#5c2a20;color:#f0a996;}
+  html[data-theme="dark"] .badge-priority-not-urgent-important{background:#5c3420;color:#f0bfa0;}
+  html[data-theme="dark"] .badge-priority-not-urgent-not-important{background:#1f4a3f;color:#a3ded0;}
+  html[data-theme="dark"] .badge-priority-urgent-not-important{background:#1e1f4a;color:#c6c8f2;}
+  html[data-theme="dark"] .badge-priority-urgent-important{background:#4a1f21;color:#f0aeb0;}
   .deadline-overdue{color:var(--danger);font-weight:600;}
   .deadline-soon{color:var(--warn);font-weight:600;}
 
@@ -280,16 +293,28 @@
         <label for="nt-title">Title</label>
         <input type="text" id="nt-title" placeholder="Short summary of the task">
       </div>
+      <div>
+        <label for="nt-agreement-id">Agreement ID (optional)</label>
+        <input type="text" id="nt-agreement-id" placeholder="Enter value here">
+      </div>
+      <div>
+        <label for="nt-company-name">Company Name (optional)</label>
+        <input type="text" id="nt-company-name" placeholder="Enter value here">
+      </div>
       <div style="grid-column:1/-1;">
         <label for="nt-description">Description</label>
         <textarea id="nt-description" placeholder="What needs to be done, and any relevant details"></textarea>
       </div>
       <div>
-        <label for="nt-priority">Priority</label>
-        <select id="nt-priority">
-          <option value="Low">Low</option>
-          <option value="Medium" selected>Medium</option>
-          <option value="High">High</option>
+        <label for="nt-request-type">Request type</label>
+        <select id="nt-request-type">
+          <option value="">Select…</option>
+        </select>
+      </div>
+      <div>
+        <label for="nt-task">Task</label>
+        <select id="nt-task">
+          <option value="">Select…</option>
         </select>
       </div>
       <div>
@@ -333,15 +358,28 @@
         <label for="filter-status">Status</label>
         <select id="filter-status">
           <option value="">All</option>
-          <option value="Pending Assignment">Pending Assignment</option>
-          <option value="Assigned">Assigned</option>
+          <option value="Not Started">Not Started</option>
           <option value="In Progress">In Progress</option>
+          <option value="Blocked">Blocked</option>
+          <option value="Pending">Pending</option>
           <option value="Completed">Completed</option>
         </select>
       </div>
       <div>
         <label for="filter-assignee">Assigned to</label>
         <select id="filter-assignee"><option value="">All</option></select>
+      </div>
+      <div>
+        <label for="filter-request-type">Request type</label>
+        <select id="filter-request-type"><option value="">All</option></select>
+      </div>
+      <div>
+        <label for="filter-task">Task</label>
+        <select id="filter-task"><option value="">All</option></select>
+      </div>
+      <div>
+        <label for="filter-priority">Priority</label>
+        <select id="filter-priority"><option value="">All</option></select>
       </div>
     </div>
     <div id="all-tasks-list"><p class="empty-note">Loading…</p></div>
@@ -389,12 +427,16 @@
   <div class="modal-box" style="max-width:440px;">
     <h2>Assign task <span id="am-taskid"></span></h2>
     <div>
-      <label for="am-assignee">Assign to (Admin)</label>
+      <label for="am-assignee">Assign to</label>
       <select id="am-assignee"></select>
     </div>
     <div>
       <label for="am-deadline">Deadline</label>
       <input type="date" id="am-deadline">
+    </div>
+    <div>
+      <label for="am-priority">Priority</label>
+      <select id="am-priority"></select>
     </div>
     <div id="assign-modal-error" class="field-error"></div>
     <div class="modal-close-row">
@@ -423,8 +465,34 @@
 
    1) "Job Distribution Tracker" (existing list) — one item per task:
         Title              Single line of text   (built-in column — used for the task title)
+        Agreement ID       Single line of text   (optional — requester leaves blank if N/A)
+        Company Name       Single line of text   (optional — requester leaves blank if N/A)
         Description        Multiple lines of text
-        Priority           Choice: Low, Medium, High
+        Request Type       Choice: Out Right Purchase, Self Manage, Proceeds Share,
+                                    Inventory, Stock-In (T), Stock-Out (T), Stock-Out (R),
+                                    Epicor ID Creation, Epicor Part No Creation,
+                                    Request for E-Invoice information, Relevant docs needed,
+                                    BD Adhoc Request, LHDN Stamping, Registry_TIGR
+                            (required — must match REQUEST_TYPES below exactly)
+        Task               Choice: I-REC Registration, TIGR Registration, Generation Data,
+                                    RECs Issuances, Matching, Request Redemption Information,
+                                    Redemption Request, PO Issuances, Receipt Entry,
+                                    Received AP Invoice, Request for Approval, SO Issuances,
+                                    Shipment Entry, Ready to delivery, Submitted to Finance,
+                                    Invoice Issuances, AR Invoice email to client,
+                                    POD send to Client, Save relevant docs to sharefolder,
+                                    Complete Delivery, Print Invoice, PO, POD, PO send to Supplier,
+                                    Clarification from Supplier, Clarification from Buyer,
+                                    Others, New Agreement, Request to change delivery date
+                            (required — must match TASK_OPTIONS below exactly)
+        Priority           Choice: Critical (Complete within 2 hours),
+                                    High (Complete within the same day), Medium, Low,
+                                    Not Urgent but Important, Not Urgent and not Important,
+                                    Urgent but not Important, Urgent & Important
+                            (required — must match PRIORITY_OPTIONS below exactly.
+                             Set only by Super Admin, at assignment time or later from the
+                             task detail view — never by the requester. The assigned Admin
+                             can see it but not edit it; the requester never sees it.)
         Requested By       Single line of text   (requester's email)
         Requested Date     Date and Time
         Requested Deadline Date and Time          (optional, the requester's suggested deadline)
@@ -432,7 +500,15 @@
         Assigned By        Single line of text
         Assigned Date      Date and Time
         Deadline           Date and Time          (the real deadline, set at assignment)
-        Status             Choice: Pending Assignment, Assigned, In Progress, Completed
+        Status             Choice: Not Started, In Progress, Blocked, Pending, Completed
+                            (required — must match STATUS_ORDER below exactly. This is
+                             the work-progress field, shown to everyone incl. the
+                             requester, read-only. Only the assigned Admin or Super
+                             Admin can change it. Whether a task has been ASSIGNED is
+                             tracked separately via the "Assigned To" field, not by a
+                             value in this column — a new request starts as
+                             "Not Started" with "Assigned To" empty, and moves onto
+                             the Super Admin's assign queue based on that, not Status.)
         Last Updated By    Single line of text
         Last Updated Date  Date and Time
         Completed Date     Date and Time
@@ -480,28 +556,116 @@ const SUPERADMIN_EMAILS = ["shauyuan.tan@saxonrenewables.com"];
 const GRAPH_SCOPES = ["Sites.ReadWrite.All", "User.Read"];
 const MAIL_SCOPES = ["Mail.Send"];
 
-/* ---- Task statuses ----
-   Pending Assignment -> Assigned -> In Progress -> Completed.
-   A Super Admin creates the Assigned step (picks the Admin + deadline).
-   The assigned Admin (or Super Admin) then moves it through In Progress ->
-   Completed. */
-const STATUS_PENDING = "Pending Assignment";
-const STATUS_ASSIGNED = "Assigned";
+/* ---- Task statuses (a.k.a. "Progress") ----
+   Not Started, In Progress, Blocked, Pending, Completed — must match the
+   "Status" Choice column's options exactly (see the column layout comment
+   above). This field tracks work progress only; it is visible (read-only)
+   to everyone including the requester, but only editable by the assigned
+   Admin or Super Admin.
+   Whether a task has been handed to an Admin yet is tracked separately by
+   whether "Assigned To" is populated — a brand-new request has Status =
+   "Not Started" and an empty "Assigned To", which is what puts it on the
+   Super Admin's assign queue. Assigning it does not by itself change
+   Status; the assigned Admin (or Super Admin) then moves it through the
+   values below as work actually progresses. */
+const STATUS_NOT_STARTED = "Not Started";
 const STATUS_IN_PROGRESS = "In Progress";
+const STATUS_BLOCKED = "Blocked";
+const STATUS_PENDING = "Pending";
 const STATUS_COMPLETED = "Completed";
-const STATUS_ORDER = [STATUS_PENDING, STATUS_ASSIGNED, STATUS_IN_PROGRESS, STATUS_COMPLETED];
+const STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_BLOCKED, STATUS_PENDING, STATUS_COMPLETED];
 
+/* ---- Request types ----
+   Must match the "Request Type" Choice column's options exactly (see the
+   column layout comment above). Required on every new task request. */
+const REQUEST_TYPES = [
+  "Out Right Purchase", "Self Manage", "Proceeds Share", "Inventory",
+  "Stock-In (T)", "Stock-Out (T)", "Stock-Out (R)", "Epicor ID Creation",
+  "Epicor Part No Creation", "Request for E-Invoice information",
+  "Relevant docs needed", "BD Adhoc Request", "LHDN Stamping", "Registry_TIGR"
+];
+(function populateRequestTypeDropdown(){
+  const sel = document.getElementById('nt-request-type');
+  sel.innerHTML = '<option value="">Select…</option>' +
+    REQUEST_TYPES.map(t => '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>').join('');
+  const filterSel = document.getElementById('filter-request-type');
+  filterSel.innerHTML = '<option value="">All</option>' +
+    REQUEST_TYPES.map(t => '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>').join('');
+})();
+
+/* ---- Task ----
+   A second required Choice field, separate from Request Type — must match
+   the "Task" Choice column's options exactly (see the column layout
+   comment above). */
+const TASK_OPTIONS = [
+  "I-REC Registration", "TIGR Registration", "Generation Data", "RECs Issuances",
+  "Matching", "Request Redemption Information", "Redemption Request",
+  "PO Issuances", "Receipt Entry", "Received AP Invoice", "Request for Approval",
+  "SO Issuances", "Shipment Entry", "Ready to delivery", "Submitted to Finance",
+  "Invoice Issuances", "AR Invoice email to client", "POD send to Client",
+  "Save relevant docs to sharefolder", "Complete Delivery", "Print Invoice, PO, POD",
+  "PO send to Supplier", "Clarification from Supplier", "Clarification from Buyer",
+  "Others", "New Agreement", "Request to change delivery date"
+];
+(function populateTaskDropdown(){
+  const sel = document.getElementById('nt-task');
+  sel.innerHTML = '<option value="">Select…</option>' +
+    TASK_OPTIONS.map(t => '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>').join('');
+  const filterSel = document.getElementById('filter-task');
+  filterSel.innerHTML = '<option value="">All</option>' +
+    TASK_OPTIONS.map(t => '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>').join('');
+})();
+
+/* ---- Priority ----
+   Set only by Super Admin (at assignment time, or later from the task detail
+   view) — must match the "Priority" Choice column's options exactly (see
+   the column layout comment above). Requesters never set or see this; the
+   assigned Admin sees it read-only. */
+const PRIORITY_OPTIONS = [
+  "Critical (Complete within 2 hours)", "High (Complete within the same day)",
+  "Medium", "Low", "Not Urgent but Important", "Not Urgent and not Important",
+  "Urgent but not Important", "Urgent & Important"
+];
+(function populatePriorityDropdowns(){
+  const amSel = document.getElementById('am-priority');
+  amSel.innerHTML = '<option value="">Select…</option>' +
+    PRIORITY_OPTIONS.map(p => '<option value="'+p.replace(/"/g,'&quot;')+'">'+p+'</option>').join('');
+  const filterSel = document.getElementById('filter-priority');
+  if(filterSel){
+    filterSel.innerHTML = '<option value="">All</option>' +
+      PRIORITY_OPTIONS.map(p => '<option value="'+p.replace(/"/g,'&quot;')+'">'+p+'</option>').join('');
+  }
+})();
+function canSeePriority(){
+  // Super Admin sets it; the assigned Admin can see it read-only; the
+  // requester (role "user") who created the task never sees it at all.
+  return currentUserRole === 'superadmin' || currentUserRole === 'admin';
+}
+function priorityBadgeHtml(v){
+  if(!canSeePriority()) return '';
+  if(!v.Priority) return '<span class="badge badge-priority-unset">Priority not set</span>';
+  return '<span class="badge '+badgeClassForPriority(v.Priority)+'">'+escapeHtml(v.Priority)+'</span>';
+}
 function badgeClassForStatus(status){
-  if(status === STATUS_PENDING) return 'badge-pending';
-  if(status === STATUS_ASSIGNED) return 'badge-assigned';
+  if(status === STATUS_NOT_STARTED) return 'badge-not-started';
   if(status === STATUS_IN_PROGRESS) return 'badge-progress';
+  if(status === STATUS_BLOCKED) return 'badge-blocked';
+  if(status === STATUS_PENDING) return 'badge-pending';
   if(status === STATUS_COMPLETED) return 'badge-completed';
   return '';
 }
+const PRIORITY_BADGE_CLASS = {
+  'Critical (Complete within 2 hours)': 'badge-priority-critical',
+  'High (Complete within the same day)': 'badge-priority-high',
+  'Medium': 'badge-priority-medium',
+  'Low': 'badge-priority-low',
+  'Not Urgent but Important': 'badge-priority-not-urgent-important',
+  'Not Urgent and not Important': 'badge-priority-not-urgent-not-important',
+  'Urgent but not Important': 'badge-priority-urgent-not-important',
+  'Urgent & Important': 'badge-priority-urgent-important'
+};
 function badgeClassForPriority(p){
-  if(p === 'High') return 'badge-priority-high';
-  if(p === 'Low') return 'badge-priority-low';
-  return 'badge-priority-medium';
+  return PRIORITY_BADGE_CLASS[p] || 'badge-priority-unset';
 }
 function escapeHtml(s){
   return String(s == null ? '' : s)
@@ -728,7 +892,8 @@ function myTasks(){
     .sort((a,b)=> new Date(b['Requested Date']) - new Date(a['Requested Date']));
 }
 function pendingTasks(){
-  return taskItemsCache.filter(t => t.Status === STATUS_PENDING)
+  // Awaiting assignment = no Assigned To yet, regardless of Status value.
+  return taskItemsCache.filter(t => !t['Assigned To'])
     .sort((a,b)=> new Date(a['Requested Date']) - new Date(b['Requested Date']));
 }
 function assignedToMe(){
@@ -739,20 +904,32 @@ function assignedToMe(){
 function allTasksFiltered(){
   const statusFilter = document.getElementById('filter-status').value;
   const assigneeFilter = document.getElementById('filter-assignee').value;
+  const requestTypeFilter = document.getElementById('filter-request-type').value;
+  const taskFilter = document.getElementById('filter-task').value;
+  const priorityFilter = document.getElementById('filter-priority').value;
   return taskItemsCache
     .filter(t => !statusFilter || t.Status === statusFilter)
     .filter(t => !assigneeFilter || (t['Assigned To']||'').toLowerCase() === assigneeFilter.toLowerCase())
+    .filter(t => !requestTypeFilter || t['Request Type'] === requestTypeFilter)
+    .filter(t => !taskFilter || t['Task'] === taskFilter)
+    .filter(t => !priorityFilter || t['Priority'] === priorityFilter)
     .sort((a,b)=> new Date(b['Requested Date']) - new Date(a['Requested Date']));
 }
 function populateAssigneeDropdowns(){
+  // Assignable pool = everyone with the Admin role, plus Super Admin
+  // themselves — Super Admin can pick themselves as the doer of a task,
+  // same as any Admin can, not just create/oversee requests.
   const admins = emailsForRole('admin');
+  const superadminLower = SUPERADMIN_EMAILS.map(e=>e.toLowerCase());
+  const pool = SUPERADMIN_EMAILS.concat(admins.filter(e => !superadminLower.includes(e.toLowerCase())));
+  const optionLabel = e => escapeHtml(e) + (superadminLower.includes(e.toLowerCase()) ? ' (Super Admin)' : '');
   const filterSel = document.getElementById('filter-assignee');
   const currentFilter = filterSel.value;
-  filterSel.innerHTML = '<option value="">All</option>' + admins.map(e=>'<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>').join('');
+  filterSel.innerHTML = '<option value="">All</option>' + pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
   filterSel.value = currentFilter;
   const amSel = document.getElementById('am-assignee');
-  amSel.innerHTML = admins.length
-    ? admins.map(e=>'<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>').join('')
+  amSel.innerHTML = pool.length
+    ? pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('')
     : '<option value="">No Admins assigned yet — add one under User management</option>';
 }
 
@@ -773,11 +950,15 @@ function taskCardHtml(v, showAssignee){
     '<div class="task-card-top">'+
       '<p class="task-card-title">'+escapeHtml(v.Title)+'</p>'+
       '<div class="task-card-badges">'+
-        '<span class="badge '+badgeClassForPriority(v.Priority)+'">'+escapeHtml(v.Priority||'Medium')+'</span>'+
+        priorityBadgeHtml(v)+
         '<span class="badge '+badgeClassForStatus(status)+'">'+escapeHtml(status)+'</span>'+
       '</div>'+
     '</div>'+
     '<div class="task-card-meta">'+
+      (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
+      (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
+      (v['Request Type'] ? '<span>Type: '+escapeHtml(v['Request Type'])+'</span>' : '')+
+      (v['Task'] ? '<span>Task: '+escapeHtml(v['Task'])+'</span>' : '')+
       '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
       (showAssignee ? '<span>Assigned to: '+ (v['Assigned To'] ? escapeHtml(v['Assigned To']) : '—') +'</span>' : '')+
       '<span class="'+dClass+'">Deadline: '+ (v.Deadline ? fmtDate(v.Deadline) : '—') +'</span>'+
@@ -794,9 +975,13 @@ function renderAssignQueue(){
     '<div class="task-card" data-task-id="'+escapeHtml(v.id)+'" style="cursor:default;">'+
       '<div class="task-card-top">'+
         '<p class="task-card-title">'+escapeHtml(v.Title)+'</p>'+
-        '<span class="badge '+badgeClassForPriority(v.Priority)+'">'+escapeHtml(v.Priority||'Medium')+'</span>'+
+        priorityBadgeHtml(v)+
       '</div>'+
       '<div class="task-card-meta">'+
+        (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
+        (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
+        (v['Request Type'] ? '<span>Type: '+escapeHtml(v['Request Type'])+'</span>' : '')+
+        (v['Task'] ? '<span>Task: '+escapeHtml(v['Task'])+'</span>' : '')+
         '<span>Requested by: '+escapeHtml(v['Requested By'])+'</span>'+
         '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
         (v['Requested Deadline'] ? '<span>Requested deadline: '+fmtDate(v['Requested Deadline'])+'</span>' : '')+
@@ -833,16 +1018,22 @@ function renderAllTasks(){
   if(!isAdmin) return;
   const tasks = allTasksFiltered();
   if(!tasks.length){ el.innerHTML = '<p class="empty-note">No tasks match this filter.</p>'; return; }
+  const showPriorityCol = canSeePriority();
   el.innerHTML = '<table class="task-table"><thead><tr>'+
-    '<th>Title</th><th>Requested by</th><th>Assigned to</th><th>Deadline</th><th>Status</th>'+
+    '<th>Title</th><th>Request type</th><th>Task</th><th>Requested by</th><th>Assigned to</th><th>Deadline</th>'+
+    (showPriorityCol ? '<th>Priority</th>' : '')+
+    '<th>Status</th>'+
     '</tr></thead><tbody>'+
     tasks.map(v=>{
       const dClass = deadlineClass(v.Deadline, v.Status);
       return '<tr class="clickable" data-task-id="'+escapeHtml(v.id)+'">'+
         '<td>'+escapeHtml(v.Title)+'</td>'+
+        '<td>'+escapeHtml(v['Request Type']||'—')+'</td>'+
+        '<td>'+escapeHtml(v['Task']||'—')+'</td>'+
         '<td>'+escapeHtml(v['Requested By'])+'</td>'+
         '<td>'+(v['Assigned To'] ? escapeHtml(v['Assigned To']) : '—')+'</td>'+
         '<td class="'+dClass+'">'+(v.Deadline ? fmtDate(v.Deadline) : '—')+'</td>'+
+        (showPriorityCol ? '<td>'+priorityBadgeHtml(v)+'</td>' : '')+
         '<td><span class="badge '+badgeClassForStatus(v.Status)+'">'+escapeHtml(v.Status)+'</span></td>'+
         '</tr>';
     }).join('')+
@@ -853,34 +1044,48 @@ function renderAllTasks(){
 }
 document.getElementById('filter-status').addEventListener('change', renderAllTasks);
 document.getElementById('filter-assignee').addEventListener('change', renderAllTasks);
+document.getElementById('filter-request-type').addEventListener('change', renderAllTasks);
+document.getElementById('filter-task').addEventListener('change', renderAllTasks);
+document.getElementById('filter-priority').addEventListener('change', renderAllTasks);
 
 /* ---- New task request ---- */
 document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('new-task-error');
   errEl.style.display = 'none';
   const title = document.getElementById('nt-title').value.trim();
+  const agreementId = document.getElementById('nt-agreement-id').value.trim();
+  const companyName = document.getElementById('nt-company-name').value.trim();
   const description = document.getElementById('nt-description').value.trim();
-  const priority = document.getElementById('nt-priority').value;
+  const requestType = document.getElementById('nt-request-type').value;
+  const task = document.getElementById('nt-task').value;
   const requestedDeadline = document.getElementById('nt-requested-deadline').value;
   if(!title){ errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; return; }
+  if(!requestType){ errEl.textContent = 'Request type is required.'; errEl.style.display = 'block'; return; }
+  if(!task){ errEl.textContent = 'Task is required.'; errEl.style.display = 'block'; return; }
   const btn = document.getElementById('submit-task-btn');
   btn.disabled = true;
   try{
     const nowIso = new Date().toISOString();
     const created = await createListItem(MAIN_LIST_NAME, {
       'Title': title,
+      'Agreement ID': agreementId || null,
+      'Company Name': companyName || null,
       'Description': description,
-      'Priority': priority,
+      'Request Type': requestType,
+      'Task': task,
       'Requested By': currentAccount.username,
       'Requested Date': nowIso,
       'Requested Deadline': dateInputToIso(requestedDeadline),
-      'Status': STATUS_PENDING,
+      'Status': STATUS_NOT_STARTED,
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
     });
     document.getElementById('nt-title').value = '';
+    document.getElementById('nt-agreement-id').value = '';
+    document.getElementById('nt-company-name').value = '';
     document.getElementById('nt-description').value = '';
-    document.getElementById('nt-priority').value = 'Medium';
+    document.getElementById('nt-request-type').value = '';
+    document.getElementById('nt-task').value = '';
     document.getElementById('nt-requested-deadline').value = '';
     await loadAllData();
     notifySuperadmins(created.id, title).catch(e=>console.error('Notify superadmins failed', e));
@@ -899,6 +1104,8 @@ function openAssignModal(taskId){
   document.getElementById('assign-modal-error').style.display = 'none';
   document.getElementById('am-deadline').value = '';
   populateAssigneeDropdowns();
+  const v = taskById(taskId);
+  document.getElementById('am-priority').value = (v && v.Priority) ? v.Priority : '';
   document.getElementById('assign-modal-overlay').style.display = 'flex';
 }
 document.getElementById('assign-modal-cancel').addEventListener('click', ()=>{
@@ -909,8 +1116,10 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
   errEl.style.display = 'none';
   const assignee = document.getElementById('am-assignee').value;
   const deadline = document.getElementById('am-deadline').value;
+  const priority = document.getElementById('am-priority').value;
   if(!assignee){ errEl.textContent = 'Choose an Admin to assign this to.'; errEl.style.display = 'block'; return; }
   if(!deadline){ errEl.textContent = 'Set a deadline.'; errEl.style.display = 'block'; return; }
+  if(!priority){ errEl.textContent = 'Set a priority.'; errEl.style.display = 'block'; return; }
   const btn = document.getElementById('assign-modal-submit');
   btn.disabled = true;
   try{
@@ -920,7 +1129,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
       'Assigned By': currentAccount.username,
       'Assigned Date': nowIso,
       'Deadline': dateInputToIso(deadline),
-      'Status': STATUS_ASSIGNED,
+      'Priority': priority,
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
     });
@@ -969,7 +1178,7 @@ function renderTaskModal(taskId){
     '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;">'+
       '<h3 style="margin:0;font-size:15px;">'+escapeHtml(v.Title)+'</h3>'+
       '<div style="display:flex;gap:6px;">'+
-        '<span class="badge '+badgeClassForPriority(v.Priority)+'">'+escapeHtml(v.Priority||'Medium')+'</span>'+
+        priorityBadgeHtml(v)+
         '<span class="badge '+badgeClassForStatus(v.Status)+'">'+escapeHtml(v.Status)+'</span>'+
       '</div>'+
     '</div>'+
@@ -977,6 +1186,10 @@ function renderTaskModal(taskId){
   '</div>';
 
   html += '<div style="display:flex;flex-direction:column;gap:6px;">'+
+    (v['Agreement ID'] ? '<div class="detail-row"><span class="k">Agreement ID</span><span class="v">'+escapeHtml(v['Agreement ID'])+'</span></div>' : '')+
+    (v['Company Name'] ? '<div class="detail-row"><span class="k">Company Name</span><span class="v">'+escapeHtml(v['Company Name'])+'</span></div>' : '')+
+    '<div class="detail-row"><span class="k">Request type</span><span class="v">'+escapeHtml(v['Request Type']||'—')+'</span></div>'+
+    '<div class="detail-row"><span class="k">Task</span><span class="v">'+escapeHtml(v['Task']||'—')+'</span></div>'+
     '<div class="detail-row"><span class="k">Requested by</span><span class="v">'+escapeHtml(v['Requested By'])+'</span></div>'+
     '<div class="detail-row"><span class="k">Requested date</span><span class="v">'+fmtDate(v['Requested Date'])+'</span></div>'+
     '<div class="detail-row"><span class="k">Assigned to</span><span class="v">'+(v['Assigned To'] ? escapeHtml(v['Assigned To']) : '— (pending assignment)')+'</span></div>'+
@@ -987,19 +1200,33 @@ function renderTaskModal(taskId){
   // Timeline
   html += '<div><p class="card-title" style="margin-bottom:8px;">Timeline</p><div class="timeline">'+timelineHtml(v)+'</div></div>';
 
-  // Super Admin: assign button if still pending
-  if(currentUserRole === 'superadmin' && v.Status === STATUS_PENDING){
+  // Super Admin: assign button if not yet assigned to anyone
+  if(currentUserRole === 'superadmin' && !v['Assigned To']){
     html += '<div><button type="button" id="tm-assign-btn">Assign this task</button></div>';
   }
 
-  // Status controls: assigned admin or superadmin, once assigned
-  if(canManageTask(v) && v.Status !== STATUS_PENDING && v.Status !== STATUS_COMPLETED){
-    const options = STATUS_ORDER.filter(s => s !== STATUS_PENDING);
+  // Priority controls: Super Admin only — sets or changes priority at any
+  // time. The assigned Admin sees the badge above but cannot edit it, and
+  // the requester never sees the badge at all (see priorityBadgeHtml).
+  if(currentUserRole === 'superadmin'){
     html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
-      '<div style="min-width:170px;"><label>Update status</label><select id="tm-status-select">'+
-        options.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
+      '<div style="min-width:220px;"><label>Priority</label><select id="tm-priority-select">'+
+        '<option value="">Not set</option>'+
+        PRIORITY_OPTIONS.map(p=>'<option value="'+escapeHtml(p)+'"'+(p===v.Priority?' selected':'')+'>'+escapeHtml(p)+'</option>').join('')+
       '</select></div>'+
-      '<button type="button" id="tm-status-save">Save status</button>'+
+      '<button type="button" id="tm-priority-save">Save priority</button>'+
+    '</div>';
+  }
+
+  // Progress/Status controls: the assigned Admin or Super Admin can edit
+  // this once the task has been handed to someone; the requester (role
+  // "user") never gets this control — they only ever see the badge above.
+  if(canManageTask(v) && v['Assigned To'] && v.Status !== STATUS_COMPLETED){
+    html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
+      '<div style="min-width:170px;"><label>Update progress</label><select id="tm-status-select">'+
+        STATUS_ORDER.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
+      '</select></div>'+
+      '<button type="button" id="tm-status-save">Save progress</button>'+
     '</div>';
   }
 
@@ -1028,6 +1255,23 @@ function renderTaskModal(taskId){
   if(assignBtn) assignBtn.addEventListener('click', ()=>{
     document.getElementById('task-modal-overlay').style.display = 'none';
     openAssignModal(taskId);
+  });
+  const prioritySave = document.getElementById('tm-priority-save');
+  if(prioritySave) prioritySave.addEventListener('click', async ()=>{
+    const newPriority = document.getElementById('tm-priority-select').value;
+    prioritySave.disabled = true;
+    try{
+      await updateListItem(MAIN_LIST_NAME, taskId, {
+        'Priority': newPriority || null,
+        'Last Updated By': currentAccount.username,
+        'Last Updated Date': new Date().toISOString()
+      });
+      await loadAllData();
+    }catch(err){
+      alert('Could not update priority: ' + err.message);
+    }finally{
+      prioritySave.disabled = false;
+    }
   });
   const statusSave = document.getElementById('tm-status-save');
   if(statusSave) statusSave.addEventListener('click', async ()=>{
@@ -1170,6 +1414,7 @@ async function notifyTaskAssigned(v){
   const link = taskDeepLink(v.id);
   const toAssignee = '<p>You have been assigned a new task: <strong>'+escapeHtml(v.Title)+'</strong>.</p>'+
     '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+
+    (v.Priority ? '<p><strong>Priority:</strong> '+escapeHtml(v.Priority)+'</p>' : '')+
     '<p><a href="'+link+'">Open it in the Task Management app</a></p>';
   const toRequester = '<p>Your task <strong>'+escapeHtml(v.Title)+'</strong> has been assigned to '+escapeHtml(v['Assigned To'])+'.</p>'+
     '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+
