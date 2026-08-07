@@ -281,17 +281,19 @@
   <div class="card" id="new-task-card" style="display:none;">
     <p class="card-title">New task request</p>
     <div class="grid">
-      <div style="grid-column:1/-1;">
-        <label for="nt-title">Title</label>
-        <input type="text" id="nt-title" placeholder="Short summary of the task">
+      <div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+          <input type="checkbox" id="nt-agreement-id-toggle" style="width:auto;">
+          Agreement ID
+        </label>
+        <input type="text" id="nt-agreement-id" placeholder="Enter value here" disabled style="margin-top:6px;">
       </div>
       <div>
-        <label for="nt-agreement-id">Agreement ID (optional)</label>
-        <input type="text" id="nt-agreement-id" placeholder="Enter value here">
-      </div>
-      <div>
-        <label for="nt-company-name">Company Name (optional)</label>
-        <input type="text" id="nt-company-name" placeholder="Enter value here">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+          <input type="checkbox" id="nt-company-name-toggle" style="width:auto;">
+          Company Name
+        </label>
+        <input type="text" id="nt-company-name" placeholder="Enter value here" disabled style="margin-top:6px;">
       </div>
       <div style="grid-column:1/-1;">
         <label for="nt-description">Description</label>
@@ -456,9 +458,12 @@
    just means updating the name here, nothing else breaks.
 
    1) "Job Distribution Tracker" (existing list) — one item per task:
-        Title              Single line of text   (built-in column — used for the task title)
-        Agreement ID       Single line of text   (optional — requester leaves blank if N/A)
-        Company Name       Single line of text   (optional — requester leaves blank if N/A)
+        Title              Single line of text   (built-in column — auto-filled by the app as
+                                                   "Request Type - Task"; requester never types it)
+        Agreement ID       Single line of text   (optional — shown only if the requester ticks
+                                                   the "Agreement ID" checkbox on the request form)
+        Company Name       Single line of text   (optional — shown only if the requester ticks
+                                                   the "Company Name" checkbox on the request form)
         Description        Multiple lines of text
         Request Type       Choice: Out Right Purchase, Self Manage, Proceeds Share,
                                     Inventory, Stock-In (T), Stock-Out (T), Stock-Out (R),
@@ -1064,19 +1069,34 @@ document.getElementById('filter-task').addEventListener('change', renderAllTasks
 document.getElementById('filter-priority').addEventListener('change', renderAllTasks);
 
 /* ---- New task request ---- */
+function wireOptionalFieldToggle(toggleId, inputId){
+  const toggle = document.getElementById(toggleId);
+  const input = document.getElementById(inputId);
+  toggle.addEventListener('change', ()=>{
+    input.disabled = !toggle.checked;
+    if(!toggle.checked) input.value = '';
+    else input.focus();
+  });
+}
+wireOptionalFieldToggle('nt-agreement-id-toggle', 'nt-agreement-id');
+wireOptionalFieldToggle('nt-company-name-toggle', 'nt-company-name');
+
 document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('new-task-error');
   errEl.style.display = 'none';
-  const title = document.getElementById('nt-title').value.trim();
-  const agreementId = document.getElementById('nt-agreement-id').value.trim();
-  const companyName = document.getElementById('nt-company-name').value.trim();
+  const agreementIdOn = document.getElementById('nt-agreement-id-toggle').checked;
+  const companyNameOn = document.getElementById('nt-company-name-toggle').checked;
+  const agreementId = agreementIdOn ? document.getElementById('nt-agreement-id').value.trim() : '';
+  const companyName = companyNameOn ? document.getElementById('nt-company-name').value.trim() : '';
   const description = document.getElementById('nt-description').value.trim();
   const requestType = document.getElementById('nt-request-type').value;
   const task = document.getElementById('nt-task').value;
   const requestedDeadline = document.getElementById('nt-requested-deadline').value;
-  if(!title){ errEl.textContent = 'Title is required.'; errEl.style.display = 'block'; return; }
   if(!requestType){ errEl.textContent = 'Request type is required.'; errEl.style.display = 'block'; return; }
   if(!task){ errEl.textContent = 'Task is required.'; errEl.style.display = 'block'; return; }
+  if(agreementIdOn && !agreementId){ errEl.textContent = 'Agreement ID is ticked — please enter a value, or untick it.'; errEl.style.display = 'block'; return; }
+  if(companyNameOn && !companyName){ errEl.textContent = 'Company Name is ticked — please enter a value, or untick it.'; errEl.style.display = 'block'; return; }
+  const title = requestType + ' - ' + task;
   const btn = document.getElementById('submit-task-btn');
   btn.disabled = true;
   try{
@@ -1095,9 +1115,12 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
     });
-    document.getElementById('nt-title').value = '';
+    document.getElementById('nt-agreement-id-toggle').checked = false;
     document.getElementById('nt-agreement-id').value = '';
+    document.getElementById('nt-agreement-id').disabled = true;
+    document.getElementById('nt-company-name-toggle').checked = false;
     document.getElementById('nt-company-name').value = '';
+    document.getElementById('nt-company-name').disabled = true;
     document.getElementById('nt-description').value = '';
     document.getElementById('nt-request-type').value = '';
     document.getElementById('nt-task').value = '';
