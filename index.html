@@ -163,18 +163,10 @@
   .badge-priority-high{background:#d9f0dd;color:#256b38;}
   .badge-priority-medium{background:#f4e6cc;color:#8a6d1f;}
   .badge-priority-low{background:#fbdcd6;color:#93291a;}
-  .badge-priority-not-urgent-important{background:#fbd9cd;color:#96401a;}
-  .badge-priority-not-urgent-not-important{background:#cdeee3;color:#1f7a5c;}
-  .badge-priority-urgent-not-important{background:#2d2f6b;color:#e3e4f7;}
-  .badge-priority-urgent-important{background:#7a1f22;color:#f7dcdd;}
   html[data-theme="dark"] .badge-priority-critical{background:#233a63;color:#a9c3ef;}
   html[data-theme="dark"] .badge-priority-high{background:#1f4a2c;color:#a3dcae;}
   html[data-theme="dark"] .badge-priority-medium{background:#4a3d1f;color:#e0c98a;}
   html[data-theme="dark"] .badge-priority-low{background:#5c2a20;color:#f0a996;}
-  html[data-theme="dark"] .badge-priority-not-urgent-important{background:#5c3420;color:#f0bfa0;}
-  html[data-theme="dark"] .badge-priority-not-urgent-not-important{background:#1f4a3f;color:#a3ded0;}
-  html[data-theme="dark"] .badge-priority-urgent-not-important{background:#1e1f4a;color:#c6c8f2;}
-  html[data-theme="dark"] .badge-priority-urgent-important{background:#4a1f21;color:#f0aeb0;}
   .deadline-overdue{color:var(--danger);font-weight:600;}
   .deadline-soon{color:var(--warn);font-weight:600;}
 
@@ -485,10 +477,10 @@
                                     Clarification from Supplier, Clarification from Buyer,
                                     Others, New Agreement, Request to change delivery date
                             (required — must match TASK_OPTIONS below exactly)
-        Priority           Choice: Critical (Complete within 2 hours),
-                                    High (Complete within the same day), Medium, Low,
-                                    Not Urgent but Important, Not Urgent and not Important,
-                                    Urgent but not Important, Urgent & Important
+        Priority           Choice: Critical (Urgent & Important - Complete within 2 hours),
+                                    High (Urgent but not Important - Complete within same day),
+                                    Medium (Not Urgent but Important),
+                                    Low (Not Urgent and not Important)
                             (required — must match PRIORITY_OPTIONS below exactly.
                              Set only by Super Admin, at assignment time or later from the
                              task detail view — never by the requester. The assigned Admin
@@ -622,9 +614,10 @@ const TASK_OPTIONS = [
    the column layout comment above). Requesters never set or see this; the
    assigned Admin sees it read-only. */
 const PRIORITY_OPTIONS = [
-  "Critical (Complete within 2 hours)", "High (Complete within the same day)",
-  "Medium", "Low", "Not Urgent but Important", "Not Urgent and not Important",
-  "Urgent but not Important", "Urgent & Important"
+  "Critical (Urgent & Important - Complete within 2 hours)",
+  "High (Urgent but not Important - Complete within same day)",
+  "Medium (Not Urgent but Important)",
+  "Low (Not Urgent and not Important)"
 ];
 (function populatePriorityDropdowns(){
   const amSel = document.getElementById('am-priority');
@@ -641,6 +634,34 @@ function canSeePriority(){
   // requester (role "user") who created the task never sees it at all.
   return currentUserRole === 'superadmin' || currentUserRole === 'admin';
 }
+/* ---- Shared sort: priority first, nearest due date breaks ties ----
+   Rank comes from position in PRIORITY_OPTIONS (earlier = higher priority).
+   Tasks with no Priority set yet sort after every task that has one.
+   For the due date, real "Deadline" is used when set (post-assignment);
+   otherwise the requester's "Requested Deadline" is used as a fallback so
+   still-unassigned tasks in the Assignment queue sort sensibly too. Tasks
+   with no date at all sort to the very end of their priority group. */
+const PRIORITY_RANK = {};
+PRIORITY_OPTIONS.forEach((p, i) => { PRIORITY_RANK[p] = i; });
+function cardTitle(v){
+  const type = v['Request Type'] || '';
+  const task = v['Task'] || '';
+  if(type && task) return type + ' - ' + task;
+  return type || task || '(No request type)';
+}
+function priorityRank(t){
+  return (t.Priority && PRIORITY_RANK.hasOwnProperty(t.Priority)) ? PRIORITY_RANK[t.Priority] : PRIORITY_OPTIONS.length;
+}
+function effectiveDueDate(t){
+  const d = t.Deadline || t['Requested Deadline'];
+  const parsed = d ? new Date(d).getTime() : NaN;
+  return isNaN(parsed) ? Infinity : parsed;
+}
+function sortByPriorityThenDeadline(a, b){
+  const byPriority = priorityRank(a) - priorityRank(b);
+  if(byPriority !== 0) return byPriority;
+  return effectiveDueDate(a) - effectiveDueDate(b);
+}
 function priorityBadgeHtml(v){
   if(!canSeePriority()) return '';
   if(!v.Priority) return '<span class="badge badge-priority-unset">Priority not set</span>';
@@ -655,14 +676,10 @@ function badgeClassForStatus(status){
   return '';
 }
 const PRIORITY_BADGE_CLASS = {
-  'Critical (Complete within 2 hours)': 'badge-priority-critical',
-  'High (Complete within the same day)': 'badge-priority-high',
-  'Medium': 'badge-priority-medium',
-  'Low': 'badge-priority-low',
-  'Not Urgent but Important': 'badge-priority-not-urgent-important',
-  'Not Urgent and not Important': 'badge-priority-not-urgent-not-important',
-  'Urgent but not Important': 'badge-priority-urgent-not-important',
-  'Urgent & Important': 'badge-priority-urgent-important'
+  'Critical (Urgent & Important - Complete within 2 hours)': 'badge-priority-critical',
+  'High (Urgent but not Important - Complete within same day)': 'badge-priority-high',
+  'Medium (Not Urgent but Important)': 'badge-priority-medium',
+  'Low (Not Urgent and not Important)': 'badge-priority-low'
 };
 function badgeClassForPriority(p){
   return PRIORITY_BADGE_CLASS[p] || 'badge-priority-unset';
@@ -889,17 +906,17 @@ function commentsForTask(taskId){
 function myTasks(){
   const email = (currentAccount.username||'').toLowerCase();
   return taskItemsCache.filter(t => (t['Requested By']||'').toLowerCase() === email)
-    .sort((a,b)=> new Date(b['Requested Date']) - new Date(a['Requested Date']));
+    .sort(sortByPriorityThenDeadline);
 }
 function pendingTasks(){
   // Awaiting assignment = no Assigned To yet, regardless of Status value.
   return taskItemsCache.filter(t => !t['Assigned To'])
-    .sort((a,b)=> new Date(a['Requested Date']) - new Date(b['Requested Date']));
+    .sort(sortByPriorityThenDeadline);
 }
 function assignedToMe(){
   const email = (currentAccount.username||'').toLowerCase();
   return taskItemsCache.filter(t => (t['Assigned To']||'').toLowerCase() === email && t.Status !== STATUS_COMPLETED)
-    .sort((a,b)=> new Date(a.Deadline) - new Date(b.Deadline));
+    .sort(sortByPriorityThenDeadline);
 }
 function allTasksFiltered(){
   const statusFilter = document.getElementById('filter-status').value;
@@ -913,7 +930,7 @@ function allTasksFiltered(){
     .filter(t => !requestTypeFilter || t['Request Type'] === requestTypeFilter)
     .filter(t => !taskFilter || t['Task'] === taskFilter)
     .filter(t => !priorityFilter || t['Priority'] === priorityFilter)
-    .sort((a,b)=> new Date(b['Requested Date']) - new Date(a['Requested Date']));
+    .sort(sortByPriorityThenDeadline);
 }
 function populateAssigneeDropdowns(){
   // Assignable pool = everyone with the Admin role, plus Super Admin
@@ -948,17 +965,16 @@ function taskCardHtml(v, showAssignee){
   const dClass = deadlineClass(v.Deadline, status);
   return '<div class="task-card" data-task-id="'+escapeHtml(v.id)+'">'+
     '<div class="task-card-top">'+
-      '<p class="task-card-title">'+escapeHtml(v.Title)+'</p>'+
+      '<p class="task-card-title">'+escapeHtml(cardTitle(v))+'</p>'+
       '<div class="task-card-badges">'+
         priorityBadgeHtml(v)+
         '<span class="badge '+badgeClassForStatus(status)+'">'+escapeHtml(status)+'</span>'+
       '</div>'+
     '</div>'+
     '<div class="task-card-meta">'+
+      (v.Title ? '<span>Title: '+escapeHtml(v.Title)+'</span>' : '')+
       (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
       (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
-      (v['Request Type'] ? '<span>Type: '+escapeHtml(v['Request Type'])+'</span>' : '')+
-      (v['Task'] ? '<span>Task: '+escapeHtml(v['Task'])+'</span>' : '')+
       '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
       (showAssignee ? '<span>Assigned to: '+ (v['Assigned To'] ? escapeHtml(v['Assigned To']) : '—') +'</span>' : '')+
       '<span class="'+dClass+'">Deadline: '+ (v.Deadline ? fmtDate(v.Deadline) : '—') +'</span>'+
@@ -974,14 +990,13 @@ function renderAssignQueue(){
   el.innerHTML = tasks.map(v =>
     '<div class="task-card" data-task-id="'+escapeHtml(v.id)+'" style="cursor:default;">'+
       '<div class="task-card-top">'+
-        '<p class="task-card-title">'+escapeHtml(v.Title)+'</p>'+
+        '<p class="task-card-title">'+escapeHtml(cardTitle(v))+'</p>'+
         priorityBadgeHtml(v)+
       '</div>'+
       '<div class="task-card-meta">'+
+        (v.Title ? '<span>Title: '+escapeHtml(v.Title)+'</span>' : '')+
         (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
         (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
-        (v['Request Type'] ? '<span>Type: '+escapeHtml(v['Request Type'])+'</span>' : '')+
-        (v['Task'] ? '<span>Task: '+escapeHtml(v['Task'])+'</span>' : '')+
         '<span>Requested by: '+escapeHtml(v['Requested By'])+'</span>'+
         '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
         (v['Requested Deadline'] ? '<span>Requested deadline: '+fmtDate(v['Requested Deadline'])+'</span>' : '')+
