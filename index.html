@@ -482,21 +482,19 @@
       <span class="rops-conn" id="rops-rename-conn">SharePoint: ready after sign-in</span>
     </div>
 
-    <div class="rops-entity-switch" id="rops-upload-entity-switch">
-      <button type="button" class="rops-stamp active" data-entity="MY"><span class="code">MY</span><span class="name">Saxon Renewable Energy Sdn Bhd</span><span class="folder">BD Usage / Renamed MY</span></button>
-      <button type="button" class="rops-stamp" data-entity="SG"><span class="code">SG</span><span class="name">Saxon Renewables Pte. Ltd.</span><span class="folder">BD Usage / Renamed SG</span></button>
-    </div>
-
     <div class="rops-grid-2">
       <div class="card">
         <p class="card-title">File details</p>
         <div class="grid">
-          <div><label for="rops-doc-category">Document category</label><select id="rops-doc-category"></select></div>
-          <div><label for="rops-upload-agreement-id">Agreement ID</label><input type="text" id="rops-upload-agreement-id" placeholder="Agreement ID (Ops Internal)"></div>
+          <div><label for="rops-registry">Registry</label><select id="rops-registry"><option value="">Select registry...</option><option value="I-REC">I-REC</option><option value="TIGR">TIGR</option></select></div>
+          <div><label for="rops-country">Country</label><select id="rops-country"><option value="">Select country...</option></select></div>
+          <div><label for="rops-type">Type</label><select id="rops-type"><option value="">Select type...</option></select></div>
+          <div><label for="rops-company-name">Company Name</label><input type="text" id="rops-company-name" placeholder="Enter company name"></div>
+          <div style="grid-column:1/-1;"><label for="rops-doc-category">Document category</label><select id="rops-doc-category"><option value="">Select document category...</option></select></div>
         </div>
         <div style="margin-top:14px;">
           <label>File</label>
-          <div class="rops-dropzone" id="rops-dropzone"><span class="rops-dz-main">Drop a file here, or click to browse</span><span class="rops-dz-sub">Stored in SharePoint under the selected MY / SG folder</span></div>
+          <div class="rops-dropzone" id="rops-dropzone"><span class="rops-dz-main">Drop a file here, or click to browse</span><span class="rops-dz-sub">Stored in SharePoint under BD Usage / Company Name</span></div>
           <input type="file" id="rops-file-input">
           <div class="rops-rename-preview" id="rops-rename-preview" style="display:none;"></div>
           <div style="margin-top:12px;"><button type="button" id="rops-add-to-queue" disabled>Add to upload queue</button></div>
@@ -513,7 +511,7 @@
     <div class="card">
       <p class="card-title">Recent activity</p>
       <div style="overflow:auto;">
-        <table class="rops-activity"><thead><tr><th>Filed as</th><th>Entity</th><th>Category</th><th>Destination</th><th>Download</th><th>Time</th></tr></thead><tbody id="rops-log-body"><tr><td colspan="6" class="empty-note">Nothing filed yet this session.</td></tr></tbody></table>
+        <table class="rops-activity"><thead><tr><th>Filed as</th><th>Registry</th><th>Country / Type</th><th>Category</th><th>Destination</th><th>Download</th><th>Time</th></tr></thead><tbody id="rops-log-body"><tr><td colspan="7" class="empty-note">Nothing filed yet this session.</td></tr></tbody></table>
       </div>
     </div>
   </section>
@@ -1792,7 +1790,6 @@ const ROPS_SOURCE_FILENAME = "Master Folder_250923.xlsx";
 const ROPS_SOURCE_UNIQUE_ID = "31614e24-6ed1-45ff-b7fa-3e6bb9ec7b86";
 const ROPS_ASSET_TABLE_NAME = "Assets"; // verified in the provided workbook; Agreement ID is the 16th table column (Excel col P)
 const ROPS_BD_LIBRARY_NAME = "BD Usage";
-const ROPS_RENAME_FOLDERS = { MY: "Renamed MY", SG: "Renamed SG" };
 const ROPS_AUTOFILL_FOLDERS = { MY: "Autofilled Form MY", SG: "Autofilled Form SG" };
 
 const ROPS_FIELD_MAP = [
@@ -1815,21 +1812,171 @@ const ROPS_FIELD_MAP = [
   { id:"20", label:"Title (Responsible Party signatory)",group:"Responsible party" }
 ];
 
-const ROPS_DOC_CATEGORIES = {
-  MY: [
-    ["NEM_CERT","NEM Cert"],["ST_LICENSE","ST License"],["COPV","COPV"],["METER_PHOTO","Meter Photo"],
-    ["ASSET_PHOTO_1","Asset Photo 1"],["ASSET_PHOTO_2","Asset Photo 2"],["DRP","DRP"],["REC_OWNERSHIP","REC Ownership"]
-  ],
-  SG: [
-    ["COC","COC"],["BOT","BOT"],["COPV","COPV"],["SOTO","SOTO"],["METER_PHOTO","Meter Photo"],
-    ["ASSET_PHOTO_1","Asset Photo 1"],["ASSET_PHOTO_2","Asset Photo 2"],["PPA_SCREENSHOT","PPA Screenshot"],
-    ["SLD_IREC","SLD (IREC)"],["METERING_EVIDENT_IREC","Metering Evident (IREC)"]
-  ]
+const ROPS_RENAME_CHECKLISTS = {
+  "TIGR": {
+    "SG": {
+      "RESI": [
+        "SP Approval Letter",
+        "Certificate of Compliance",
+        "Others",
+        "Meter Photo",
+        "Asset / Project Photos",
+        "Sample Generation data (one month data)",
+        "APX Designation of Responsible Party Form",
+        "Power Purchase Agreement"
+      ],
+      "SOLAR": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Certificate of Compliance",
+        "Commissioning of Photovoltaic PV System",
+        "SP Approval Letter",
+        "Others",
+        "Meter Photo",
+        "Asset / Project Photos",
+        "Sample Generation data (one month data)",
+        "APX Designation of Responsible Party Form",
+        "Power Purchase Agreement"
+      ]
+    },
+    "MY": {
+      "SELCO": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Meter Photo",
+        "Asset / Project Photos",
+        "Sample Generation data (one month data)",
+        "APX Designation of Responsible Party Form",
+        "Power Purchase Agreement"
+      ],
+      "FIT": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Feed-in Approval Holder (FiAH) Certificate",
+        "Meter Photo",
+        "Asset / Project Photos",
+        "Sample Generation data (one month data)",
+        "APX Designation of Responsible Party Form",
+        "Power Purchase Agreement"
+      ],
+      "NEM": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Net-Energy Metering (NEM) Certificate",
+        "Meter Photo",
+        "Asset / Project Photos",
+        "Sample Generation data (one month data)",
+        "APX Designation of Responsible Party Form",
+        "Power Purchase Agreement"
+      ]
+    }
+  },
+  "I-REC": {
+    "MY": {
+      "NEM": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Net-Energy Metering (NEM) Certificate",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ],
+      "FIT": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Feed-in Approval Holder (FiAH) Certificate",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence (one month data)",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ],
+      "SELCO": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence (one month data)",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ],
+      "HYDRO": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Environment License",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence (one month data)",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ],
+      "BIOGAS_BIOMASS": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "Feedstock / fuel type declaration",
+        "Sustainability / chain-of-custody documentation for the feedstock, confirming sustainable sourcing",
+        "Grid connection agreement / Certificate of Commissioning (COD)",
+        "Department of Environment (DOE) approval / environmental compliance certificate",
+        "SF-04C form",
+        "Single Line Diagram (SLD)",
+        "Meter Photo",
+        "Asset / Project Photos",
+        "Sample Metering Evidence (one month data)",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ],
+      "LABUAN": [
+        "Suruhanjaya Tenaga (ST) Public Generating License",
+        "SEDA confirmation / registration, if the facility participates in NEM or another SEDA",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence (one month data)",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ],
+      "SABAH": [
+        "ECoS Generating License",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence (one month data)",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ]
+    },
+    "SG": {
+      "SOLAR": [
+        "Certificate of Compliance",
+        "Commissioning of Photovoltaic PV System",
+        "SP Approval Letter",
+        "Others",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ]
+    },
+    "VN": {
+      "WIND": [
+        "Connection Point Agreement",
+        "Others",
+        "Single Line Diagram (SLD) — AC",
+        "Meter Photo",
+        "Asset / Project Photos (min. 2)",
+        "Sample Metering Evidence",
+        "Owner Declaration Form",
+        "Power Purchase Agreement"
+      ]
+    }
+  }
 };
+const ROPS_COUNTRY_NAMES = { MY:'Malaysia', SG:'Singapore', VN:'Vietnam' };
 
 let ropsBdDriveId = null;
 let ropsWorkbookRef = null; // {driveId,itemId,webUrl}
-let ropsUploadEntity = "MY";
+let ropsUploadRegistry = "";
+let ropsUploadCountry = "";
+let ropsUploadType = "";
 let ropsLookupEntity = "MY";
 let ropsSelectedFile = null;
 let ropsUploadQueue = [];
@@ -1917,18 +2064,45 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
 }
 
 /* ---- Rename & File ---- */
+function ropsPopulateCountries(){
+  const registry=document.getElementById('rops-registry').value;
+  ropsUploadRegistry=registry;
+  const sel=document.getElementById('rops-country');
+  const prev=sel.value;
+  const countries=registry && ROPS_RENAME_CHECKLISTS[registry] ? Object.keys(ROPS_RENAME_CHECKLISTS[registry]) : [];
+  sel.innerHTML='<option value="">Select country...</option>'+countries.map(c=>'<option value="'+ropsEsc(c)+'">'+ropsEsc(c+' - '+(ROPS_COUNTRY_NAMES[c]||c))+'</option>').join('');
+  if(countries.includes(prev)) sel.value=prev;
+  ropsUploadCountry=sel.value;
+  ropsPopulateTypes();
+}
+function ropsPopulateTypes(){
+  const registry=document.getElementById('rops-registry').value;
+  const country=document.getElementById('rops-country').value;
+  ropsUploadRegistry=registry; ropsUploadCountry=country;
+  const sel=document.getElementById('rops-type');
+  const prev=sel.value;
+  const types=(registry && country && ROPS_RENAME_CHECKLISTS[registry] && ROPS_RENAME_CHECKLISTS[registry][country]) ? Object.keys(ROPS_RENAME_CHECKLISTS[registry][country]) : [];
+  sel.innerHTML='<option value="">Select type...</option>'+types.map(t=>'<option value="'+ropsEsc(t)+'">'+ropsEsc(t)+'</option>').join('');
+  if(types.includes(prev)) sel.value=prev;
+  ropsUploadType=sel.value;
+  ropsPopulateCategories();
+}
 function ropsPopulateCategories(){
+  const registry=document.getElementById('rops-registry').value;
+  const country=document.getElementById('rops-country').value;
+  const type=document.getElementById('rops-type').value;
+  ropsUploadRegistry=registry; ropsUploadCountry=country; ropsUploadType=type;
   const sel=document.getElementById('rops-doc-category');
   const prev=sel.value;
-  sel.innerHTML=ROPS_DOC_CATEGORIES[ropsUploadEntity].map(x=>'<option value="'+ropsEsc(x[0])+'">'+ropsEsc(x[1])+'</option>').join('');
-  if(ROPS_DOC_CATEGORIES[ropsUploadEntity].some(x=>x[0]===prev)) sel.value=prev;
+  const docs=(registry && country && type && ROPS_RENAME_CHECKLISTS[registry] && ROPS_RENAME_CHECKLISTS[registry][country] && ROPS_RENAME_CHECKLISTS[registry][country][type]) || [];
+  sel.innerHTML='<option value="">Select document category...</option>'+docs.map(d=>'<option value="'+ropsEsc(d)+'">'+ropsEsc(d)+'</option>').join('');
+  if(docs.includes(prev)) sel.value=prev;
   ropsUpdateRenamePreview();
 }
 
-document.querySelectorAll('#rops-upload-entity-switch .rops-stamp').forEach(btn=>btn.addEventListener('click',()=>{
-  document.querySelectorAll('#rops-upload-entity-switch .rops-stamp').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active'); ropsUploadEntity=btn.dataset.entity; ropsPopulateCategories();
-}));
+document.getElementById('rops-registry').addEventListener('change',ropsPopulateCountries);
+document.getElementById('rops-country').addEventListener('change',ropsPopulateTypes);
+document.getElementById('rops-type').addEventListener('change',ropsPopulateCategories);
 
 const ropsDropzone=document.getElementById('rops-dropzone');
 const ropsFileInput=document.getElementById('rops-file-input');
@@ -1942,28 +2116,50 @@ function ropsHandleFile(file){
   ropsSelectedFile=file;
   ropsDropzone.querySelector('.rops-dz-main').textContent=file.name;
   ropsUpdateRenamePreview();
-  document.getElementById('rops-add-to-queue').disabled=false;
+  ropsValidateQueueReady();
 }
-function ropsSafeNamePart(s){ return String(s||'').trim().replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,'_'); }
+function ropsSafeNamePart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/\s+/g,'_'); }
+function ropsSafeFolderPart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/[. ]+$/g,''); }
 function ropsBuildFilename(file){
-  const cat=document.getElementById('rops-doc-category').value;
-  const agr=ropsSafeNamePart(document.getElementById('rops-upload-agreement-id').value)||'UNASSIGNED';
-  const date=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const company=ropsSafeNamePart(document.getElementById('rops-company-name').value);
+  const registry=ropsSafeNamePart(document.getElementById('rops-registry').value);
+  const country=ropsSafeNamePart(document.getElementById('rops-country').value);
+  const type=ropsSafeNamePart(document.getElementById('rops-type').value);
   const name=file ? file.name : (ropsSelectedFile&&ropsSelectedFile.name)||'file.pdf';
   const dot=name.lastIndexOf('.'); const ext=dot>=0 ? name.slice(dot+1) : 'pdf';
-  return ropsUploadEntity+'_'+cat+'_'+agr+'_'+date+'.'+ext;
+  return company+'_'+registry+'_'+country+'_'+type+'.'+ext;
 }
 function ropsUpdateRenamePreview(){
   const box=document.getElementById('rops-rename-preview');
   if(!ropsSelectedFile){box.style.display='none';return;}
-  box.style.display='block'; box.innerHTML='<span class="rops-old">'+ropsEsc(ropsSelectedFile.name)+'</span>→ '+ropsEsc(ropsBuildFilename(ropsSelectedFile));
+  const company=document.getElementById('rops-company-name').value.trim();
+  const registry=document.getElementById('rops-registry').value;
+  const country=document.getElementById('rops-country').value;
+  const type=document.getElementById('rops-type').value;
+  const category=document.getElementById('rops-doc-category').value;
+  if(!(company&&registry&&country&&type&&category)){
+    box.style.display='block'; box.innerHTML='<span class="rops-old">'+ropsEsc(ropsSelectedFile.name)+'</span>Select Company Name, Registry, Country, Type and Document category to complete the filename.'; return;
+  }
+  box.style.display='block'; box.innerHTML='<span class="rops-old">'+ropsEsc(ropsSelectedFile.name)+'</span>→ '+ropsEsc(ropsBuildFilename(ropsSelectedFile))+'<br><span class="rops-note">Destination: BD Usage / '+ropsEsc(company)+'</span>';
 }
-document.getElementById('rops-doc-category').addEventListener('change',ropsUpdateRenamePreview);
-document.getElementById('rops-upload-agreement-id').addEventListener('input',ropsUpdateRenamePreview);
+function ropsValidateQueueReady(){
+  const ready=!!(ropsSelectedFile && document.getElementById('rops-company-name').value.trim() && document.getElementById('rops-registry').value && document.getElementById('rops-country').value && document.getElementById('rops-type').value && document.getElementById('rops-doc-category').value);
+  document.getElementById('rops-add-to-queue').disabled=!ready;
+}
+['rops-company-name','rops-registry','rops-country','rops-type','rops-doc-category'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener(el.tagName==='INPUT'?'input':'change',()=>{ropsUpdateRenamePreview();ropsValidateQueueReady();});
+});
 
 document.getElementById('rops-add-to-queue').addEventListener('click',()=>{
   if(!ropsSelectedFile) return;
-  ropsUploadQueue.push({file:ropsSelectedFile,renamed:ropsBuildFilename(ropsSelectedFile),entity:ropsUploadEntity,category:document.getElementById('rops-doc-category').value});
+  const company=document.getElementById('rops-company-name').value.trim();
+  const registry=document.getElementById('rops-registry').value;
+  const country=document.getElementById('rops-country').value;
+  const type=document.getElementById('rops-type').value;
+  const category=document.getElementById('rops-doc-category').value;
+  if(!(company&&registry&&country&&type&&category)) return;
+  ropsUploadQueue.push({file:ropsSelectedFile,renamed:ropsBuildFilename(ropsSelectedFile),company,registry,country,type,category,folder:ropsSafeFolderPart(company)});
   ropsSelectedFile=null; ropsFileInput.value=''; ropsDropzone.querySelector('.rops-dz-main').textContent='Drop a file here, or click to browse';
   document.getElementById('rops-rename-preview').style.display='none'; document.getElementById('rops-add-to-queue').disabled=true; ropsRenderQueue();
 });
@@ -1972,7 +2168,7 @@ function ropsRenderQueue(){
   const list=document.getElementById('rops-queue-list'); const btn=document.getElementById('rops-upload-all');
   if(!ropsUploadQueue.length){list.innerHTML='<p class="empty-note">Queue is empty.</p>';btn.disabled=true;return;}
   btn.disabled=false;
-  list.innerHTML=ropsUploadQueue.map((x,i)=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'</span><span class="rops-qactions"><button type="button" class="secondary small-btn" data-rm="'+i+'">Remove</button></span></div>').join('');
+  list.innerHTML=ropsUploadQueue.map((x,i)=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.company)+'</span></span><span class="rops-qactions"><button type="button" class="secondary small-btn" data-rm="'+i+'">Remove</button></span></div>').join('');
   list.querySelectorAll('[data-rm]').forEach(b=>b.addEventListener('click',()=>{ropsUploadQueue.splice(Number(b.dataset.rm),1);ropsRenderQueue();}));
 }
 
@@ -1983,7 +2179,7 @@ function ropsAppendLog(item){
   const body=document.getElementById('rops-log-body');
   if(body.querySelector('td[colspan]')) body.innerHTML='';
   const tr=document.createElement('tr');
-  tr.innerHTML='<td>'+ropsEsc(item.renamed)+'</td><td>'+ropsEsc(item.entity)+'</td><td>'+ropsEsc(item.category)+'</td><td>'+ropsEsc(ROPS_RENAME_FOLDERS[item.entity])+'</td><td><button type="button" class="secondary small-btn">Download</button></td><td>'+ropsEsc(new Date().toLocaleTimeString())+'</td>';
+  tr.innerHTML='<td>'+ropsEsc(item.renamed)+'</td><td>'+ropsEsc(item.registry)+'</td><td>'+ropsEsc(item.country+' / '+item.type)+'</td><td>'+ropsEsc(item.category)+'</td><td>'+ropsEsc('BD Usage / '+item.company)+'</td><td><button type="button" class="secondary small-btn">Download</button></td><td>'+ropsEsc(new Date().toLocaleTimeString())+'</td>';
   tr.querySelector('button').addEventListener('click',()=>ropsDownloadFile(item.file,item.renamed));
   body.prepend(tr);
 }
@@ -1994,10 +2190,10 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
   try{
     for(const item of ropsUploadQueue){
       ropsShowStatus('rops-upload-status','Uploading '+(done+1)+' of '+ropsUploadQueue.length+': '+item.renamed,true);
-      await ropsUploadBlob(ROPS_RENAME_FOLDERS[item.entity], item.renamed, item.file, item.file.type||'application/octet-stream');
+      await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
       ropsAppendLog(item); done++;
     }
-    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to BD Usage successfully.',true);
+    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to their Company Name folder(s) in BD Usage successfully.',true);
     ropsUploadQueue=[]; ropsRenderQueue();
   }catch(err){
     console.error(err); ropsShowStatus('rops-upload-status','Upload stopped after '+done+' successful file(s).\n'+err.message,false); btn.disabled=ropsUploadQueue.length===0;
@@ -2121,7 +2317,7 @@ document.getElementById('rops-save-sp-btn').addEventListener('click',async()=>{
   finally{btn.disabled=false;}
 });
 
-ropsPopulateCategories();
+ropsPopulateCountries();
 
 // When the shared sign-in finishes, resolve the two Registry Ops destinations/source lazily in the background.
 async function registryInit(){
