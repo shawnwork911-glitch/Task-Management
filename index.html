@@ -282,6 +282,13 @@
   .rops-queue-item{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--border);background:var(--surface-2);padding:9px 10px;border-radius:7px;margin-top:8px;font-size:12px;}
   .rops-qname{word-break:break-all;}
   .rops-qactions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+  .rops-company-history{margin-bottom:18px;}
+  .rops-company-toolbar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
+  .rops-company-toolbar > div{flex:1;min-width:220px;}
+  .rops-company-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .rops-company-chip{background:var(--surface-2);color:var(--text);border:1px solid var(--border);padding:7px 10px;border-radius:999px;font-size:12px;font-weight:500;}
+  .rops-company-chip:hover{background:var(--surface);border-color:var(--border-strong);}
+  .rops-company-chip.active{border-color:var(--accent);outline:1px solid var(--accent);}
   .rops-required-wrap{margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
   .rops-required-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);}
   .rops-progress{font-size:12px;font-weight:600;}
@@ -496,6 +503,21 @@
       <span class="rops-conn" id="rops-rename-conn">SharePoint: ready after sign-in</span>
     </div>
 
+    <div class="card rops-company-history">
+      <div class="card-title-row">
+        <div>
+          <p class="card-title" style="margin:0;">Previous companies</p>
+          <p class="card-note" style="margin:4px 0 0;">Companies with folders already created in the BD Usage SharePoint library. Select one to continue uploading documents later.</p>
+        </div>
+        <button type="button" class="secondary small-btn" id="rops-refresh-companies">Refresh company list</button>
+      </div>
+      <div class="rops-company-toolbar">
+        <div><label for="rops-company-search">Find company</label><input type="text" id="rops-company-search" placeholder="Search previous companies..."></div>
+      </div>
+      <div class="rops-company-list" id="rops-company-list"><span class="empty-note">Company list will load after SharePoint connects.</span></div>
+      <div class="rops-status" id="rops-company-status"></div>
+    </div>
+
     <div class="rops-grid-2">
       <div class="card">
         <p class="card-title">File details</p>
@@ -507,7 +529,7 @@
         </div>
         <div class="rops-required-wrap" id="rops-required-wrap">
           <div class="rops-required-head">
-            <div><strong style="font-size:13px;">Required documents</strong><div class="rops-note">Every item below must be uploaded or already exist in the same Company Name folder.</div></div>
+            <div><strong style="font-size:13px;">Required documents</strong><div class="rops-note">Upload any available items now. Missing items can be completed later; existing files in the same Company Name folder will be detected automatically.</div></div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="rops-progress" id="rops-required-progress">Select Registry, Country and Type</span><button type="button" class="secondary small-btn" id="rops-check-folder" disabled>Check SharePoint folder</button></div>
           </div>
           <div id="rops-required-list"><p class="empty-note" style="padding:12px;">Select Registry, Country and Type to load the required document checklist.</p></div>
@@ -517,7 +539,7 @@
       <div class="card">
         <p class="card-title">Upload queue</p>
         <div id="rops-queue-list"><p class="empty-note">Queue is empty.</p></div>
-        <button type="button" id="rops-upload-all" style="margin-top:12px;width:100%;" disabled>Upload &amp; file to SharePoint</button>
+        <button type="button" id="rops-upload-all" style="margin-top:12px;width:100%;" disabled>Upload selected files to SharePoint</button>
         <div class="rops-status" id="rops-upload-status"></div>
       </div>
     </div>
@@ -2078,6 +2100,56 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
 }
 
 /* ---- Rename & File ---- */
+let ropsCompanyFolders=[];
+const ROPS_NON_COMPANY_FOLDERS=new Set(['forms','renamed my','renamed sg','autofilled form my','autofilled form sg']);
+
+async function ropsLoadCompanyFolders(){
+  const list=document.getElementById('rops-company-list');
+  if(!list) return;
+  const btn=document.getElementById('rops-refresh-companies');
+  if(btn) btn.disabled=true;
+  ropsShowStatus('rops-company-status','Loading previous company folders from SharePoint...',true);
+  try{
+    const driveId=await ropsResolveBdDrive();
+    const data=await graphFetch('/drives/'+driveId+'/root/children?$select=id,name,webUrl,folder,file&$top=999');
+    ropsCompanyFolders=((data&&data.value)||[])
+      .filter(x=>x.folder && x.name && !ROPS_NON_COMPANY_FOLDERS.has(String(x.name).toLowerCase()))
+      .map(x=>({id:x.id,name:x.name,webUrl:x.webUrl}))
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    ropsRenderCompanyFolders();
+    ropsShowStatus('rops-company-status',ropsCompanyFolders.length+' previous company folder(s) found.',true);
+  }catch(err){
+    console.error(err);
+    list.innerHTML='<span class="empty-note">Could not load previous companies.</span>';
+    ropsShowStatus('rops-company-status','Could not load company list. '+err.message,false);
+  }finally{ if(btn) btn.disabled=false; }
+}
+function ropsRenderCompanyFolders(){
+  const list=document.getElementById('rops-company-list');
+  if(!list) return;
+  const q=(document.getElementById('rops-company-search')?.value||'').trim().toLowerCase();
+  const current=(document.getElementById('rops-company-name')?.value||'').trim().toLowerCase();
+  const rows=ropsCompanyFolders.filter(x=>!q || x.name.toLowerCase().includes(q));
+  if(!rows.length){ list.innerHTML='<span class="empty-note">'+(q?'No company matches this search.':'No previous company folders found.')+'</span>'; return; }
+  list.innerHTML=rows.map(x=>'<button type="button" class="rops-company-chip'+(x.name.toLowerCase()===current?' active':'')+'" data-company-name="'+ropsEsc(x.name)+'">'+ropsEsc(x.name)+'</button>').join('');
+  list.querySelectorAll('[data-company-name]').forEach(btn=>btn.addEventListener('click',()=>{
+    const name=btn.getAttribute('data-company-name')||'';
+    const input=document.getElementById('rops-company-name');
+    input.value=name;
+    ropsResetChecklistForContext();
+    ropsRenderCompanyFolders();
+    input.scrollIntoView({behavior:'smooth',block:'center'});
+  }));
+}
+function ropsRememberCompanyFolder(name){
+  name=String(name||'').trim(); if(!name) return;
+  if(!ropsCompanyFolders.some(x=>x.name.toLowerCase()===name.toLowerCase())){
+    ropsCompanyFolders.push({id:'',name,webUrl:''});
+    ropsCompanyFolders.sort((a,b)=>a.name.localeCompare(b.name));
+    ropsRenderCompanyFolders();
+  }
+}
+
 function ropsCurrentChecklistDocs(){
   const registry=document.getElementById('rops-registry').value;
   const country=document.getElementById('rops-country').value;
@@ -2174,7 +2246,7 @@ function ropsRenderRequiredChecklist(){
     const category=docs[Number(btn.getAttribute('data-remove-cat'))];
     ropsUploadQueue=ropsUploadQueue.filter(x=>x.category!==category); ropsRenderRequiredChecklist(); ropsRenderQueue();
   }));
-  document.getElementById('rops-upload-all').disabled=!ropsAllRequiredComplete() || ropsUploadQueue.length===0;
+  document.getElementById('rops-upload-all').disabled=ropsUploadQueue.length===0;
 }
 function ropsQueueCategoryFile(category,file){
   const c=ropsCurrentContext();
@@ -2233,8 +2305,10 @@ function ropsScheduleFolderCheck(){
 document.getElementById('rops-registry').addEventListener('change',ropsPopulateCountries);
 document.getElementById('rops-country').addEventListener('change',ropsPopulateTypes);
 document.getElementById('rops-type').addEventListener('change',ropsResetChecklistForContext);
-document.getElementById('rops-company-name').addEventListener('input',()=>{ropsResetChecklistForContext();});
+document.getElementById('rops-company-name').addEventListener('input',()=>{ropsResetChecklistForContext(); ropsRenderCompanyFolders();});
 document.getElementById('rops-check-folder').addEventListener('click',ropsCheckExistingFolder);
+document.getElementById('rops-refresh-companies').addEventListener('click',ropsLoadCompanyFolders);
+document.getElementById('rops-company-search').addEventListener('input',ropsRenderCompanyFolders);
 
 function ropsDownloadFile(file, filename){
   const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
@@ -2250,7 +2324,8 @@ function ropsAppendLog(item){
 
 document.getElementById('rops-upload-all').addEventListener('click',async()=>{
   const docs=ropsCurrentChecklistDocs();
-  if(!ropsAllRequiredComplete()){ ropsShowStatus('rops-upload-status','All required document categories must be complete before filing.',false); return; }
+  if(!ropsUploadQueue.length){ ropsShowStatus('rops-upload-status','Choose at least one document to upload.',false); return; }
+  const companyAtStart=ropsCurrentContext().company;
   const btn=document.getElementById('rops-upload-all'); btn.disabled=true; ropsHideStatus('rops-upload-status');
   let done=0; const total=ropsUploadQueue.length;
   try{
@@ -2259,12 +2334,17 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
       ropsAppendLog(item); done++;
     }
-    ropsShowStatus('rops-upload-status','Checklist complete. Uploaded '+done+' new document(s) to BD Usage / '+ropsCurrentContext().company+'. All '+docs.length+' required categories are now filed in the same Company Name folder.',true);
+    ropsRememberCompanyFolder(companyAtStart);
     ropsUploadQueue=[];
     await ropsCheckExistingFolder();
+    const complete=docs.filter(ropsCategoryIsComplete).length;
+    const remaining=Math.max(0,docs.length-complete);
+    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to BD Usage / '+companyAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+(remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.'),true);
     ropsRenderQueue();
   }catch(err){
-    console.error(err); ropsShowStatus('rops-upload-status','Upload stopped after '+done+' successful file(s).\n'+err.message,false); ropsRenderRequiredChecklist();
+    console.error(err);
+    if(done>0) ropsRememberCompanyFolder(companyAtStart);
+    ropsShowStatus('rops-upload-status','Upload stopped after '+done+' successful file(s).\n'+err.message,false); ropsRenderRequiredChecklist();
   }
 });
 
@@ -2389,7 +2469,7 @@ ropsPopulateCountries();
 
 // When the shared sign-in finishes, resolve the two Registry Ops destinations/source lazily in the background.
 async function registryInit(){
-  try{ await ropsResolveBdDrive(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
+  try{ await ropsResolveBdDrive(); await ropsLoadCompanyFolders(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
   try{ await ropsResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('rops-autofill-conn').textContent='Excel source: not resolved'; }
 }
 </script>
