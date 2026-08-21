@@ -2364,7 +2364,7 @@ function ropsEntityFromRow(obj){
 function ropsCapacity(obj){
   // Autofill Nameplate Capacity is sourced from Excel Column O: Capacity (MWac).
   const mw=(obj && obj.__columnO!==undefined && obj.__columnO!==null && String(obj.__columnO).trim()!=='') ? obj.__columnO : ropsFirst(obj,['Capacity (MWac)']);
-  if(mw!=='') return String(mw)+' MWac';
+  if(mw!=='') return String(mw);
   return '';
 }
 function ropsMapAssetToFields(obj){
