@@ -613,7 +613,7 @@
         </div>
         <details class="rops-preset-box">
           <summary>Preset table format</summary>
-          <div class="rops-note" style="margin-top:7px;">Required for reliable file naming: <strong>Entity</strong>, <strong>Company Name</strong>, and <strong>Capacity (MWac)</strong>. Agreement ID is optional for manually entered items. Entity accepts MY or SG. You may leave any PDF field blank and edit it during review.</div>
+          <div class="rops-note" style="margin-top:7px;">The template contains only fields that are filled into the agreement form. Each row represents one agreement. You may leave any field blank and edit it during review.</div>
           <div class="rops-preset-header" id="rops-preset-header"></div>
         </details>
         <label for="rops-manual-paste">Paste table here</label>
@@ -2413,8 +2413,9 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
 });
 
 /* ---- Autofill Agreement ---- */
-const ROPS_MANUAL_META_HEADERS = ["Entity","Agreement ID (Ops Internal)","Company Name","Capacity (MWac)"];
-const ROPS_MANUAL_PRESET_HEADERS = ROPS_MANUAL_META_HEADERS.concat(ROPS_FIELD_MAP.map(f=>f.label));
+// Manual batch template contains PDF form fields only.
+// Entity / Agreement ID / Company Name / Capacity are workflow metadata and are intentionally excluded.
+const ROPS_MANUAL_PRESET_HEADERS = ROPS_FIELD_MAP.map(f=>f.label);
 
 function ropsNormalizeHeaderName(v){
   return String(v==null?'':v).trim().toLowerCase().replace(/[\s_\-]+/g,' ').replace(/[^a-z0-9 ()/?.,]/g,'').trim();
@@ -2568,9 +2569,6 @@ function ropsImportManualTable(){
     ROPS_FIELD_MAP.forEach(f=>{ item.fields[f.id]=ropsManualCell(row,map,ropsManualFieldAliases(f)); });
     const country=item.fields['5']; item.entity=ropsEntityFromManualValue(ropsManualCell(row,map,['Entity','Country Code']),country);
     if(!item.fields['5']) item.fields['5']=item.entity==='SG'?'Singapore':'Malaysia';
-    if(!item.fields['8'] && item.capacity) item.fields['8']=item.capacity;
-    if(!item.fields['2'] && item.companyName) item.fields['2']=item.companyName;
-    if(!item.fields['13'] && item.companyName) item.fields['13']=item.companyName;
     const hasData=item.companyName||item.agreementId||Object.values(item.fields).some(Boolean);
     if(hasData) items.push(item); else skipped.push(idx+2);
   });
