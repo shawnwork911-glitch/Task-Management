@@ -607,6 +607,10 @@
 
       <div class="rops-manual-panel" id="rops-manual-panel">
         <p class="card-note" style="margin-top:0;">Paste a table copied from Excel or Google Sheets. The first row must contain the preset headers. Each following row becomes one agreement item that can be reviewed, previewed, saved to SharePoint, or downloaded separately.</p>
+        <div class="rops-actions" style="margin-top:0;margin-bottom:10px;">
+          <button type="button" class="secondary" id="rops-download-template-btn">Download template table (.csv)</button>
+          <span class="rops-note">Open the template in Excel, fill one agreement per row, then copy the completed table and paste it below.</span>
+        </div>
         <details class="rops-preset-box">
           <summary>Preset table format</summary>
           <div class="rops-note" style="margin-top:7px;">Required for reliable file naming: <strong>Entity</strong>, <strong>Company Name</strong>, and <strong>Capacity (MWac)</strong>. Agreement ID is optional for manually entered items. Entity accepts MY or SG. You may leave any PDF field blank and edit it during review.</div>
@@ -2416,6 +2420,24 @@ function ropsNormalizeHeaderName(v){
   return String(v==null?'':v).trim().toLowerCase().replace(/[\s_\-]+/g,' ').replace(/[^a-z0-9 ()/?.,]/g,'').trim();
 }
 function ropsPresetHeaderText(){ return ROPS_MANUAL_PRESET_HEADERS.join('\t'); }
+function ropsCsvCell(v){
+  const s=String(v==null?'':v);
+  return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function ropsDownloadManualTemplate(){
+  const header=ROPS_MANUAL_PRESET_HEADERS.map(ropsCsvCell).join(',');
+  const blank=ROPS_MANUAL_PRESET_HEADERS.map(()=> '').join(',');
+  const csv='\ufeff'+header+'\r\n'+blank+'\r\n';
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='Autofill_Agreement_Batch_Template.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 function ropsInitManualPreset(){
   const el=document.getElementById('rops-preset-header');
   if(el) el.textContent=ropsPresetHeaderText();
@@ -2433,6 +2455,7 @@ function ropsSetAutofillMode(mode){
 }
 document.querySelectorAll('[data-rops-autofill-mode]').forEach(btn=>btn.addEventListener('click',()=>ropsSetAutofillMode(btn.dataset.ropsAutofillMode)));
 ropsInitManualPreset();
+document.getElementById('rops-download-template-btn').addEventListener('click',ropsDownloadManualTemplate);
 
 document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(b=>b.classList.remove('active'));
