@@ -312,30 +312,6 @@
   .rops-preview-placeholder{font-size:12px;color:var(--text-secondary);padding:28px;text-align:center;}
   .rops-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;}
   .rops-note{font-size:11px;color:var(--text-secondary);}
-  .rops-input-mode{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-  .rops-mode-btn{background:transparent;color:var(--text);border:1px solid var(--border-strong);}
-  .rops-mode-btn:hover{background:var(--surface-2);}
-  .rops-mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-  .rops-manual-panel{display:none;}
-  .rops-manual-panel.active{display:block;}
-  .rops-preset-box{border:1px solid var(--border);border-radius:8px;background:var(--surface-2);padding:10px 12px;margin:10px 0;}
-  .rops-preset-box summary{cursor:pointer;font-size:12px;font-weight:600;}
-  .rops-preset-header{margin-top:8px;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre;overflow:auto;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);}
-  #rops-manual-paste{min-height:150px;font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;}
-  .rops-batch-summary{display:none;margin-top:16px;}
-  .rops-batch-summary.show{display:block;}
-  .rops-batch-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
-  .rops-batch-list{display:flex;flex-direction:column;gap:8px;}
-  .rops-batch-item{border:1px solid var(--border);border-radius:8px;background:var(--surface-2);padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;}
-  .rops-batch-item.active{border-color:var(--accent);outline:1px solid var(--accent);}
-  .rops-batch-main{min-width:0;}
-  .rops-batch-title{font-size:13px;font-weight:600;word-break:break-word;}
-  .rops-batch-meta{font-size:11px;color:var(--text-secondary);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap;}
-  .rops-batch-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
-  .rops-batch-state{font-size:11px;font-weight:600;}
-  .rops-batch-state.ready{color:var(--success);}
-  .rops-batch-state.draft{color:var(--warn);}
-  @media(max-width:720px){.rops-batch-item{grid-template-columns:1fr;}.rops-batch-actions{justify-content:flex-start;}}
   .rops-activity{width:100%;border-collapse:collapse;font-size:12px;}
   .rops-activity th{text-align:left;font-size:11px;color:var(--text-secondary);padding:6px 7px;border-bottom:1px solid var(--border);}
   .rops-activity td{padding:7px;border-bottom:1px solid var(--border);vertical-align:top;}
@@ -591,48 +567,12 @@
     </div>
 
     <div class="card">
-      <div class="rops-input-mode" role="tablist" aria-label="Autofill input method">
-        <button type="button" class="rops-mode-btn active" id="rops-mode-lookup-btn" data-rops-autofill-mode="lookup">Lookup Agreement ID</button>
-        <button type="button" class="rops-mode-btn" id="rops-mode-manual-btn" data-rops-autofill-mode="manual">Paste preset table (multiple items)</button>
+      <div class="filter-row" style="margin-bottom:0;">
+        <div style="flex:1;min-width:240px;"><label for="rops-agreement-id-input">Agreement ID (Ops Internal)</label><input type="text" id="rops-agreement-id-input" placeholder="Enter exact Agreement ID"></div>
+        <button type="button" id="rops-lookup-btn">Search &amp; auto-fill</button>
+        <button type="button" class="secondary" id="rops-clear-btn">Clear</button>
       </div>
-
-      <div class="rops-manual-panel active" id="rops-lookup-panel">
-        <div class="filter-row" style="margin-bottom:0;">
-          <div style="flex:1;min-width:240px;"><label for="rops-agreement-id-input">Agreement ID (Ops Internal)</label><input type="text" id="rops-agreement-id-input" placeholder="Enter exact Agreement ID"></div>
-          <button type="button" id="rops-lookup-btn">Search &amp; auto-fill</button>
-          <button type="button" class="secondary" id="rops-clear-btn">Clear</button>
-        </div>
-        <div class="rops-status" id="rops-lookup-status"></div>
-      </div>
-
-      <div class="rops-manual-panel" id="rops-manual-panel">
-        <p class="card-note" style="margin-top:0;">Paste a table copied from Excel or Google Sheets. The first row must contain the preset headers. Each following row becomes one agreement item that can be reviewed, previewed, saved to SharePoint, or downloaded separately.</p>
-        <div class="rops-actions" style="margin-top:0;margin-bottom:10px;">
-          <button type="button" class="secondary" id="rops-download-template-btn">Download template table (.csv)</button>
-          <span class="rops-note">Open the template in Excel, fill one agreement per row, then copy the completed table and paste it below.</span>
-        </div>
-        <details class="rops-preset-box">
-          <summary>Preset table format</summary>
-          <div class="rops-note" style="margin-top:7px;">The template contains only fields that are filled into the agreement form. Each row represents one agreement. You may leave any field blank and edit it during review.</div>
-          <div class="rops-preset-header" id="rops-preset-header"></div>
-        </details>
-        <label for="rops-manual-paste">Paste table here</label>
-        <textarea id="rops-manual-paste" placeholder="Paste the header row and one or more data rows here..."></textarea>
-        <div class="rops-actions">
-          <button type="button" id="rops-parse-table-btn">Extract multiple items</button>
-          <button type="button" class="secondary" id="rops-clear-table-btn">Clear pasted table</button>
-          <span class="rops-note">Tab-separated tables copied directly from Excel are recommended. CSV is also supported.</span>
-        </div>
-        <div class="rops-status" id="rops-manual-status"></div>
-
-        <div class="rops-batch-summary" id="rops-batch-summary">
-          <div class="rops-batch-toolbar">
-            <div><strong style="font-size:13px;">Imported agreement items</strong><div class="rops-note" id="rops-batch-count"></div></div>
-            <button type="button" class="secondary small-btn" id="rops-clear-batch-btn">Clear imported items</button>
-          </div>
-          <div class="rops-batch-list" id="rops-batch-list"></div>
-        </div>
-      </div>
+      <div class="rops-status" id="rops-lookup-status"></div>
     </div>
 
     <div class="rops-workspace" id="rops-workspace" style="display:none;">
@@ -825,9 +765,9 @@ const STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_BLOCKED, ST
    column layout comment above). Required on every new task request. */
 const REQUEST_TYPES = [
   "Out Right Purchase", "Self Manage", "Proceeds Share", "Inventory",
-  "Stock-In (T)", "Stock-Out (T)", "Stock-Out (R)", "Epicor ID Creation",
-  "Epicor Part No Creation", "Request for E-Invoice information",
-  "Relevant docs needed", "BD Adhoc Request", "LHDN Stamping", "Registry_TIGR"
+  "Stock-In (T)", "Stock-Out (T)", "Stock-Out (R)",
+  "Request for E-Invoice information", "Relevant docs needed",
+  "BD Adhoc Request", "LHDN Stamping"
 ];
 (function populateRequestTypeDropdown(){
   const sel = document.getElementById('nt-request-type');
@@ -844,13 +784,11 @@ const REQUEST_TYPES = [
    comment above). */
 const TASK_OPTIONS = [
   "I-REC Registration", "TIGR Registration", "Generation Data", "RECs Issuances",
-  "Matching", "Request Redemption Information", "Redemption Request",
-  "PO Issuances", "Receipt Entry", "Received AP Invoice", "Request for Approval",
-  "SO Issuances", "Shipment Entry", "Ready to delivery", "Submitted to Finance",
-  "Invoice Issuances", "AR Invoice email to client", "POD send to Client",
-  "Save relevant docs to sharefolder", "Complete Delivery", "Print Invoice, PO, POD",
-  "PO send to Supplier", "Clarification from Supplier", "Clarification from Buyer",
-  "Others", "New Agreement", "Request to change delivery date"
+  "Matching", "Request Redemption Information", "PO Issuances", "Received AP Invoice",
+  "Request for Approval", "Ready to delivery", "Invoice Issuances",
+  "AR Invoice email to client", "Save relevant docs to sharefolder", "Complete Delivery",
+  "Clarification from Supplier", "Clarification from Buyer", "Others", "New Agreement",
+  "Request to change delivery date"
 ];
 (function populateTaskDropdown(){
   const sel = document.getElementById('nt-task');
@@ -2080,10 +2018,6 @@ let ropsCurrentFieldValues = {};
 let ropsLastFilledBytes = null;
 let ropsCurrentAgreementId = "";
 let ropsPreviewUrl = null;
-let ropsAutofillMode = "lookup";
-let ropsManualItems = [];
-let ropsActiveManualItemId = null;
-let ropsManualItemSeq = 0;
 
 function ropsEsc(s){ return escapeHtml(String(s == null ? '' : s)); }
 function ropsNorm(s){ return String(s == null ? '' : s).trim().toLowerCase(); }
@@ -2192,14 +2126,21 @@ function ropsRenderCompanyFolders(){
   const list=document.getElementById('rops-company-list');
   if(!list) return;
   const q=(document.getElementById('rops-company-search')?.value||'').trim().toLowerCase();
-  const current=(document.getElementById('rops-company-name')?.value||'').trim().toLowerCase();
+  const cc=ropsCurrentContext();
+  const current=(cc.company&&cc.country ? ropsBuildCompanyFolder(cc.company,cc.country) : cc.company).trim().toLowerCase();
   const rows=ropsCompanyFolders.filter(x=>!q || x.name.toLowerCase().includes(q));
   if(!rows.length){ list.innerHTML='<span class="empty-note">'+(q?'No company matches this search.':'No previous company folders found.')+'</span>'; return; }
   list.innerHTML=rows.map(x=>'<button type="button" class="rops-company-chip'+(x.name.toLowerCase()===current?' active':'')+'" data-company-name="'+ropsEsc(x.name)+'">'+ropsEsc(x.name)+'</button>').join('');
   list.querySelectorAll('[data-company-name]').forEach(btn=>btn.addEventListener('click',()=>{
-    const name=btn.getAttribute('data-company-name')||'';
+    const folderName=btn.getAttribute('data-company-name')||'';
     const input=document.getElementById('rops-company-name');
-    input.value=name;
+    input.value=ropsCompanyNameFromFolder(folderName);
+    const entity=ropsFolderEntity(folderName);
+    if(entity){
+      const countrySel=document.getElementById('rops-country');
+      if(Array.from(countrySel.options).some(o=>o.value===entity)) countrySel.value=entity;
+      ropsPopulateTypes();
+    }
     ropsResetChecklistForContext();
     ropsRenderCompanyFolders();
     input.scrollIntoView({behavior:'smooth',block:'center'});
@@ -2252,11 +2193,60 @@ function ropsPopulateTypes(){
 }
 function ropsSafeNamePart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/\s+/g,'_'); }
 function ropsSafeFolderPart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/[. ]+$/g,''); }
+
+// SharePoint company folders are stored as CompanyName_Entity, e.g. SAXON_MY.
+// The selected Country code is used as the entity code for Rename & File.
+function ropsBuildCompanyFolder(company, entity){
+  return ropsSafeFolderPart(company)+'_'+ropsSafeNamePart(entity);
+}
+function ropsCompanyNameFromFolder(folderName){
+  const m=String(folderName||'').match(/^(.*)_(MY|SG|VN)$/i);
+  return m ? m[1] : String(folderName||'');
+}
+function ropsFolderEntity(folderName){
+  const m=String(folderName||'').match(/_(MY|SG|VN)$/i);
+  return m ? m[1].toUpperCase() : '';
+}
+
+// Short names used in uploaded filenames. Add aliases here without changing the
+// full labels shown in the required-document checklist.
+const ROPS_REQUIRED_DOC_SHORT_NAMES = {
+  'Suruhanjaya Tenaga (ST) Public Generating License':'ST License',
+  'Net-Energy Metering (NEM) Certificate':'NEM Cert',
+  'Single Line Diagram (SLD) — AC':'SLD',
+  'Single Line Diagram (SLD)':'SLD',
+  'Asset / Project Photos (min. 2)':'Asset Photo',
+  'Asset / Project Photos':'Asset Photo',
+  'Power Purchase Agreement':'PPA',
+  'SP Approval Letter':'SP Approval',
+  'Certificate of Compliance':'Compliance Cert',
+  'Others':'Others',
+  'Meter Photo':'Meter Photo',
+  'Sample Generation data (one month data)':'Generation Data',
+  'APX Designation of Responsible Party Form':'APX Responsible Party',
+  'Commissioning of Photovoltaic PV System':'PV Commissioning',
+  'Feed-in Approval Holder (FiAH) Certificate':'FiAH Cert',
+  'Sample Metering Evidence':'Metering Evidence',
+  'Sample Metering Evidence (one month data)':'Metering Evidence',
+  'Owner Declaration Form':'Owner Declaration',
+  'Environment License':'Environment License',
+  'Feedstock / fuel type declaration':'Feedstock Declaration',
+  'Sustainability / chain-of-custody documentation for the feedstock, confirming sustainable sourcing':'Feedstock Sustainability',
+  'Grid connection agreement / Certificate of Commissioning (COD)':'Grid Connection COD',
+  'Department of Environment (DOE) approval / environmental compliance certificate':'DOE Approval',
+  'SF-04C form':'SF-04C',
+  'SEDA confirmation / registration, if the facility participates in NEM or another SEDA':'SEDA Confirmation',
+  'ECoS Generating License':'ECoS License',
+  'Connection Point Agreement':'Connection Point Agreement'
+};
+function ropsRequiredDocShortName(category){
+  return ROPS_REQUIRED_DOC_SHORT_NAMES[category] || category;
+}
 function ropsBuildFilename(file, category){
   const c=ropsCurrentContext();
   const name=file ? file.name : 'file.pdf';
   const dot=name.lastIndexOf('.'); const ext=dot>=0 ? name.slice(dot+1) : 'pdf';
-  return ropsSafeNamePart(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type)+'_'+ropsSafeNamePart(category)+'.'+ext;
+  return ropsSafeNamePart(c.type)+'_'+ropsSafeNamePart(ropsRequiredDocShortName(category))+'.'+ext;
 }
 function ropsResetChecklistForContext(){
   ropsUploadType=document.getElementById('rops-type').value;
@@ -2315,7 +2305,7 @@ function ropsRenderRequiredChecklist(){
 function ropsQueueCategoryFile(category,file){
   const c=ropsCurrentContext();
   if(!(c.company&&c.registry&&c.country&&c.type)){ ropsShowStatus('rops-folder-status','Enter Company Name and select Registry, Country and Type first.',false); return; }
-  const item={file,renamed:ropsBuildFilename(file,category),company:c.company,registry:c.registry,country:c.country,type:c.type,category,folder:ropsSafeFolderPart(c.company)};
+  const item={file,renamed:ropsBuildFilename(file,category),company:c.company,registry:c.registry,country:c.country,type:c.type,category,folder:ropsBuildCompanyFolder(c.company,c.country)};
   ropsUploadQueue=ropsUploadQueue.filter(x=>x.category!==category);
   ropsUploadQueue.push(item);
   delete ropsExistingCategoryFiles[category];
@@ -2324,11 +2314,12 @@ function ropsQueueCategoryFile(category,file){
 function ropsRenderQueue(){
   const list=document.getElementById('rops-queue-list');
   if(!ropsUploadQueue.length){list.innerHTML='<p class="empty-note">No new files queued. Existing SharePoint files still count toward checklist completion.</p>';return;}
-  list.innerHTML=ropsUploadQueue.map(x=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.company)+'</span></span></div>').join('');
+  list.innerHTML=ropsUploadQueue.map(x=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.folder)+'</span></span></div>').join('');
 }
 async function ropsListCompanyFolderFiles(company){
   const driveId=await ropsResolveBdDrive();
-  const folder=ropsSafeFolderPart(company);
+  const c=ropsCurrentContext();
+  const folder=ropsBuildCompanyFolder(company,c.country);
   try{
     const data=await graphFetch('/drives/'+driveId+'/root:/'+ropsEncodePath(folder)+':/children?$select=id,name,webUrl,file,folder&$top=999');
     return (data&&data.value)||[];
@@ -2342,19 +2333,26 @@ async function ropsCheckExistingFolder(){
   if(!(c.company&&c.registry&&c.country&&c.type&&docs.length)) return;
   const key=ropsContextKey(); ropsChecklistContextKey=key;
   const btn=document.getElementById('rops-check-folder'); btn.disabled=true;
-  ropsShowStatus('rops-folder-status','Checking BD Usage / '+c.company+' for existing required documents…',true);
+  ropsShowStatus('rops-folder-status','Checking BD Usage / '+ropsBuildCompanyFolder(c.company,c.country)+' for existing required documents…',true);
   try{
     const files=await ropsListCompanyFolderFiles(c.company);
     if(ropsContextKey()!==key) return;
     ropsExistingCategoryFiles={};
-    const prefix=(ropsSafeNamePart(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type)+'_').toLowerCase();
     for(const category of docs){
-      const cat=ropsSafeNamePart(category).toLowerCase();
-      const hit=files.find(f=>{ const n=String(f.name||'').toLowerCase(); return n.startsWith(prefix+cat+'.') || n.startsWith(prefix+cat+'_'); });
+      const shortCat=ropsSafeNamePart(ropsRequiredDocShortName(category)).toLowerCase();
+      const newBase=(ropsSafeNamePart(c.type)+'_'+shortCat).toLowerCase();
+      // Also recognise the previous long naming convention so existing uploads
+      // continue to count toward checklist completion during migration.
+      const legacyPrefix=(ropsSafeNamePart(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type)+'_').toLowerCase();
+      const legacyCat=ropsSafeNamePart(category).toLowerCase();
+      const hit=files.find(f=>{
+        const n=String(f.name||'').toLowerCase();
+        return n.startsWith(newBase+'.') || n.startsWith(newBase+'_') || n.startsWith(legacyPrefix+legacyCat+'.') || n.startsWith(legacyPrefix+legacyCat+'_');
+      });
       if(hit && !ropsQueuedItemForCategory(category)) ropsExistingCategoryFiles[category]=hit;
     }
     const existingCount=Object.keys(ropsExistingCategoryFiles).length;
-    ropsShowStatus('rops-folder-status','SharePoint check complete: '+existingCount+' of '+docs.length+' required document(s) already found in BD Usage / '+c.company+'.',true);
+    ropsShowStatus('rops-folder-status','SharePoint check complete: '+existingCount+' of '+docs.length+' required document(s) already found in BD Usage / '+ropsBuildCompanyFolder(c.company,c.country)+'.',true);
     ropsRenderRequiredChecklist();
   }catch(err){
     console.error(err); ropsShowStatus('rops-folder-status','Could not check the Company Name folder. '+err.message,false);
@@ -2381,7 +2379,7 @@ function ropsAppendLog(item){
   const body=document.getElementById('rops-log-body');
   if(body.querySelector('td[colspan]')) body.innerHTML='';
   const tr=document.createElement('tr');
-  tr.innerHTML='<td>'+ropsEsc(item.renamed)+'</td><td>'+ropsEsc(item.registry)+'</td><td>'+ropsEsc(item.country+' / '+item.type)+'</td><td>'+ropsEsc(item.category)+'</td><td>'+ropsEsc('BD Usage / '+item.company)+'</td><td><button type="button" class="secondary small-btn">Download</button></td><td>'+ropsEsc(new Date().toLocaleTimeString())+'</td>';
+  tr.innerHTML='<td>'+ropsEsc(item.renamed)+'</td><td>'+ropsEsc(item.registry)+'</td><td>'+ropsEsc(item.country+' / '+item.type)+'</td><td>'+ropsEsc(item.category)+'</td><td>'+ropsEsc('BD Usage / '+item.folder)+'</td><td><button type="button" class="secondary small-btn">Download</button></td><td>'+ropsEsc(new Date().toLocaleTimeString())+'</td>';
   tr.querySelector('button').addEventListener('click',()=>ropsDownloadFile(item.file,item.renamed));
   body.prepend(tr);
 }
@@ -2398,209 +2396,25 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
       ropsAppendLog(item); done++;
     }
-    ropsRememberCompanyFolder(companyAtStart);
+    ropsRememberCompanyFolder(ropsBuildCompanyFolder(companyAtStart,ropsCurrentContext().country));
     ropsUploadQueue=[];
     await ropsCheckExistingFolder();
     const complete=docs.filter(ropsCategoryIsComplete).length;
     const remaining=Math.max(0,docs.length-complete);
-    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to BD Usage / '+companyAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+(remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.'),true);
+    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to BD Usage / '+ropsBuildCompanyFolder(companyAtStart,ropsCurrentContext().country)+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+(remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.'),true);
     ropsRenderQueue();
   }catch(err){
     console.error(err);
-    if(done>0) ropsRememberCompanyFolder(companyAtStart);
+    if(done>0) ropsRememberCompanyFolder(ropsBuildCompanyFolder(companyAtStart,ropsCurrentContext().country));
     ropsShowStatus('rops-upload-status','Upload stopped after '+done+' successful file(s).\n'+err.message,false); ropsRenderRequiredChecklist();
   }
 });
 
 /* ---- Autofill Agreement ---- */
-// Manual batch template contains PDF form fields only.
-// Entity / Agreement ID / Company Name / Capacity are workflow metadata and are intentionally excluded.
-const ROPS_MANUAL_PRESET_HEADERS = ROPS_FIELD_MAP.map(f=>f.label);
-
-function ropsNormalizeHeaderName(v){
-  return String(v==null?'':v).trim().toLowerCase().replace(/[\s_\-]+/g,' ').replace(/[^a-z0-9 ()/?.,]/g,'').trim();
-}
-function ropsPresetHeaderText(){ return ROPS_MANUAL_PRESET_HEADERS.join('\t'); }
-function ropsCsvCell(v){
-  const s=String(v==null?'':v);
-  return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
-}
-function ropsDownloadManualTemplate(){
-  const header=ROPS_MANUAL_PRESET_HEADERS.map(ropsCsvCell).join(',');
-  const blank=ROPS_MANUAL_PRESET_HEADERS.map(()=> '').join(',');
-  const csv='\ufeff'+header+'\r\n'+blank+'\r\n';
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download='Autofill_Agreement_Batch_Template.csv';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-function ropsInitManualPreset(){
-  const el=document.getElementById('rops-preset-header');
-  if(el) el.textContent=ropsPresetHeaderText();
-}
-function ropsSetAutofillMode(mode){
-  ropsAutofillMode=mode==='manual'?'manual':'lookup';
-  document.querySelectorAll('[data-rops-autofill-mode]').forEach(b=>b.classList.toggle('active',b.dataset.ropsAutofillMode===ropsAutofillMode));
-  document.getElementById('rops-lookup-panel').classList.toggle('active',ropsAutofillMode==='lookup');
-  document.getElementById('rops-manual-panel').classList.toggle('active',ropsAutofillMode==='manual');
-  if(ropsAutofillMode==='lookup'){
-    ropsActiveManualItemId=null;
-  }else if(ropsActiveManualItemId){
-    ropsRenderBatchList();
-  }
-}
-document.querySelectorAll('[data-rops-autofill-mode]').forEach(btn=>btn.addEventListener('click',()=>ropsSetAutofillMode(btn.dataset.ropsAutofillMode)));
-ropsInitManualPreset();
-document.getElementById('rops-download-template-btn').addEventListener('click',ropsDownloadManualTemplate);
-
 document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active'); ropsLookupEntity=btn.dataset.entity;
-  const item=ropsActiveManualItem();
-  if(item){ item.entity=ropsLookupEntity; item.bytes=null; item.previewUrl && URL.revokeObjectURL(item.previewUrl); item.previewUrl=null; ropsLastFilledBytes=null; document.getElementById('rops-save-sp-btn').disabled=true; document.getElementById('rops-download-btn').disabled=true; ropsRenderBatchList(); }
 }));
-
-function ropsParseDelimitedTable(text){
-  text=String(text||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim();
-  if(!text) return [];
-  const delimiter=text.includes('\t') ? '\t' : ',';
-  const rows=[]; let row=[]; let cell=''; let quoted=false;
-  for(let i=0;i<text.length;i++){
-    const ch=text[i];
-    if(ch==='"'){
-      if(quoted && text[i+1]==='"'){ cell+='"'; i++; }
-      else quoted=!quoted;
-    }else if(ch===delimiter && !quoted){ row.push(cell.trim()); cell=''; }
-    else if(ch==='\n' && !quoted){ row.push(cell.trim()); if(row.some(v=>String(v).trim()!=='')) rows.push(row); row=[]; cell=''; }
-    else cell+=ch;
-  }
-  row.push(cell.trim()); if(row.some(v=>String(v).trim()!=='')) rows.push(row);
-  return rows;
-}
-function ropsManualHeaderLookup(headers){
-  const map={}; headers.forEach((h,i)=>{map[ropsNormalizeHeaderName(h)]=i;}); return map;
-}
-function ropsManualCell(row,map,names){
-  for(const n of names){ const idx=map[ropsNormalizeHeaderName(n)]; if(idx!==undefined){ const v=row[idx]; if(v!==undefined && v!==null) return String(v).trim(); } }
-  return '';
-}
-function ropsManualFieldAliases(field){
-  const aliases=[field.label,'Field '+field.id,field.id];
-  if(field.id==='2') aliases.push('Asset Name','Device Owner');
-  if(field.id==='3') aliases.push('Asset Address');
-  if(field.id==='5') aliases.push('Asset Country','Country');
-  if(field.id==='6') aliases.push('Asset Latitude Longitude','Coordinate','Coordinates');
-  if(field.id==='8') aliases.push('Nameplate Capacity','Capacity','Capacity (MWac)');
-  if(field.id==='12') aliases.push('Asset ID','Tigr Asset ID / IREC Asset ID');
-  if(field.id==='13') aliases.push('Company Granting Party','Device Owner');
-  if(field.id==='14') aliases.push('Address Granting Party','Office Address','Invoice Address');
-  if(field.id==='16') aliases.push('Name Granting Party signatory','Contact person','Contact Person');
-  return aliases;
-}
-function ropsEntityFromManualValue(value,countryField){
-  const v=ropsNorm(value||countryField);
-  if(v==='sg'||v.includes('singapore')) return 'SG';
-  if(v==='my'||v.includes('malaysia')) return 'MY';
-  return ropsLookupEntity==='SG'?'SG':'MY';
-}
-function ropsManualItem(){
-  return {id:'manual-'+(++ropsManualItemSeq),entity:'MY',agreementId:'',companyName:'',capacity:'',fields:{},bytes:null,previewUrl:null,saved:false};
-}
-function ropsActiveManualItem(){ return ropsManualItems.find(x=>x.id===ropsActiveManualItemId)||null; }
-function ropsSyncActiveManualItemFromForm(){
-  const item=ropsActiveManualItem(); if(!item) return;
-  item.entity=ropsLookupEntity; item.agreementId=ropsCurrentAgreementId; item.companyName=ropsCurrentExcelCompanyName; item.capacity=ropsCurrentExcelCapacityMwac;
-  item.fields=Object.assign({},ropsCurrentFieldValues); item.bytes=ropsLastFilledBytes;
-}
-function ropsRenderBatchList(){
-  const wrap=document.getElementById('rops-batch-summary'), count=document.getElementById('rops-batch-count'), list=document.getElementById('rops-batch-list');
-  if(!wrap||!count||!list) return;
-  if(!ropsManualItems.length){ wrap.classList.remove('show'); list.innerHTML=''; count.textContent=''; return; }
-  wrap.classList.add('show'); count.textContent=ropsManualItems.length+' item(s) extracted. Review each item before saving or downloading.';
-  list.innerHTML=ropsManualItems.map((item,i)=>{
-    const title=item.companyName||item.agreementId||('Item '+(i+1));
-    const state=item.saved?'Saved to SharePoint':(item.bytes?'Preview ready':'Needs preview');
-    const stateClass=item.bytes?'ready':'draft';
-    return '<div class="rops-batch-item'+(item.id===ropsActiveManualItemId?' active':'')+'" data-manual-item="'+ropsEsc(item.id)+'">'+
-      '<div class="rops-batch-main"><div class="rops-batch-title">'+ropsEsc((i+1)+'. '+title)+'</div><div class="rops-batch-meta">'+
-      '<span>Entity: '+ropsEsc(item.entity)+'</span>'+(item.agreementId?'<span>Agreement: '+ropsEsc(item.agreementId)+'</span>':'')+
-      (item.capacity?'<span>Capacity: '+ropsEsc(item.capacity)+' MWac</span>':'')+'<span class="rops-batch-state '+stateClass+'">'+ropsEsc(state)+'</span></div></div>'+
-      '<div class="rops-batch-actions"><button type="button" class="secondary small-btn" data-review="'+ropsEsc(item.id)+'">Review</button>'+
-      '<button type="button" class="secondary small-btn" data-batch-download="'+ropsEsc(item.id)+'"'+(item.bytes?'':' disabled')+'>Download</button>'+
-      '<button type="button" class="small-btn" data-batch-save="'+ropsEsc(item.id)+'"'+(item.bytes?'':' disabled')+'>Save to SharePoint</button></div></div>';
-  }).join('');
-  list.querySelectorAll('[data-review]').forEach(btn=>btn.addEventListener('click',()=>ropsLoadManualItem(btn.dataset.review)));
-  list.querySelectorAll('[data-batch-download]').forEach(btn=>btn.addEventListener('click',()=>ropsDownloadManualItem(btn.dataset.batchDownload)));
-  list.querySelectorAll('[data-batch-save]').forEach(btn=>btn.addEventListener('click',()=>ropsSaveManualItem(btn.dataset.batchSave,btn)));
-}
-function ropsLoadManualItem(id){
-  ropsSyncActiveManualItemFromForm();
-  const item=ropsManualItems.find(x=>x.id===id); if(!item) return;
-  ropsActiveManualItemId=id; ropsLookupEntity=item.entity; ropsCurrentAgreementId=item.agreementId; ropsCurrentExcelCompanyName=item.companyName; ropsCurrentExcelCapacityMwac=item.capacity;
-  ropsCurrentFieldValues=Object.assign({},item.fields); ropsLastFilledBytes=item.bytes||null;
-  document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(b=>b.classList.toggle('active',b.dataset.entity===ropsLookupEntity));
-  ropsRenderForm(); document.getElementById('rops-workspace').style.display='grid';
-  if(ropsPreviewUrl){ URL.revokeObjectURL(ropsPreviewUrl); ropsPreviewUrl=null; }
-  const wrap=document.getElementById('rops-preview-wrap');
-  if(item.bytes){ ropsPreviewUrl=URL.createObjectURL(new Blob([item.bytes],{type:'application/pdf'})); wrap.innerHTML='<iframe src="'+ropsPreviewUrl+'"></iframe>'; }
-  else wrap.innerHTML='<div class="rops-preview-placeholder">Review this imported item, edit any fields, then generate its PDF preview.</div>';
-  document.getElementById('rops-save-sp-btn').disabled=!item.bytes; document.getElementById('rops-download-btn').disabled=!item.bytes; ropsHideStatus('rops-save-status');
-  ropsRenderBatchList();
-  document.getElementById('rops-workspace').scrollIntoView({behavior:'smooth',block:'start'});
-}
-function ropsImportManualTable(){
-  const text=document.getElementById('rops-manual-paste').value; const rows=ropsParseDelimitedTable(text);
-  if(rows.length<2){ ropsShowStatus('rops-manual-status','Paste the preset header row plus at least one data row.',false); return; }
-  const headers=rows[0].map(v=>String(v||'').trim()); const map=ropsManualHeaderLookup(headers);
-  const recognizable=ROPS_MANUAL_PRESET_HEADERS.filter(h=>map[ropsNormalizeHeaderName(h)]!==undefined).length;
-  if(recognizable<3){ ropsShowStatus('rops-manual-status','The pasted header row does not match the preset format. Expand “Preset table format” and use those column names.',false); return; }
-  const items=[]; const skipped=[];
-  rows.slice(1).forEach((row,idx)=>{
-    if(!row.some(v=>String(v||'').trim())) return;
-    const item=ropsManualItem();
-    item.agreementId=ropsManualCell(row,map,['Agreement ID (Ops Internal)','Agreement ID']);
-    item.companyName=ropsManualCell(row,map,['Company Name','Company','Device Owner']);
-    item.capacity=ropsManualCell(row,map,['Capacity (MWac)','Capacity','Nameplate Capacity']);
-    ROPS_FIELD_MAP.forEach(f=>{ item.fields[f.id]=ropsManualCell(row,map,ropsManualFieldAliases(f)); });
-    const country=item.fields['5']; item.entity=ropsEntityFromManualValue(ropsManualCell(row,map,['Entity','Country Code']),country);
-    if(!item.fields['5']) item.fields['5']=item.entity==='SG'?'Singapore':'Malaysia';
-    const hasData=item.companyName||item.agreementId||Object.values(item.fields).some(Boolean);
-    if(hasData) items.push(item); else skipped.push(idx+2);
-  });
-  ropsManualItems.forEach(x=>{ if(x.previewUrl) URL.revokeObjectURL(x.previewUrl); });
-  ropsManualItems=items; ropsActiveManualItemId=null; ropsRenderBatchList();
-  document.getElementById('rops-workspace').style.display='none'; ropsLastFilledBytes=null;
-  if(!items.length){ ropsShowStatus('rops-manual-status','No usable data rows were found.',false); return; }
-  ropsShowStatus('rops-manual-status','Extracted '+items.length+' agreement item(s). Select Review on an item, verify the fields, then generate its PDF preview.',true);
-  ropsLoadManualItem(items[0].id);
-}
-async function ropsDownloadManualItem(id){
-  ropsSyncActiveManualItemFromForm(); const item=ropsManualItems.find(x=>x.id===id); if(!item||!item.bytes) return;
-  const oldEntity=ropsLookupEntity, oldCompany=ropsCurrentExcelCompanyName, oldCapacity=ropsCurrentExcelCapacityMwac;
-  ropsLookupEntity=item.entity; ropsCurrentExcelCompanyName=item.companyName; ropsCurrentExcelCapacityMwac=item.capacity;
-  ropsDownloadFile(new Blob([item.bytes],{type:'application/pdf'}),ropsFilledFilename());
-  ropsLookupEntity=oldEntity; ropsCurrentExcelCompanyName=oldCompany; ropsCurrentExcelCapacityMwac=oldCapacity;
-}
-async function ropsSaveManualItem(id,btn){
-  ropsSyncActiveManualItemFromForm(); const item=ropsManualItems.find(x=>x.id===id); if(!item||!item.bytes) return;
-  if(btn) btn.disabled=true;
-  try{
-    const oldEntity=ropsLookupEntity, oldCompany=ropsCurrentExcelCompanyName, oldCapacity=ropsCurrentExcelCapacityMwac;
-    ropsLookupEntity=item.entity; ropsCurrentExcelCompanyName=item.companyName; ropsCurrentExcelCapacityMwac=item.capacity;
-    const filename=ropsFilledFilename(); await ropsUploadBlob(ROPS_AUTOFILL_FOLDERS[item.entity],filename,item.bytes,'application/pdf'); item.saved=true;
-    ropsLookupEntity=oldEntity; ropsCurrentExcelCompanyName=oldCompany; ropsCurrentExcelCapacityMwac=oldCapacity;
-    ropsShowStatus('rops-manual-status','Saved '+filename+' to BD Usage / '+ROPS_AUTOFILL_FOLDERS[item.entity]+'.',true); ropsRenderBatchList();
-  }catch(err){ console.error(err); ropsShowStatus('rops-manual-status','Could not save this PDF: '+err.message,false); }
-  finally{ if(btn) btn.disabled=false; }
-}
-document.getElementById('rops-parse-table-btn').addEventListener('click',ropsImportManualTable);
-document.getElementById('rops-clear-table-btn').addEventListener('click',()=>{ document.getElementById('rops-manual-paste').value=''; ropsHideStatus('rops-manual-status'); });
-document.getElementById('rops-clear-batch-btn').addEventListener('click',()=>{ ropsManualItems.forEach(x=>{if(x.previewUrl)URL.revokeObjectURL(x.previewUrl);}); ropsManualItems=[]; ropsActiveManualItemId=null; ropsRenderBatchList(); document.getElementById('rops-workspace').style.display='none'; ropsLastFilledBytes=null; ropsHideStatus('rops-manual-status'); });
 
 function ropsRowObject(headers,row){ const o={}; headers.forEach((h,i)=>o[String(h||'').trim()]=row[i]); return o; }
 function ropsFirst(obj,names){ for(const n of names){ const v=obj[n]; if(v!==undefined && v!==null && String(v).trim()!=='') return v; } return ''; }
@@ -2662,29 +2476,12 @@ function ropsRenderForm(){
   const col=document.getElementById('rops-form-col'); const groups={};
   ROPS_FIELD_MAP.forEach(f=>(groups[f.group]||(groups[f.group]=[])).push(f));
   let html='';
-  if(ropsActiveManualItem()){
-    html+='<div class="rops-group-title">Imported item details</div>'+
-      '<div style="margin-bottom:10px;"><label>Agreement ID (Ops Internal)</label><input type="text" data-rops-meta="agreementId" value="'+ropsEsc(ropsCurrentAgreementId)+'"></div>'+
-      '<div style="margin-bottom:10px;"><label>Company Name <span style="opacity:.65">(used for PDF filename)</span></label><input type="text" data-rops-meta="companyName" value="'+ropsEsc(ropsCurrentExcelCompanyName)+'"></div>'+
-      '<div style="margin-bottom:10px;"><label>Capacity (MWac) <span style="opacity:.65">(used for PDF filename)</span></label><input type="text" data-rops-meta="capacity" value="'+ropsEsc(ropsCurrentExcelCapacityMwac)+'"></div>';
-  }
   Object.keys(groups).forEach(g=>{
     html+='<div class="rops-group-title">'+ropsEsc(g)+'</div>';
     groups[g].forEach(f=>{const v=String(ropsCurrentFieldValues[f.id]||''); html+='<div style="margin-bottom:10px;"><label>'+ropsEsc(f.label)+' <span style="opacity:.65">(field '+f.id+')</span></label><input type="text" data-rops-field="'+f.id+'" value="'+ropsEsc(v)+'"></div>';});
   });
   col.innerHTML=html;
-  col.querySelectorAll('[data-rops-meta]').forEach(inp=>inp.addEventListener('input',()=>{
-    const item=ropsActiveManualItem(); if(!item) return;
-    if(inp.dataset.ropsMeta==='agreementId'){ ropsCurrentAgreementId=inp.value; item.agreementId=inp.value; }
-    if(inp.dataset.ropsMeta==='companyName'){ ropsCurrentExcelCompanyName=inp.value; item.companyName=inp.value; }
-    if(inp.dataset.ropsMeta==='capacity'){ ropsCurrentExcelCapacityMwac=inp.value; item.capacity=inp.value; }
-    item.bytes=null; item.saved=false; ropsLastFilledBytes=null; document.getElementById('rops-save-sp-btn').disabled=true; document.getElementById('rops-download-btn').disabled=true; ropsRenderBatchList();
-  }));
-  col.querySelectorAll('[data-rops-field]').forEach(inp=>inp.addEventListener('input',()=>{
-    ropsCurrentFieldValues[inp.dataset.ropsField]=inp.value; ropsLastFilledBytes=null;
-    const item=ropsActiveManualItem(); if(item){ item.fields[inp.dataset.ropsField]=inp.value; item.bytes=null; item.saved=false; }
-    document.getElementById('rops-save-sp-btn').disabled=true;document.getElementById('rops-download-btn').disabled=true; ropsRenderBatchList();
-  }));
+  col.querySelectorAll('[data-rops-field]').forEach(inp=>inp.addEventListener('input',()=>{ropsCurrentFieldValues[inp.dataset.ropsField]=inp.value;ropsLastFilledBytes=null;document.getElementById('rops-save-sp-btn').disabled=true;document.getElementById('rops-download-btn').disabled=true;}));
 }
 
 async function ropsRunLookup(){
@@ -2694,7 +2491,7 @@ async function ropsRunLookup(){
   try{
     const row=await ropsFindAgreement(id);
     if(!row){document.getElementById('rops-workspace').style.display='none';ropsShowStatus('rops-lookup-status','No exact match found for "'+id+'" in Agreement ID (Ops Internal).',false);return;}
-    ropsActiveManualItemId=null; ropsCurrentAgreementId=id; ropsLookupEntity=ropsEntityFromRow(row);
+    ropsCurrentAgreementId=id; ropsLookupEntity=ropsEntityFromRow(row);
     ropsCurrentExcelCompanyName=String(row.__columnI||'').trim();
     ropsCurrentExcelCapacityMwac=String(row.__columnO||'').trim();
     ropsCurrentFieldValues=ropsMapAssetToFields(row);
@@ -2720,11 +2517,10 @@ async function ropsGeneratePreview(){
     const pdfDoc=await PDFLib.PDFDocument.load(bytes); const form=pdfDoc.getForm();
     ROPS_FIELD_MAP.forEach(f=>{try{form.getTextField(f.id).setText(String(ropsCurrentFieldValues[f.id]||''));}catch(e){}});
     form.updateFieldAppearances(); ropsLastFilledBytes=await pdfDoc.save();
-    const activeItem=ropsActiveManualItem(); if(activeItem){ activeItem.entity=ropsLookupEntity; activeItem.fields=Object.assign({},ropsCurrentFieldValues); activeItem.companyName=ropsCurrentExcelCompanyName; activeItem.capacity=ropsCurrentExcelCapacityMwac; activeItem.bytes=ropsLastFilledBytes; activeItem.saved=false; }
     if(ropsPreviewUrl) URL.revokeObjectURL(ropsPreviewUrl);
     ropsPreviewUrl=URL.createObjectURL(new Blob([ropsLastFilledBytes],{type:'application/pdf'}));
     wrap.innerHTML='<iframe src="'+ropsPreviewUrl+'"></iframe>';
-    document.getElementById('rops-save-sp-btn').disabled=false;document.getElementById('rops-download-btn').disabled=false;ropsHideStatus('rops-save-status'); ropsRenderBatchList();
+    document.getElementById('rops-save-sp-btn').disabled=false;document.getElementById('rops-download-btn').disabled=false;ropsHideStatus('rops-save-status');
   }catch(err){console.error(err);wrap.innerHTML='<div class="rops-preview-placeholder">Could not render preview: '+ropsEsc(err.message)+'</div>';}
 }
 document.getElementById('rops-generate-preview-btn').addEventListener('click',ropsGeneratePreview);
@@ -2752,14 +2548,12 @@ function ropsFilledFilename(){
 }
 
 document.getElementById('rops-download-btn').addEventListener('click',()=>{
-  if(!ropsLastFilledBytes)return; ropsSyncActiveManualItemFromForm(); ropsDownloadFile(new Blob([ropsLastFilledBytes],{type:'application/pdf'}),ropsFilledFilename());
+  if(!ropsLastFilledBytes)return;ropsDownloadFile(new Blob([ropsLastFilledBytes],{type:'application/pdf'}),ropsFilledFilename());
 });
 document.getElementById('rops-save-sp-btn').addEventListener('click',async()=>{
   if(!ropsLastFilledBytes)return;const btn=document.getElementById('rops-save-sp-btn');btn.disabled=true;ropsShowStatus('rops-save-status','Saving filled PDF to SharePoint…',true);
   try{
-    ropsSyncActiveManualItemFromForm();
     await ropsUploadBlob(ROPS_AUTOFILL_FOLDERS[ropsLookupEntity],ropsFilledFilename(),ropsLastFilledBytes,'application/pdf');
-    const activeItem=ropsActiveManualItem(); if(activeItem){ activeItem.saved=true; ropsRenderBatchList(); }
     ropsShowStatus('rops-save-status','Saved to BD Usage / '+ROPS_AUTOFILL_FOLDERS[ropsLookupEntity]+' as '+ropsFilledFilename()+'.',true);
   }catch(err){console.error(err);ropsShowStatus('rops-save-status','Could not save PDF: '+err.message,false);}
   finally{btn.disabled=false;}
