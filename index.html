@@ -845,8 +845,8 @@ const STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_BLOCKED, ST
 const REQUEST_TYPES = [
   "Out Right Purchase", "Self Manage", "Proceeds Share", "Inventory",
   "Stock-In (T)", "Stock-Out (T)", "Stock-Out (R)", "Epicor ID Creation",
-  "Epicor Part No Creation", "Request for E-Invoice information",
-  "Relevant docs needed", "BD Adhoc Request", "LHDN Stamping", "Registry_TIGR"
+  "Request for E-Invoice information",
+  "Relevant docs needed", "BD Adhoc Request", "LHDN Stamping", 
 ];
 (function populateRequestTypeDropdown(){
   const sel = document.getElementById('nt-request-type');
@@ -864,11 +864,10 @@ const REQUEST_TYPES = [
 const TASK_OPTIONS = [
   "I-REC Registration", "TIGR Registration", "Generation Data", "RECs Issuances",
   "Matching", "Request Redemption Information", "Redemption Request",
-  "PO Issuances", "Receipt Entry", "Received AP Invoice", "Request for Approval",
-  "SO Issuances", "Shipment Entry", "Ready to delivery", "Submitted to Finance",
+  "PO Issuances", "Received AP Invoice", "Request for Approval",
+  "Ready to delivery", "Submitted to Finance",
   "Invoice Issuances", "AR Invoice email to client", "POD send to Client",
-  "Save relevant docs to sharefolder", "Complete Delivery", "Print Invoice, PO, POD",
-  "PO send to Supplier", "Clarification from Supplier", "Clarification from Buyer",
+  "Save relevant docs to sharefolder", "Complete Delivery",   "Clarification from Supplier", "Clarification from Buyer",
   "Others", "New Agreement", "Request to change delivery date", "Review Documentation"
 ];
 (function populateTaskDropdown(){
