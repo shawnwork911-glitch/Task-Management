@@ -501,16 +501,16 @@
     <div class="rops-head">
       <div>
         <h1>User Management</h1>
-        <p class="rops-subtitle">Super Admin only — view everyone who has signed in to this HTML and manage their access role.</p>
+        <p class="rops-subtitle">Super Admin only — manage Admin/User role assignments. Normal users default to User and do not need access to this role-management list.</p>
       </div>
-      <span class="rops-conn">Sign-in register: SharePoint</span>
+      <span class="rops-conn">Role assignments: SharePoint</span>
     </div>
 
     <div class="card" id="user-mgmt-card">
       <div class="card-title-row">
         <div>
-          <p class="card-title" style="margin:0;">Signed-in users</p>
-          <p class="card-note" style="margin:4px 0 0;">Everyone listed below has signed in to this HTML at least once. New users are automatically added on their first successful Microsoft sign-in.</p>
+          <p class="card-title" style="margin:0;">Known users &amp; role assignments</p>
+          <p class="card-note" style="margin:4px 0 0;">Normal users default to User automatically and are not written to this list. Assign Admin here only when elevated access is needed.</p>
         </div>
         <button type="button" class="secondary small-btn" id="user-mgmt-refresh-btn">Refresh users</button>
       </div>
@@ -1048,9 +1048,9 @@ window.addEventListener('load', async ()=>{
 });
 
 async function onSignedIn(){
-  // Do not expose the working app until this signed-in account has been
-  // successfully registered in User Management. This guarantees that anyone
-  // who can actually use the system is represented in the sign-in register.
+  // Sign-in is independent of the role-management list. Normal users may not
+  // have access to that list and should still be able to use the app. Admin and
+  // Super Admin role assignments are loaded when permitted.
   loginOverlay.style.display = 'none';
   appContent.style.display = 'none';
   userBar.style.display = 'flex';
@@ -1070,7 +1070,7 @@ async function onSignedIn(){
     setStatus('Access could not be started: ' + err.message);
     const loginErr = document.getElementById('login-error');
     if(loginErr){
-      loginErr.textContent = 'Your Microsoft sign-in succeeded, but the system could not register your account in User Management. Please refresh and try again or contact the Super Admin. Details: ' + err.message;
+      loginErr.textContent = 'Your Microsoft sign-in succeeded, but the system could not access the required SharePoint task resources. Please confirm you have access to the Operations site, Job Distribution Tracker, Job Distribution Tracker Comments, and any document library you need. Details: ' + err.message;
       loginErr.style.display = 'block';
       loginOverlay.style.display = 'flex';
     }
@@ -1087,35 +1087,21 @@ function getUserRole(email){
   return ROLES.includes(role) ? role : 'user';
 }
 async function loadUserRoles(){
-  // Loading and recording are intentionally strict. A normal user is not
-  // allowed into the app unless their account can be represented in the same
-  // SharePoint list that powers User Management.
-  userRolesCache = await getListItems(ROLES_LIST_NAME);
-  await recordSignedInUser();
+  // Normal users default to User and do not need read/write access to the
+  // role-management list. If SharePoint denies access to that list, continue
+  // safely as User. Admins must be explicitly assigned in the Roles list and
+  // therefore need at least read access to it; Super Admin manages the list.
+  userRolesCache = [];
+  try{
+    userRolesCache = await getListItems(ROLES_LIST_NAME);
+  }catch(err){
+    const msg = String(err && err.message ? err.message : err);
+    const accessDenied = /Graph\s+403/i.test(msg) || /accessDenied/i.test(msg);
+    if(!accessDenied) throw err;
+    console.warn('Roles list is not accessible to this account; continuing with default User role.');
+  }
   currentUserRole = getUserRole(currentAccount.username);
   isAdmin = currentUserRole !== 'user';
-}
-async function recordSignedInUser(){
-  const emailRaw = (currentAccount.username || '').trim();
-  const email = emailRaw.toLowerCase();
-  if(!email) throw new Error('Microsoft account email is unavailable.');
-
-  // Super Admin is always rendered from the fixed allow-list, so it is already
-  // guaranteed to appear even if there is no duplicate row in the Roles list.
-  if(SUPERADMIN_EMAILS.map(e=>e.toLowerCase()).includes(email)) return;
-
-  const existing = userRolesCache.find(r => (r.Email||'').trim().toLowerCase() === email);
-  if(!existing){
-    await createListItem(ROLES_LIST_NAME, {
-      'Email': emailRaw,
-      'Role': 'user',
-      'Assigned By': '(first sign-in)',
-      'Assigned Date': new Date().toISOString()
-    });
-    userRolesCache = await getListItems(ROLES_LIST_NAME);
-    const confirmed = userRolesCache.find(r => (r.Email||'').trim().toLowerCase() === email);
-    if(!confirmed) throw new Error('Your sign-in could not be confirmed in the User Management register.');
-  }
 }
 async function assignRole(email, role){
   email = (email||'').trim().toLowerCase();
@@ -1758,7 +1744,7 @@ function knownSystemUsers(){
     if(!byEmail.has(key)) byEmail.set(key, { Email:email, sources:new Set() });
     byEmail.get(key).sources.add(source);
   }
-  userRolesCache.forEach(r => add(r.Email, 'Sign-in register'));
+  userRolesCache.forEach(r => add(r.Email, 'Role assignment'));
   (taskItemsCache||[]).forEach(t=>{
     add(t['Requested By'], 'Task activity');
     add(t['Assigned To'], 'Task activity');
