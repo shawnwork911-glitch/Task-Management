@@ -381,6 +381,7 @@
     <button type="button" class="main-tab-btn active" data-main-view="task">Task Management</button>
     <button type="button" class="main-tab-btn" data-main-view="rename">Rename &amp; File</button>
     <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill Agreement</button>
+    <button type="button" class="main-tab-btn" id="user-mgmt-tab-btn" data-main-view="users" style="display:none;">User Management</button>
   </div>
 
   <section id="main-view-task" class="main-view active">
@@ -492,30 +493,44 @@
     <div id="all-tasks-list"><p class="empty-note">Loading…</p></div>
   </div>
 
-  <!-- Super Admin only: user management -->
-  <div class="card" id="user-mgmt-card" style="display:none;">
-    <p class="card-title">User management</p>
-    <p class="card-note">Super Admin only. Assign each person's role — Admin or User. Admins are the pool of names that show up in the "Assign to" dropdown when a task is assigned. Super Admin itself is fixed in the app config.</p>
-    <div id="user-mgmt-error" class="field-error"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
-      <div style="flex:1;min-width:220px;">
-        <label>Email</label>
-        <input type="text" id="user-mgmt-email" placeholder="name@company.com">
-      </div>
-      <div style="min-width:170px;">
-        <label>Role</label>
-        <select id="user-mgmt-role">
-          <option value="admin">Admin</option>
-          <option value="user" selected>User</option>
-        </select>
-      </div>
-      <button type="button" id="user-mgmt-assign-btn">Assign role</button>
-    </div>
-    <div id="user-mgmt-list"><p class="empty-note">Loading…</p></div>
-  </div>
-
   <footer>Task Management System · all data saved directly to the shared SharePoint list</footer>
 
+  </section>
+
+  <section id="main-view-users" class="main-view">
+    <div class="rops-head">
+      <div>
+        <h1>User Management</h1>
+        <p class="rops-subtitle">Super Admin only — view everyone who has signed in to this HTML and manage their access role.</p>
+      </div>
+      <span class="rops-conn">Sign-in register: SharePoint</span>
+    </div>
+
+    <div class="card" id="user-mgmt-card">
+      <div class="card-title-row">
+        <div>
+          <p class="card-title" style="margin:0;">Signed-in users</p>
+          <p class="card-note" style="margin:4px 0 0;">Everyone listed below has signed in to this HTML at least once. New users are automatically added on their first successful Microsoft sign-in.</p>
+        </div>
+        <button type="button" class="secondary small-btn" id="user-mgmt-refresh-btn">Refresh users</button>
+      </div>
+      <div id="user-mgmt-error" class="field-error"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:14px 0;">
+        <div style="flex:1;min-width:220px;">
+          <label>Email</label>
+          <input type="text" id="user-mgmt-email" placeholder="name@company.com">
+        </div>
+        <div style="min-width:170px;">
+          <label>Role</label>
+          <select id="user-mgmt-role">
+            <option value="admin">Admin</option>
+            <option value="user" selected>User</option>
+          </select>
+        </div>
+        <button type="button" id="user-mgmt-assign-btn">Assign role</button>
+      </div>
+      <div id="user-mgmt-list"><p class="empty-note">Loading…</p></div>
+    </div>
   </section>
 
   <section id="main-view-rename" class="main-view">
@@ -1121,7 +1136,8 @@ function applyRoleUi(){
   document.getElementById('assign-queue-card').style.display = currentUserRole === 'superadmin' ? 'block' : 'none';
   document.getElementById('my-assigned-card').style.display = (currentUserRole === 'admin' || currentUserRole === 'superadmin') ? 'block' : 'none';
   document.getElementById('all-tasks-card').style.display = isAdmin ? 'block' : 'none';
-  document.getElementById('user-mgmt-card').style.display = currentUserRole === 'superadmin' ? 'block' : 'none';
+  const userMgmtTab = document.getElementById('user-mgmt-tab-btn');
+  if(userMgmtTab) userMgmtTab.style.display = currentUserRole === 'superadmin' ? '' : 'none';
   document.getElementById('page-subtitle').textContent = currentUserRole === 'user'
     ? 'Create a task request — Super Admin will assign it to an Admin with a deadline.'
     : (currentUserRole === 'admin'
@@ -1625,6 +1641,7 @@ function timelineHtml(v){
 
 /* ---- User management (Super Admin only) ---- */
 function renderUserMgmtList(){
+  if(currentUserRole !== 'superadmin') return;
   const el = document.getElementById('user-mgmt-list');
   const rows = userRolesCache.slice().sort((a,b)=> (a.Email||'').localeCompare(b.Email||''));
   const superadminRows = SUPERADMIN_EMAILS.map(e=>'<tr><td>'+escapeHtml(e)+'</td><td>Super Admin (fixed)</td><td>—</td><td>—</td><td></td></tr>').join('');
@@ -1648,6 +1665,21 @@ function renderUserMgmtList(){
     });
   });
 }
+document.getElementById('user-mgmt-refresh-btn').addEventListener('click', async ()=>{
+  if(currentUserRole !== 'superadmin') return;
+  const btn = document.getElementById('user-mgmt-refresh-btn');
+  btn.disabled = true;
+  try{
+    await loadUserRoles();
+    renderUserMgmtList();
+    populateAssigneeDropdowns();
+  }catch(err){
+    const errEl = document.getElementById('user-mgmt-error');
+    errEl.textContent = 'Could not refresh users: ' + err.message;
+    errEl.style.display = 'block';
+  }finally{ btn.disabled = false; }
+});
+
 document.getElementById('user-mgmt-assign-btn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('user-mgmt-error');
   errEl.style.display = 'none';
@@ -2610,8 +2642,8 @@ function ropsEntityFromRow(obj){
   return 'MY';
 }
 function ropsCapacity(obj){
-  // Autofill Nameplate Capacity is sourced from Excel Column O: Capacity (MWac).
-  const mw=(obj && obj.__columnO!==undefined && obj.__columnO!==null && String(obj.__columnO).trim()!=='') ? obj.__columnO : ropsFirst(obj,['Capacity (MWac)']);
+  // Autofill Nameplate Capacity (field 8) is sourced from Excel Column P: Capacity (MWac).
+  const mw=(obj && obj.__columnP!==undefined && obj.__columnP!==null && String(obj.__columnP).trim()!=='') ? obj.__columnP : ropsFirst(obj,['Capacity (MWac)']);
   if(mw!=='') return String(mw);
   return '';
 }
@@ -2620,14 +2652,14 @@ function ropsMapAssetToFields(obj){
   return {
     '2':String(ropsFirst(obj,['Device Owner'])||''),
     '3':String(ropsFirst(obj,['Asset Address'])||''),
-    '4':'',
+    '4':String((obj && obj.__columnAT!==undefined && obj.__columnAT!==null) ? obj.__columnAT : ''),
     '5':String(ropsFirst(obj,['Country'])||''),
     '6':String(ropsFirst(obj,['Coordinate'])||''),
     '7':'',
     '8':ropsCapacity(obj),
     '11':'',
     '12':String(ropsFirst(obj,['Tigr Asset ID / IREC Asset ID'])||''),
-    '13':String(ropsFirst(obj,['Device Owner'])||''),
+    '13':String((obj && obj.__columnI!==undefined && obj.__columnI!==null) ? obj.__columnI : ''),
     '14':String(ropsFirst(obj,['Office Address','Invoice Address','Asset Address'])||''),
     '15':'',
     '16':String(ropsFirst(obj,['Contact person'])||''),
@@ -2649,9 +2681,13 @@ async function ropsFindAgreement(agreementId){
     if(ropsNorm(matrix[i][agrIdx])===wanted){
       const obj=ropsRowObject(headers,matrix[i]);
       // Fixed workbook positions requested for Autofill naming/data source:
-      // Column I (index 8) = Company Name; Column O (index 14) = Capacity (MWac).
+      // Fixed workbook columns for Autofill Agreement:
+      // Column I (index 8) = Company (Granting Party) / Company Name.
+      // Column P (index 15) = Capacity (MWac) -> field 8 Nameplate Capacity.
+      // Column AT (index 45) = Asset City, State/Province -> field 4.
       obj.__columnI = matrix[i][8];
-      obj.__columnO = matrix[i][14];
+      obj.__columnP = matrix[i][15];
+      obj.__columnAT = matrix[i][45];
       return obj;
     }
   }
@@ -2743,7 +2779,7 @@ function ropsCapacityFilenamePart(capacity){
 let ropsCurrentExcelCompanyName='';
 let ropsCurrentExcelCapacityMwac='';
 function ropsFilledFilename(){
-  // Filename source is fixed to Excel Column I (Company Name) and Column O (Capacity (MWac)).
+  // Filename source is fixed to Excel Column I (Company Name) and Column P (Capacity (MWac)).
   const companyCode=ropsCompanyInitials(ropsCurrentExcelCompanyName);
   const country=ropsLookupEntity || 'MY';
   const capacityRaw=String(ropsCurrentExcelCapacityMwac||'').trim();
