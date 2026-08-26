@@ -869,7 +869,7 @@ const TASK_OPTIONS = [
   "Invoice Issuances", "AR Invoice email to client", "POD send to Client",
   "Save relevant docs to sharefolder", "Complete Delivery", "Print Invoice, PO, POD",
   "PO send to Supplier", "Clarification from Supplier", "Clarification from Buyer",
-  "Others", "New Agreement", "Request to change delivery date"
+  "Others", "New Agreement", "Request to change delivery date", "Review Documentation"
 ];
 (function populateTaskDropdown(){
   const sel = document.getElementById('nt-task');
@@ -2654,6 +2654,34 @@ document.getElementById('rops-company-search').addEventListener('input',ropsRend
 function ropsDownloadFile(file, filename){
   const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
+async function ropsCreateReviewDocumentationTask(companyName, uploadedItems){
+  const nowIso = new Date().toISOString();
+  const count = Array.isArray(uploadedItems) ? uploadedItems.length : 0;
+  const fileNames = (uploadedItems || []).map(i => i.renamed).filter(Boolean);
+  const description = 'Review documentation uploaded through Rename & File.\n' +
+    'Company: ' + (companyName || '—') + '\n' +
+    'SharePoint folder: BD Usage / ' + (companyName || '') + '\n' +
+    'Uploaded files (' + count + '):' + (fileNames.length ? '\n- ' + fileNames.join('\n- ') : ' —');
+  const created = await createListItem(MAIN_LIST_NAME, {
+    'Title': 'Review Documentation',
+    'Company Name': companyName || null,
+    'Description': description,
+    'Request Type': 'Relevant docs needed',
+    'Task': 'Review Documentation',
+    'Requested By': currentAccount.username,
+    'Requested Date': nowIso,
+    'Status': STATUS_NOT_STARTED,
+    'Last Updated By': currentAccount.username,
+    'Last Updated Date': nowIso
+  });
+  const newTaskId = created && created.id ? created.id : null;
+  await loadAllData();
+  if(newTaskId){
+    notifySuperadmins(newTaskId, 'Review Documentation').catch(e=>console.error('Notify superadmins failed', e));
+  }
+  return newTaskId;
+}
+
 function ropsAppendLog(item){
   const body=document.getElementById('rops-log-body');
   if(body.querySelector('td[colspan]')) body.innerHTML='';
@@ -2676,11 +2704,20 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       ropsAppendLog(item); done++;
     }
     ropsRememberCompanyFolder(companyAtStart);
+    const uploadedItems=[...ropsUploadQueue];
     ropsUploadQueue=[];
     await ropsCheckExistingFolder();
     const complete=docs.filter(ropsCategoryIsComplete).length;
     const remaining=Math.max(0,docs.length-complete);
-    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to BD Usage / '+companyAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+(remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.'),true);
+    let taskMessage='';
+    try{
+      const reviewTaskId=await ropsCreateReviewDocumentationTask(companyAtStart, uploadedItems);
+      taskMessage=reviewTaskId ? ' Review Documentation task #'+reviewTaskId+' was created and sent to Super Admin.' : ' Review Documentation task was created and sent to Super Admin.';
+    }catch(taskErr){
+      console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
+      taskMessage=' Files were uploaded successfully, but the Review Documentation task could not be created: '+taskErr.message;
+    }
+    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to BD Usage / '+companyAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+(remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.')+taskMessage,true);
     ropsRenderQueue();
   }catch(err){
     console.error(err);
