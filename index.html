@@ -813,7 +813,10 @@ const ROLES = ["superadmin","admin","user"];
 const ROLE_LABELS = { superadmin:"Super Admin", admin:"Admin", user:"User" };
 const SUPERADMIN_EMAILS = ["shauyuan.tan@saxonrenewables.com"];
 
-const GRAPH_SCOPES = ["Sites.ReadWrite.All", "User.Read"];
+// Request Mail.Send during the main interactive sign-in as well. This avoids
+// browsers blocking a later consent popup when an assignment/comment tries to
+// send its notification asynchronously.
+const GRAPH_SCOPES = ["Sites.ReadWrite.All", "User.Read", "Mail.Send"];
 const MAIL_SCOPES = ["Mail.Send"];
 
 /* ---- Task statuses (a.k.a. "Progress") ----
@@ -1005,6 +1008,7 @@ let taskItemsCache = [];     // [{id, Title, Description, Priority, 'Requested B
 let commentItemsCache = [];  // [{id, 'Task Item ID', 'Comment By', 'Comment Role', 'Comment Text', 'Comment Date'}]
 let activeTaskId = null;     // SharePoint item id (string) of the task open in the detail modal
 let assignTargetTaskId = null;
+let pendingDeepLinkTaskId = new URLSearchParams(window.location.search).get('task');
 
 const loginOverlay = document.getElementById('login-overlay');
 const appContent = document.getElementById('app-content');
@@ -1182,6 +1186,24 @@ async function loadAllData(){
   renderAllTasks();
   setStatus('');
   if(activeTaskId) renderTaskModal(activeTaskId);
+
+  // Email notifications link to ?task=<SharePoint item id>. Open that task
+  // automatically after the signed-in user has permission-filtered data loaded.
+  if(pendingDeepLinkTaskId){
+    const linkedTask = taskById(pendingDeepLinkTaskId);
+    if(linkedTask){
+      const email = (currentAccount.username||'').toLowerCase();
+      const allowed = currentUserRole === 'superadmin'
+        || (linkedTask['Requested By']||'').toLowerCase() === email
+        || (linkedTask['Assigned To']||'').toLowerCase() === email
+        || currentUserRole === 'admin';
+      if(allowed){
+        const idToOpen = pendingDeepLinkTaskId;
+        pendingDeepLinkTaskId = null;
+        openTaskModal(idToOpen);
+      }
+    }
+  }
 }
 function taskById(taskId){
   return taskItemsCache.find(t => String(t.id) === String(taskId)) || null;
@@ -1608,9 +1630,13 @@ function renderTaskModal(taskId){
       if(newStatus === STATUS_COMPLETED) payload['Completed Date'] = nowIso;
       await updateListItem(MAIN_LIST_NAME, taskId, payload);
       await loadAllData();
-      if(newStatus === STATUS_COMPLETED){
-        const updated = taskById(taskId);
-        if(updated) notifyTaskCompleted(updated).catch(e=>console.error(e));
+      const updated = taskById(taskId);
+      if(updated){
+        if(newStatus === STATUS_COMPLETED){
+          notifyTaskCompleted(updated).catch(e=>console.error('Notify completed failed', e));
+        }else{
+          notifyStatusChanged(updated).catch(e=>console.error('Notify status change failed', e));
+        }
       }
     }catch(err){
       alert('Could not update status: ' + err.message);
@@ -1791,6 +1817,14 @@ async function notifyTaskCompleted(v){
     '<p><a href="'+link+'">Open it in the Task Management app</a></p>';
   await sendMailGraph([v['Requested By']], 'Task completed — ' + v.Title, html);
 }
+async function notifyStatusChanged(v){
+  if(!v['Requested By']) return;
+  const link = taskDeepLink(v.id);
+  const html = '<p>Your task <strong>'+escapeHtml(v.Title)+'</strong> was updated by '+escapeHtml(v['Last Updated By'])+'.</p>'+
+    '<p><strong>Status:</strong> '+escapeHtml(v.Status)+'</p>'+
+    '<p><a href="'+link+'">Open the task to view details or reply with a comment</a></p>';
+  await sendMailGraph([v['Requested By']], 'Task updated — ' + v.Title, html);
+}
 async function notifyOnComment(v, text){
   const link = taskDeepLink(v.id);
   const commenter = (currentAccount.username||'').toLowerCase();
@@ -1800,7 +1834,7 @@ async function notifyOnComment(v, text){
   if(!recipients.size) return;
   const html = '<p>New comment on <strong>'+escapeHtml(v.Title)+'</strong> from '+escapeHtml(currentAccount.username)+':</p>'+
     '<p style="white-space:pre-wrap;">'+escapeHtml(text)+'</p>'+
-    '<p><a href="'+link+'">Open it in the Task Management app</a></p>';
+    '<p><a href="'+link+'">Open the task to read the thread and reply</a></p>';
   await sendMailGraph(Array.from(recipients), 'New comment — ' + v.Title, html);
 }
 
