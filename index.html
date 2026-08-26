@@ -730,17 +730,17 @@
         Description        Multiple lines of text
         Request Type       Choice: Out Right Purchase, Self Manage, Proceeds Share,
                                     Inventory, Stock-In (T), Stock-Out (T), Stock-Out (R),
-                                    Epicor ID Creation, Epicor Part No Creation,
+                                    Epicor Part No Creation,
                                     Request for E-Invoice information, Relevant docs needed,
                                     BD Adhoc Request, LHDN Stamping, Registry_TIGR
                             (required — must match REQUEST_TYPES below exactly)
         Task               Choice: I-REC Registration, TIGR Registration, Generation Data,
                                     RECs Issuances, Matching, Request Redemption Information,
-                                    Redemption Request, PO Issuances, Receipt Entry,
+                                    PO Issuances, Receipt Entry,
                                     Received AP Invoice, Request for Approval, SO Issuances,
-                                    Shipment Entry, Ready to delivery, Submitted to Finance,
+                                    Shipment Entry, Ready to delivery,
                                     Invoice Issuances, AR Invoice email to client,
-                                    POD send to Client, Save relevant docs to sharefolder,
+                                    Save relevant docs to sharefolder,
                                     Complete Delivery, Print Invoice, PO, POD, PO send to Supplier,
                                     Clarification from Supplier, Clarification from Buyer,
                                     Others, New Agreement, Request to change delivery date
@@ -844,7 +844,7 @@ const STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_BLOCKED, ST
    column layout comment above). Required on every new task request. */
 const REQUEST_TYPES = [
   "Out Right Purchase", "Self Manage", "Proceeds Share", "Inventory",
-  "Stock-In (T)", "Stock-Out (T)", "Stock-Out (R)", "Epicor ID Creation",
+  "Stock-In (T)", "Stock-Out (T)", "Stock-Out (R)",
   "Request for E-Invoice information",
   "Relevant docs needed", "BD Adhoc Request", "LHDN Stamping", 
 ];
@@ -863,10 +863,10 @@ const REQUEST_TYPES = [
    comment above). */
 const TASK_OPTIONS = [
   "I-REC Registration", "TIGR Registration", "Generation Data", "RECs Issuances",
-  "Matching", "Request Redemption Information", "Redemption Request",
+  "Matching", "Request Redemption Information",
   "PO Issuances", "Received AP Invoice", "Request for Approval",
-  "Ready to delivery", "Submitted to Finance",
-  "Invoice Issuances", "AR Invoice email to client", "POD send to Client",
+  "Ready to delivery",
+  "Invoice Issuances", "AR Invoice email to client",
   "Save relevant docs to sharefolder", "Complete Delivery",   "Clarification from Supplier", "Clarification from Buyer",
   "Others", "New Agreement", "Request to change delivery date", "Review Documentation"
 ];
