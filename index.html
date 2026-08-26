@@ -760,7 +760,7 @@
         Assigned By        Single line of text
         Assigned Date      Date and Time
         Deadline           Date and Time          (the real deadline, set at assignment)
-        Status             Choice: Not Started, In Progress, Blocked, Pending, Completed
+        Status             Choice: Not Started, In Progress, Blocked, Pending, Completed, Rejected
                             (required — must match STATUS_ORDER below exactly. This is
                              the work-progress field, shown to everyone incl. the
                              requester, read-only. Only the assigned Admin or Super
@@ -836,6 +836,7 @@ const STATUS_IN_PROGRESS = "In Progress";
 const STATUS_BLOCKED = "Blocked";
 const STATUS_PENDING = "Pending";
 const STATUS_COMPLETED = "Completed";
+const STATUS_REJECTED = "Rejected";
 const STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_BLOCKED, STATUS_PENDING, STATUS_COMPLETED];
 
 /* ---- Request types ----
@@ -944,6 +945,7 @@ function badgeClassForStatus(status){
   if(status === STATUS_BLOCKED) return 'badge-blocked';
   if(status === STATUS_PENDING) return 'badge-pending';
   if(status === STATUS_COMPLETED) return 'badge-completed';
+  if(status === STATUS_REJECTED) return 'badge-blocked';
   return '';
 }
 const PRIORITY_BADGE_CLASS = {
@@ -973,7 +975,7 @@ function fmtDateTime(iso){
   return d.toLocaleString(undefined, {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
 }
 function deadlineClass(deadline, status){
-  if(!deadline || status === STATUS_COMPLETED) return '';
+  if(!deadline || status === STATUS_COMPLETED || status === STATUS_REJECTED) return '';
   const d = new Date(deadline);
   if(isNaN(d.getTime())) return '';
   const now = new Date();
@@ -1220,12 +1222,12 @@ function myTasks(){
 }
 function pendingTasks(){
   // Awaiting assignment = no Assigned To yet, regardless of Status value.
-  return taskItemsCache.filter(t => !t['Assigned To'])
+  return taskItemsCache.filter(t => !t['Assigned To'] && t.Status !== STATUS_REJECTED)
     .sort(sortByPriorityThenDeadline);
 }
 function assignedToMe(){
   const email = (currentAccount.username||'').toLowerCase();
-  return taskItemsCache.filter(t => (t['Assigned To']||'').toLowerCase() === email && t.Status !== STATUS_COMPLETED)
+  return taskItemsCache.filter(t => (t['Assigned To']||'').toLowerCase() === email && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED)
     .sort(sortByPriorityThenDeadline);
 }
 function allTasksFiltered(){
@@ -1561,10 +1563,22 @@ function renderTaskModal(taskId){
     '</div>';
   }
 
+  // Super Admin controls: reject keeps the task and history; delete permanently removes it and its comments.
+  if(currentUserRole === 'superadmin' && v.Status !== STATUS_REJECTED){
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
+      '<button type="button" class="secondary" id="tm-reject-btn">Reject task</button>'+
+      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+
+    '</div>';
+  } else if(currentUserRole === 'superadmin'){
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
+      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+
+    '</div>';
+  }
+
   // Progress/Status controls: the assigned Admin or Super Admin can edit
   // this once the task has been handed to someone; the requester (role
   // "user") never gets this control — they only ever see the badge above.
-  if(canManageTask(v) && v['Assigned To'] && v.Status !== STATUS_COMPLETED){
+  if(canManageTask(v) && v['Assigned To'] && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED){
     html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
       '<div style="min-width:170px;"><label>Update progress</label><select id="tm-status-select">'+
         STATUS_ORDER.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
@@ -1616,6 +1630,57 @@ function renderTaskModal(taskId){
       prioritySave.disabled = false;
     }
   });
+  const rejectBtn = document.getElementById('tm-reject-btn');
+  if(rejectBtn) rejectBtn.addEventListener('click', async ()=>{
+    const reason = prompt('Reason for rejecting this task (optional):', '');
+    if(reason === null) return;
+    if(!confirm('Reject task #' + taskId + '? The requester will be notified and the task will remain in the system as Rejected.')) return;
+    rejectBtn.disabled = true;
+    try{
+      const nowIso = new Date().toISOString();
+      await updateListItem(MAIN_LIST_NAME, taskId, {
+        'Status': STATUS_REJECTED,
+        'Last Updated By': currentAccount.username,
+        'Last Updated Date': nowIso
+      });
+      if(reason.trim()){
+        await createListItem(COMMENTS_LIST_NAME, {
+          'Task Item ID': String(taskId),
+          'Comment By': currentAccount.username,
+          'Comment Role': currentUserRole,
+          'Comment Text': 'Rejected: ' + reason.trim(),
+          'Comment Date': nowIso
+        });
+      }
+      await loadAllData();
+      const updated = taskById(taskId);
+      if(updated) notifyTaskRejected(updated, reason.trim()).catch(e=>console.error('Notify rejected failed', e));
+    }catch(err){
+      alert('Could not reject task: ' + err.message + '\n\nMake sure the SharePoint Status choice column includes a Rejected option.');
+    }finally{ rejectBtn.disabled = false; }
+  });
+
+  const deleteBtn = document.getElementById('tm-delete-btn');
+  if(deleteBtn) deleteBtn.addEventListener('click', async ()=>{
+    if(!confirm('Permanently delete task #' + taskId + '? This will also delete all comments for this task. This cannot be undone.')) return;
+    deleteBtn.disabled = true;
+    try{
+      const taskCopy = Object.assign({}, v);
+      const commentsToDelete = commentsForTask(taskId);
+      for(const c of commentsToDelete){
+        await deleteListItem(COMMENTS_LIST_NAME, c.id);
+      }
+      await deleteListItem(MAIN_LIST_NAME, taskId);
+      document.getElementById('task-modal-overlay').style.display = 'none';
+      activeTaskId = null;
+      await loadAllData();
+      notifyTaskDeleted(taskCopy).catch(e=>console.error('Notify deleted failed', e));
+    }catch(err){
+      alert('Could not delete task: ' + err.message);
+      deleteBtn.disabled = false;
+    }
+  });
+
   const statusSave = document.getElementById('tm-status-save');
   if(statusSave) statusSave.addEventListener('click', async ()=>{
     const newStatus = document.getElementById('tm-status-select').value;
@@ -1673,7 +1738,8 @@ function timelineHtml(v){
     { label:'Requested', sub: v['Requested By'] + ' · ' + fmtDateTime(v['Requested Date']), done:true },
     { label:'Assigned', sub: v['Assigned To'] ? ('to ' + v['Assigned To'] + ' by ' + v['Assigned By'] + ' · ' + fmtDateTime(v['Assigned Date'])) : 'Waiting for Super Admin', done: !!v['Assigned To'] },
     { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED) ? 'Work underway' : 'Not started yet', done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED },
-    { label:'Completed', sub: v.Status === STATUS_COMPLETED ? fmtDateTime(v['Completed Date']) : 'Pending', done: v.Status === STATUS_COMPLETED }
+    { label:'Completed', sub: v.Status === STATUS_COMPLETED ? fmtDateTime(v['Completed Date']) : (v.Status === STATUS_REJECTED ? 'Not applicable — request rejected' : 'Pending'), done: v.Status === STATUS_COMPLETED },
+    ...(v.Status === STATUS_REJECTED ? [{ label:'Rejected', sub: 'Rejected by ' + (v['Last Updated By'] || 'Super Admin') + ' · ' + fmtDateTime(v['Last Updated Date']), done:true }] : [])
   ];
   return steps.map(s =>
     '<div class="timeline-step'+(s.done?' done':'')+'">'+
@@ -1825,6 +1891,25 @@ async function notifyStatusChanged(v){
     '<p><a href="'+link+'">Open the task to view details or reply with a comment</a></p>';
   await sendMailGraph([v['Requested By']], 'Task updated — ' + v.Title, html);
 }
+async function notifyTaskRejected(v, reason){
+  const recipients = new Set();
+  if(v['Requested By']) recipients.add(v['Requested By']);
+  if(v['Assigned To']) recipients.add(v['Assigned To']);
+  if(!recipients.size) return;
+  const link = taskDeepLink(v.id);
+  const html = '<p>Task <strong>'+escapeHtml(v.Title)+'</strong> has been rejected by the Super Admin.</p>'+
+    (reason ? '<p><strong>Reason:</strong> '+escapeHtml(reason)+'</p>' : '')+
+    '<p><a href="'+link+'">Open the task to view the history and comments</a></p>';
+  await sendMailGraph(Array.from(recipients), 'Task rejected — ' + v.Title, html);
+}
+async function notifyTaskDeleted(v){
+  const recipients = new Set();
+  if(v['Requested By']) recipients.add(v['Requested By']);
+  if(v['Assigned To']) recipients.add(v['Assigned To']);
+  if(!recipients.size) return;
+  const html = '<p>Task <strong>'+escapeHtml(v.Title)+'</strong> (#'+escapeHtml(v.id)+') was permanently deleted by the Super Admin.</p>';
+  await sendMailGraph(Array.from(recipients), 'Task deleted — ' + v.Title, html);
+}
 async function notifyOnComment(v, text){
   const link = taskDeepLink(v.id);
   const commenter = (currentAccount.username||'').toLowerCase();
@@ -1957,6 +2042,12 @@ async function updateListItem(listName, itemId, displayValues){
   return graphFetch("/sites/" + siteId + "/lists/" + listId + "/items/" + itemId + "/fields", {
     method: 'PATCH',
     body: JSON.stringify(fields)
+  });
+}
+async function deleteListItem(listName, itemId){
+  const listId = await getListId(listName);
+  return graphFetch("/sites/" + siteId + "/lists/" + listId + "/items/" + itemId, {
+    method: 'DELETE'
   });
 }
 
