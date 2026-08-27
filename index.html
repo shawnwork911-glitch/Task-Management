@@ -3033,7 +3033,8 @@ async function validateReviewDocumentationTaskChoices(){
 }
 
 async function ropsCreateReviewDocumentationTask(companyName, uploadedItems){
-  await validateReviewDocumentationTaskChoices();
+  // Create the actual task first. Validation/numbering/notification are follow-up
+  // steps and must never prevent a successful upload from generating the task.
   const nowIso = new Date().toISOString();
   const count = Array.isArray(uploadedItems) ? uploadedItems.length : 0;
   const fileNames = (uploadedItems || []).map(i => i.renamed).filter(Boolean);
@@ -3041,27 +3042,65 @@ async function ropsCreateReviewDocumentationTask(companyName, uploadedItems){
     'Company: ' + (companyName || '—') + '\n' +
     'SharePoint folder: BD Usage / ' + (companyName || '') + '\n' +
     'Uploaded files (' + count + '):' + (fileNames.length ? '\n- ' + fileNames.join('\n- ') : ' —');
-  const created = await createListItem(MAIN_LIST_NAME, {
-    'Title': 'Review Documentation',
-    'Company Name': companyName || null,
-    'Description': description,
-    'Request Type': 'Relevant docs needed',
-    'Task': 'Review Documentation',
-    'Requested By': currentAccount.username,
-    'Requested Date': nowIso,
-    'Status': STATUS_NOT_STARTED,
-    'Last Updated By': currentAccount.username,
-    'Last Updated Date': nowIso
-  });
-  const newTaskId = created && created.id ? created.id : null;
-  let newTaskNumber = null;
-  if(newTaskId) newTaskNumber = await assignTaskNumberToItem(newTaskId);
-  await loadAllData();
-  if(newTaskId){
-    const createdTask = taskById(newTaskId) || {id:newTaskId, 'Task Number':newTaskNumber, Title:'Review Documentation'};
-    notifySuperadmins(createdTask).catch(e=>console.error('Notify superadmins failed', e));
+
+  let created;
+  try{
+    created = await createListItem(MAIN_LIST_NAME, {
+      'Title': 'Review Documentation',
+      'Company Name': companyName || null,
+      'Description': description,
+      'Request Type': 'Relevant docs needed',
+      'Task': 'Review Documentation',
+      'Requested By': currentAccount.username,
+      'Requested Date': nowIso,
+      'Status': STATUS_NOT_STARTED,
+      'Last Updated By': currentAccount.username,
+      'Last Updated Date': nowIso
+    });
+  }catch(err){
+    const raw = String(err && err.message ? err.message : err);
+    if(/Graph\s+400/i.test(raw)){
+      // Best-effort metadata validation only after the actual create fails.
+      try{ await validateReviewDocumentationTaskChoices(); }
+      catch(validationErr){ throw validationErr; }
+      throw new Error('SharePoint rejected the Review Documentation task fields. Confirm the Job Distribution Tracker columns and field types match the task form. Original error: ' + raw);
+    }
+    throw err;
   }
-  return newTaskId;
+
+  const newTaskId = created && created.id ? String(created.id) : null;
+  if(!newTaskId) throw new Error('SharePoint created the request but did not return a task item ID.');
+
+  // Task Number is helpful for display, but failure here must not undo or hide
+  // the task that was already created successfully.
+  let newTaskNumber = null;
+  try{
+    newTaskNumber = await assignTaskNumberToItem(newTaskId);
+  }catch(numberErr){
+    console.warn('Review Documentation task created, but Task Number could not be assigned', numberErr);
+  }
+
+  // Always refresh so the newly-created task becomes visible immediately even
+  // when numbering or notification has an issue.
+  try{ await loadAllData(); }
+  catch(refreshErr){ console.warn('Review task created but task list refresh failed', refreshErr); }
+
+  const createdTask = taskById(newTaskId) || {
+    id:newTaskId,
+    'Task Number':newTaskNumber,
+    Title:'Review Documentation',
+    'Requested By':currentAccount.username,
+    'Requested Date':nowIso,
+    Status:STATUS_NOT_STARTED
+  };
+
+  try{
+    await notifySuperadmins(createdTask);
+  }catch(mailErr){
+    console.warn('Review Documentation task created, but Super Admin email notification failed', mailErr);
+  }
+
+  return { id:newTaskId, taskNumber:newTaskNumber };
 }
 
 function ropsAppendLog(item){
@@ -3111,12 +3150,10 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       // a newly-added missing document, or a replacement document.
       let taskMessage='';
       try{
-        const reviewTaskId=await ropsCreateReviewDocumentationTask(companyAtStart, uploadedItems);
-        const reviewTask=reviewTaskId ? taskById(reviewTaskId) : null;
-        const reviewNumber=reviewTask ? displayTaskNumber(reviewTask) : '';
-        taskMessage=reviewTaskId
-          ? ' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created and sent to Super Admin.'
-          : ' Review Documentation task was created and sent to Super Admin.';
+        const reviewResult=await ropsCreateReviewDocumentationTask(companyAtStart, uploadedItems);
+        const reviewTask=reviewResult && reviewResult.id ? taskById(reviewResult.id) : null;
+        const reviewNumber=reviewTask ? displayTaskNumber(reviewTask) : (reviewResult && reviewResult.taskNumber ? reviewResult.taskNumber : '');
+        taskMessage=' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created for Super Admin review.';
       }catch(taskErr){
         console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
         const rawMsg=String(taskErr && taskErr.message ? taskErr.message : taskErr);
