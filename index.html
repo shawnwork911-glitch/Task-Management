@@ -1014,7 +1014,7 @@ let siteId = null;
 let currentUserRole = 'user';
 let isAdmin = false;
 let userRolesCache = [];     // [{id, Email, Role, 'Assigned By', 'Assigned Date'}]
-let signedInUsersCache = []; // [{id, Email, 'First Sign-In', 'Last Sign-In'}]
+let  // [{id, Email, 'First Sign-In', 'Last Sign-In'}]
 let taskItemsCache = [];     // [{id, Title, Description, Priority, 'Requested By', ...}]
 let commentItemsCache = [];  // [{id, 'Task Item ID', 'Comment By', 'Comment Role', 'Comment Text', 'Comment Date'}]
 let activeTaskId = null;     // SharePoint item id (string) of the task open in the detail modal
@@ -1099,20 +1099,16 @@ async function recordAndLoadSignedInUser(){
   const email = emailRaw.toLowerCase();
   let rows = [];
   try{
-    rows = await getListItems(USERS_LIST_NAME);
   }catch(err){
     const msg = String(err && err.message ? err.message : err);
-    throw new Error('The sign-in register "'+USERS_LIST_NAME+'" is not accessible. Create the list and give users Contribute access. Details: '+msg);
   }
   const existing = rows.find(r => (r.Email||'').trim().toLowerCase() === email);
   const nowIso = new Date().toISOString();
   if(existing){
-    await updateListItem(USERS_LIST_NAME, existing.id, {
       'Email': emailRaw,
       'Last Sign-In': nowIso
     });
   }else{
-    await createListItem(USERS_LIST_NAME, {
       'Title': emailRaw,
       'Email': emailRaw,
       'First Sign-In': nowIso,
@@ -1120,15 +1116,13 @@ async function recordAndLoadSignedInUser(){
     });
   }
   // Reload so Super Admin sees the newest registry state after refresh/sign-in.
-  signedInUsersCache = await getListItems(USERS_LIST_NAME);
 }
 
 async function loadSignedInUsers(){
   try{
-    signedInUsersCache = await getListItems(USERS_LIST_NAME);
   }catch(err){
     console.warn('Could not load sign-in register', err);
-    signedInUsersCache = [];
+    
   }
 }
 
