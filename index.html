@@ -1661,7 +1661,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
     const v = taskById(assignTargetTaskId);
     if(!v) throw new Error('The task could not be reloaded after assignment.');
     if((v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
-      throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. The app now supports both Single line of text and Person or Group fields; verify the selected Admin has visited the Operations SharePoint site at least once.');
+      throw new Error('The assignee was not saved to the SharePoint "Assigned To" column. The app supports both Admin and Super Admin assignees and both text and Person or Group fields; verify the selected person has access to the Operations SharePoint site.');
     }
     document.getElementById('assign-modal-overlay').style.display = 'none';
     try{
@@ -2250,11 +2250,23 @@ function fieldsPayloadFromDisplay(map, displayValues){
   return fields;
 }
 
+function sharePointIdentityMatchesEmail(value, email){
+  const v = String(value || '').trim().toLowerCase();
+  const e = String(email || '').trim().toLowerCase();
+  if(!v || !e) return false;
+  if(v === e) return true;
+  // SharePoint commonly stores people as claims identities, e.g.
+  // i:0#.f|membership|name@company.com rather than as a plain email.
+  if(v.endsWith('|' + e)) return true;
+  // Some tenants expose the email inside another login-name style value.
+  return v.includes(e);
+}
 async function getSharePointUserLookupId(email){
   email = String(email || '').trim().toLowerCase();
-  if(!email) throw new Error('Assigned Admin email is blank.');
+  if(!email) throw new Error('Selected assignee email is blank.');
   // SharePoint person fields store an integer lookup into the site's hidden
-  // User Information List. Resolve that lookup by email through Graph.
+  // User Information List. Resolve Admins and Super Admins by either their
+  // normal email or SharePoint claims-format login identity.
   const lists = await graphFetch('/sites/' + siteId + '/lists?$select=id,displayName,system');
   const userList = (lists.value || []).find(l =>
     String(l.displayName || '').toLowerCase() === 'user information list' ||
@@ -2264,10 +2276,13 @@ async function getSharePointUserLookupId(email){
   const items = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
   const match = (items.value || []).find(item=>{
     const f = item.fields || {};
-    const candidates = [f.EMail, f.Email, f.UserName, f.Name, f.Title];
-    return candidates.some(v => String(v || '').trim().toLowerCase() === email);
+    // Check every string field because internal field names differ between
+    // SharePoint tenants and claims login names often contain the email.
+    return Object.values(f).some(v => sharePointIdentityMatchesEmail(v, email));
   });
-  if(!match) throw new Error('The selected Admin is not known to this SharePoint site yet. Ask the Admin to open the Operations SharePoint site once, then try assigning again.');
+  if(!match){
+    throw new Error('The selected assignee could not be resolved in the Operations SharePoint site. Confirm the person has access to the Operations site, then try assigning again.');
+  }
   return String(match.id);
 }
 
@@ -3152,7 +3167,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       try{
         const reviewResult=await ropsCreateReviewDocumentationTask(companyAtStart, uploadedItems);
         const reviewTask=reviewResult && reviewResult.id ? taskById(reviewResult.id) : null;
-        const reviewNumber=reviewTask ? displayTaskNumber(reviewTask) : (reviewResult && reviewResult.taskNumber ? reviewResult.taskNumber : '');
+        const reviewNumber=reviewTask ? taskNumberValue(reviewTask) : (reviewResult && reviewResult.taskNumber ? reviewResult.taskNumber : '');
         taskMessage=' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created for Super Admin review.';
       }catch(taskErr){
         console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
