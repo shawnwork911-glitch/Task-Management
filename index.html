@@ -187,6 +187,19 @@
   table.task-table{width:100%;border-collapse:collapse;font-size:13px;}
   table.task-table th{font-size:11px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-secondary);text-align:left;border-bottom:1px solid var(--border);padding:6px 8px;}
   table.task-table td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top;}
+  #all-tasks-list{width:100%;max-width:100%;overflow-x:auto;}
+  #all-tasks-list table.task-table{width:100%;max-width:100%;table-layout:fixed;}
+  #all-tasks-list table.task-table th,#all-tasks-list table.task-table td{overflow-wrap:anywhere;word-break:break-word;}
+  #all-tasks-list table.task-table th:nth-child(1){width:5%;}
+  #all-tasks-list table.task-table th:nth-child(2){width:12%;}
+  #all-tasks-list table.task-table th:nth-child(3){width:10%;}
+  #all-tasks-list table.task-table th:nth-child(4){width:9%;}
+  #all-tasks-list table.task-table th:nth-child(5){width:18%;}
+  #all-tasks-list table.task-table th:nth-child(6){width:15%;}
+  #all-tasks-list table.task-table th:nth-child(7){width:8%;}
+  #all-tasks-list table.task-table th:nth-child(8){width:8%;}
+  #all-tasks-list table.task-table th:nth-child(9){width:10%;}
+  #all-tasks-list .badge{max-width:100%;}
   table.task-table tr.clickable{cursor:pointer;}
   table.task-table tr.clickable:hover{background:var(--surface-2);}
 
@@ -518,7 +531,7 @@
     <div class="rops-head">
       <div>
         <h1>User Management</h1>
-        <p class="rops-subtitle">Super Admin only — manage Admin/User role assignments. Normal users default to User and do not need access to this role-management list.</p>
+        <p class="rops-subtitle">Super Admin only — manage Super Admin/Admin/User role assignments. Normal users default to User and do not need access to this role-management list.</p>
       </div>
       <span class="rops-conn">Role assignments: SharePoint</span>
     </div>
@@ -527,7 +540,7 @@
       <div class="card-title-row">
         <div>
           <p class="card-title" style="margin:0;">Known users &amp; role assignments</p>
-          <p class="card-note" style="margin:4px 0 0;">Normal users default to User automatically and are not written to this list. Assign Admin here only when elevated access is needed.</p>
+          <p class="card-note" style="margin:4px 0 0;">Normal users default to User automatically and are not written to this list. A Super Admin can promote another user to Super Admin or Admin here.</p>
         </div>
         <button type="button" class="secondary small-btn" id="user-mgmt-refresh-btn">Refresh users</button>
       </div>
@@ -540,6 +553,7 @@
         <div style="min-width:170px;">
           <label>Role</label>
           <select id="user-mgmt-role">
+            <option value="superadmin">Super Admin</option>
             <option value="admin">Admin</option>
             <option value="user" selected>User</option>
           </select>
@@ -740,6 +754,7 @@
    1) "Job Distribution Tracker" (existing list) — one item per task:
         Title              Single line of text   (built-in column — auto-filled by the app as
                                                    "Request Type - Task"; requester never types it)
+        Task Number        Number                (visible sequential task number; starts from 1)
         Agreement ID       Single line of text   (optional — shown only if the requester ticks
                                                    the "Agreement ID" checkbox on the request form)
         Company Name       Single line of text   (optional — shown only if the requester ticks
@@ -773,7 +788,7 @@
         Requested By       Single line of text   (requester's email)
         Requested Date     Date and Time
         Requested Deadline Date and Time          (optional, the requester's suggested deadline)
-        Assigned To        Single line of text   (assigned Admin's email — see note below)
+        Assigned To        Single line of text OR Person or Group (assigned Admin — both supported)
         Assigned By        Single line of text
         Assigned Date      Date and Time
         Deadline           Date and Time          (the real deadline, set at assignment)
@@ -823,9 +838,9 @@ const COMMENTS_LIST_NAME = "Job Distribution Tracker Comments";
 const ROLES_LIST_NAME = "Job Distribution Tracker Roles";
 
 /* ---- Roles ----
-   Only two assignable roles: 'admin' and 'user'. Super Admin is a hardcoded
-   allowlist below (can't be edited away via the UI). Anyone not listed and
-   not in the Roles list is 'user'. */
+   Assignable roles are 'superadmin', 'admin' and 'user'. The hardcoded
+   Super Admin below is the permanent fallback and cannot be demoted in the UI.
+   Additional Super Admins can be assigned through User Management. */
 const ROLES = ["superadmin","admin","user"];
 const ROLE_LABELS = { superadmin:"Super Admin", admin:"Admin", user:"User" };
 const SUPERADMIN_EMAILS = ["shauyuan.tan@saxonrenewables.com"];
@@ -950,10 +965,18 @@ function sortByPriorityThenDeadline(a, b){
   if(byPriority !== 0) return byPriority;
   return effectiveDueDate(a) - effectiveDueDate(b);
 }
+function priorityShortLabel(priority){
+  const p = String(priority || '').trim();
+  if(/^critical\b/i.test(p)) return 'Critical';
+  if(/^high\b/i.test(p)) return 'High';
+  if(/^medium\b/i.test(p)) return 'Medium';
+  if(/^low\b/i.test(p)) return 'Low';
+  return p;
+}
 function priorityBadgeHtml(v){
   if(!canSeePriority()) return '';
-  if(!v.Priority) return '<span class="badge badge-priority-unset">Priority not set</span>';
-  return '<span class="badge '+badgeClassForPriority(v.Priority)+'">'+escapeHtml(v.Priority)+'</span>';
+  if(!v.Priority) return '<span class="badge badge-priority-unset">Not set</span>';
+  return '<span class="badge '+badgeClassForPriority(v.Priority)+'">'+escapeHtml(priorityShortLabel(v.Priority))+'</span>';
 }
 function badgeClassForStatus(status){
   if(status === STATUS_NOT_STARTED) return 'badge-not-started';
@@ -1026,7 +1049,9 @@ let taskItemsCache = [];     // [{id, Title, Description, Priority, 'Requested B
 let commentItemsCache = [];  // [{id, 'Task Item ID', 'Comment By', 'Comment Role', 'Comment Text', 'Comment Date'}]
 let activeTaskId = null;     // SharePoint item id (string) of the task open in the detail modal
 let assignTargetTaskId = null;
-let pendingDeepLinkTaskId = new URLSearchParams(window.location.search).get('task');
+const initialUrlParams = new URLSearchParams(window.location.search);
+let pendingDeepLinkTaskNumber = initialUrlParams.get('taskNumber');
+let pendingDeepLinkTaskId = initialUrlParams.get('task');
 
 const loginOverlay = document.getElementById('login-overlay');
 const appContent = document.getElementById('app-content');
@@ -1207,10 +1232,12 @@ async function loadAllData(){
   setStatus('');
   if(activeTaskId) renderTaskModal(activeTaskId);
 
-  // Email notifications link to ?task=<SharePoint item id>. Open that task
-  // automatically after the signed-in user has permission-filtered data loaded.
-  if(pendingDeepLinkTaskId){
-    const linkedTask = taskById(pendingDeepLinkTaskId);
+  // Email notifications use the visible Task Number in the URL. Legacy
+  // ?task=<SharePoint item id> links still work for older emails.
+  if(pendingDeepLinkTaskNumber || pendingDeepLinkTaskId){
+    const linkedTask = pendingDeepLinkTaskNumber
+      ? taskByNumber(pendingDeepLinkTaskNumber)
+      : taskById(pendingDeepLinkTaskId);
     if(linkedTask){
       const email = (currentAccount.username||'').toLowerCase();
       const allowed = currentUserRole === 'superadmin'
@@ -1218,15 +1245,43 @@ async function loadAllData(){
         || (linkedTask['Assigned To']||'').toLowerCase() === email
         || currentUserRole === 'admin';
       if(allowed){
-        const idToOpen = pendingDeepLinkTaskId;
+        pendingDeepLinkTaskNumber = null;
         pendingDeepLinkTaskId = null;
-        openTaskModal(idToOpen);
+        openTaskModal(linkedTask.id);
       }
     }
   }
 }
 function taskById(taskId){
   return taskItemsCache.find(t => String(t.id) === String(taskId)) || null;
+}
+function taskByNumber(taskNumber){
+  return taskItemsCache.find(t => String(t['Task Number']) === String(taskNumber)) || null;
+}
+function taskNumberValue(v){
+  const n = Number(v && v['Task Number']);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+}
+function taskNumberLabel(v){
+  const n = taskNumberValue(v);
+  return n ? ('Task #' + n) : 'Task';
+}
+async function allocateNextTaskNumber(){
+  // Fetch fresh task data before allocating so old SharePoint item IDs do not
+  // affect the visible numbering. Existing test rows with a blank Task Number
+  // are ignored, so the first production task can start at 1.
+  const fresh = await getListItems(MAIN_LIST_NAME);
+  let maxNo = 0;
+  fresh.forEach(t=>{
+    const n = Number(t['Task Number']);
+    if(Number.isFinite(n) && n > maxNo) maxNo = Math.trunc(n);
+  });
+  return maxNo + 1;
+}
+async function assignTaskNumberToItem(itemId){
+  const nextNo = await allocateNextTaskNumber();
+  await updateListItem(MAIN_LIST_NAME, itemId, { 'Task Number': nextNo });
+  return nextNo;
 }
 function commentsForTask(taskId){
   return commentItemsCache
@@ -1263,12 +1318,13 @@ function allTasksFiltered(){
     .sort(sortByPriorityThenDeadline);
 }
 function populateAssigneeDropdowns(){
-  // Assignable pool = everyone with the Admin role, plus Super Admin
-  // themselves — Super Admin can pick themselves as the doer of a task,
+  // Assignable pool = everyone with the Admin role plus all Super Admins.
+  // Super Admin can pick themselves or another Super Admin as the doer of a task.
   // same as any Admin can, not just create/oversee requests.
   const admins = emailsForRole('admin');
-  const superadminLower = SUPERADMIN_EMAILS.map(e=>e.toLowerCase());
-  const pool = SUPERADMIN_EMAILS.concat(admins.filter(e => !superadminLower.includes(e.toLowerCase())));
+  const superadmins = emailsForRole('superadmin');
+  const superadminLower = superadmins.map(e=>e.toLowerCase());
+  const pool = superadmins.concat(admins.filter(e => !superadminLower.includes(e.toLowerCase())));
   const optionLabel = e => escapeHtml(e) + (superadminLower.includes(e.toLowerCase()) ? ' (Super Admin)' : '');
   const filterSel = document.getElementById('filter-assignee');
   const currentFilter = filterSel.value;
@@ -1302,6 +1358,7 @@ function taskCardHtml(v, showAssignee){
       '</div>'+
     '</div>'+
     '<div class="task-card-meta">'+
+      '<span>'+escapeHtml(taskNumberLabel(v))+'</span>'+
       (v.Title ? '<span>Title: '+escapeHtml(v.Title)+'</span>' : '')+
       (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
       (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
@@ -1324,6 +1381,7 @@ function renderAssignQueue(){
         priorityBadgeHtml(v)+
       '</div>'+
       '<div class="task-card-meta">'+
+        '<span>'+escapeHtml(taskNumberLabel(v))+'</span>'+
         (v.Title ? '<span>Title: '+escapeHtml(v.Title)+'</span>' : '')+
         (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
         (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
@@ -1365,13 +1423,14 @@ function renderAllTasks(){
   if(!tasks.length){ el.innerHTML = '<p class="empty-note">No tasks match this filter.</p>'; return; }
   const showPriorityCol = canSeePriority();
   el.innerHTML = '<table class="task-table"><thead><tr>'+
-    '<th>Title</th><th>Request type</th><th>Task</th><th>Requested by</th><th>Assigned to</th><th>Deadline</th>'+
+    '<th>Task #</th><th>Title</th><th>Request type</th><th>Task</th><th>Requested by</th><th>Assigned to</th><th>Deadline</th>'+
     (showPriorityCol ? '<th>Priority</th>' : '')+
     '<th>Status</th>'+
     '</tr></thead><tbody>'+
     tasks.map(v=>{
       const dClass = deadlineClass(v.Deadline, v.Status);
       return '<tr class="clickable" data-task-id="'+escapeHtml(v.id)+'">'+
+        '<td>'+(taskNumberValue(v) ? escapeHtml(taskNumberValue(v)) : '—')+'</td>'+
         '<td>'+escapeHtml(v.Title)+'</td>'+
         '<td>'+escapeHtml(v['Request Type']||'—')+'</td>'+
         '<td>'+escapeHtml(v['Task']||'—')+'</td>'+
@@ -1440,6 +1499,7 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
     });
+    const newTaskNumber = await assignTaskNumberToItem(created.id);
     document.getElementById('nt-agreement-id-toggle').checked = false;
     document.getElementById('nt-agreement-id').value = '';
     document.getElementById('nt-agreement-id').disabled = true;
@@ -1451,7 +1511,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     document.getElementById('nt-task').value = '';
     document.getElementById('nt-requested-deadline').value = '';
     await loadAllData();
-    notifySuperadmins(created.id, title).catch(e=>console.error('Notify superadmins failed', e));
+    const createdTask = taskById(created.id);
+    notifySuperadmins(createdTask || {id:created.id, 'Task Number':newTaskNumber, Title:title}).catch(e=>console.error('Notify superadmins failed', e));
   }catch(err){
     errEl.textContent = 'Could not submit: ' + err.message;
     errEl.style.display = 'block';
@@ -1463,7 +1524,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
 /* ---- Assign modal (Super Admin) ---- */
 function openAssignModal(taskId){
   assignTargetTaskId = taskId;
-  document.getElementById('am-taskid').textContent = '#' + taskId;
+  const assignTask = taskById(taskId);
+  document.getElementById('am-taskid').textContent = assignTask && taskNumberValue(assignTask) ? ('#' + taskNumberValue(assignTask)) : '';
   document.getElementById('assign-modal-error').style.display = 'none';
   document.getElementById('am-deadline').value = '';
   populateAssigneeDropdowns();
@@ -1501,7 +1563,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
     const v = taskById(assignTargetTaskId);
     if(!v) throw new Error('The task could not be reloaded after assignment.');
     if((v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
-      throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. Check that the column exists and is a Single line of text field.');
+      throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. The app now supports both Single line of text and Person or Group fields; verify the selected Admin has visited the Operations SharePoint site at least once.');
     }
     document.getElementById('assign-modal-overlay').style.display = 'none';
     notifyTaskAssigned(v, assignee).catch(e=>console.error('Notify assigned failed', e));
@@ -1536,7 +1598,7 @@ function canComment(v){
 function renderTaskModal(taskId){
   const v = taskById(taskId);
   if(!v){ document.getElementById('tm-body').innerHTML = '<p class="empty-note">This task could not be found — it may have been removed.</p>'; return; }
-  document.getElementById('tm-taskid').textContent = '#' + v.id;
+  document.getElementById('tm-taskid').textContent = taskNumberValue(v) ? ('#' + taskNumberValue(v)) : '';
   const dClass = deadlineClass(v.Deadline, v.Status);
   const comments = commentsForTask(taskId);
   const myEmail = (currentAccount.username||'').toLowerCase();
@@ -1657,7 +1719,7 @@ function renderTaskModal(taskId){
   if(rejectBtn) rejectBtn.addEventListener('click', async ()=>{
     const reason = prompt('Reason for rejecting this task (optional):', '');
     if(reason === null) return;
-    if(!confirm('Reject task #' + taskId + '? The requester will be notified and the task will remain in the system as Rejected.')) return;
+    if(!confirm('Reject ' + taskNumberLabel(v) + '? The requester will be notified and the task will remain in the system as Rejected.')) return;
     rejectBtn.disabled = true;
     try{
       const nowIso = new Date().toISOString();
@@ -1685,7 +1747,7 @@ function renderTaskModal(taskId){
 
   const deleteBtn = document.getElementById('tm-delete-btn');
   if(deleteBtn) deleteBtn.addEventListener('click', async ()=>{
-    if(!confirm('Permanently delete task #' + taskId + '? This will also delete all comments for this task. This cannot be undone.')) return;
+    if(!confirm('Permanently delete ' + taskNumberLabel(v) + '? This will also delete all comments for this task. This cannot be undone.')) return;
     deleteBtn.disabled = true;
     try{
       const taskCopy = Object.assign({}, v);
@@ -1865,7 +1927,12 @@ document.getElementById('user-mgmt-assign-btn').addEventListener('click', async 
    Per your requirements: notify on assignment (assignee + requester) and on
    completion (requester). Comment notifications are also wired up as a
    bonus — remove notifyOnComment's call site above if you don't want them. */
-function taskDeepLink(taskId){ return location.origin + location.pathname + '?task=' + encodeURIComponent(taskId); }
+function taskDeepLink(v){
+  const n = taskNumberValue(v);
+  return location.origin + location.pathname + (n
+    ? ('?taskNumber=' + encodeURIComponent(n))
+    : ('?task=' + encodeURIComponent(v.id)));
+}
 async function sendMailGraph(toEmails, subject, htmlBody){
   if(!toEmails.length) return;
   await graphFetch('/me/sendMail', {
@@ -1881,71 +1948,65 @@ async function sendMailGraph(toEmails, subject, htmlBody){
     })
   });
 }
-async function notifySuperadmins(taskId, title){
+async function notifySuperadmins(v){
   const toEmails = emailsForRole('superadmin');
   if(!toEmails.length) return;
-  const html = '<p>A new task request needs assignment: <strong>'+escapeHtml(title)+'</strong>.</p>'+
-    '<p><a href="'+taskDeepLink(taskId)+'">Open it in the Task Management app</a></p>';
-  await sendMailGraph(toEmails, 'New task request — ' + title, html);
+  const label = taskNumberLabel(v);
+  const html = '<p>A new task request needs assignment: <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>.</p>'+    '<p><a href="'+taskDeepLink(v)+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph(toEmails, 'New task request — ' + label + ' — ' + v.Title, html);
 }
 async function notifyTaskAssigned(v, selectedAssignee){
   const assigneeEmail = (selectedAssignee || v['Assigned To'] || '').trim();
   if(!assigneeEmail) throw new Error('Assigned Admin email is missing; assignment notification was not sent.');
-  const link = taskDeepLink(v.id);
-  const toAssignee = '<p>You have been assigned a new task: <strong>'+escapeHtml(v.Title)+'</strong>.</p>'+
-    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+
-    (v.Priority ? '<p><strong>Priority:</strong> '+escapeHtml(v.Priority)+'</p>' : '')+
-    '<p><a href="'+link+'">Open it in the Task Management app</a></p>';
-  const toRequester = '<p>Your task <strong>'+escapeHtml(v.Title)+'</strong> has been assigned to '+escapeHtml(assigneeEmail)+'.</p>'+
-    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+
-    '<p><a href="'+link+'">Open it in the Task Management app</a></p>';
-  await sendMailGraph([assigneeEmail], 'Task assigned to you — ' + v.Title, toAssignee);
-  if(v['Requested By']) await sendMailGraph([v['Requested By']], 'Your task has been assigned — ' + v.Title, toRequester);
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const toAssignee = '<p>You have been assigned <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>.</p>'+    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+    (v.Priority ? '<p><strong>Priority:</strong> '+escapeHtml(v.Priority)+'</p>' : '')+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  const toRequester = '<p>Your '+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been assigned to '+escapeHtml(assigneeEmail)+'.</p>'+    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph([assigneeEmail], 'Task assigned to you — ' + label + ' — ' + v.Title, toAssignee);
+  if(v['Requested By']) await sendMailGraph([v['Requested By']], 'Your task has been assigned — ' + label + ' — ' + v.Title, toRequester);
 }
 async function notifyTaskCompleted(v){
-  const link = taskDeepLink(v.id);
-  const html = '<p>Your task <strong>'+escapeHtml(v.Title)+'</strong> has been marked Completed by '+escapeHtml(v['Last Updated By'])+'.</p>'+
-    '<p><a href="'+link+'">Open it in the Task Management app</a></p>';
-  await sendMailGraph([v['Requested By']], 'Task completed — ' + v.Title, html);
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been marked Completed by '+escapeHtml(v['Last Updated By'])+'.</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph([v['Requested By']], 'Task completed — ' + label + ' — ' + v.Title, html);
 }
 async function notifyStatusChanged(v){
   if(!v['Requested By']) return;
-  const link = taskDeepLink(v.id);
-  const html = '<p>Your task <strong>'+escapeHtml(v.Title)+'</strong> was updated by '+escapeHtml(v['Last Updated By'])+'.</p>'+
-    '<p><strong>Status:</strong> '+escapeHtml(v.Status)+'</p>'+
-    '<p><a href="'+link+'">Open the task to view details or reply with a comment</a></p>';
-  await sendMailGraph([v['Requested By']], 'Task updated — ' + v.Title, html);
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was updated by '+escapeHtml(v['Last Updated By'])+'.</p>'+    '<p><strong>Status:</strong> '+escapeHtml(v.Status)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view details or reply with a comment</a></p>';
+  await sendMailGraph([v['Requested By']], 'Task updated — ' + label + ' — ' + v.Title, html);
 }
 async function notifyTaskRejected(v, reason){
   const recipients = new Set();
   if(v['Requested By']) recipients.add(v['Requested By']);
   if(v['Assigned To']) recipients.add(v['Assigned To']);
   if(!recipients.size) return;
-  const link = taskDeepLink(v.id);
-  const html = '<p>Task <strong>'+escapeHtml(v.Title)+'</strong> has been rejected by the Super Admin.</p>'+
-    (reason ? '<p><strong>Reason:</strong> '+escapeHtml(reason)+'</p>' : '')+
-    '<p><a href="'+link+'">Open the task to view the history and comments</a></p>';
-  await sendMailGraph(Array.from(recipients), 'Task rejected — ' + v.Title, html);
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been rejected by the Super Admin.</p>'+    (reason ? '<p><strong>Reason:</strong> '+escapeHtml(reason)+'</p>' : '')+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view the history and comments</a></p>';
+  await sendMailGraph(Array.from(recipients), 'Task rejected — ' + label + ' — ' + v.Title, html);
 }
 async function notifyTaskDeleted(v){
   const recipients = new Set();
   if(v['Requested By']) recipients.add(v['Requested By']);
   if(v['Assigned To']) recipients.add(v['Assigned To']);
   if(!recipients.size) return;
-  const html = '<p>Task <strong>'+escapeHtml(v.Title)+'</strong> (#'+escapeHtml(v.id)+') was permanently deleted by the Super Admin.</p>';
-  await sendMailGraph(Array.from(recipients), 'Task deleted — ' + v.Title, html);
+  const label = taskNumberLabel(v);
+  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was permanently deleted by the Super Admin.</p>';
+  await sendMailGraph(Array.from(recipients), 'Task deleted — ' + label + ' — ' + v.Title, html);
 }
 async function notifyOnComment(v, text){
-  const link = taskDeepLink(v.id);
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
   const commenter = (currentAccount.username||'').toLowerCase();
   const recipients = new Set();
   if(v['Requested By'] && v['Requested By'].toLowerCase() !== commenter) recipients.add(v['Requested By']);
   if(v['Assigned To'] && v['Assigned To'].toLowerCase() !== commenter) recipients.add(v['Assigned To']);
   if(!recipients.size) return;
-  const html = '<p>New comment on <strong>'+escapeHtml(v.Title)+'</strong> from '+escapeHtml(currentAccount.username)+':</p>'+
-    '<p style="white-space:pre-wrap;">'+escapeHtml(text)+'</p>'+
-    '<p><a href="'+link+'">Open the task to read the thread and reply</a></p>';
-  await sendMailGraph(Array.from(recipients), 'New comment — ' + v.Title, html);
+  const html = '<p>New comment on <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong> from '+escapeHtml(currentAccount.username)+':</p>'+    '<p style="white-space:pre-wrap;">'+escapeHtml(text)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to read the thread and reply</a></p>';
+  await sendMailGraph(Array.from(recipients), 'New comment — ' + label + ' — ' + v.Title, html);
 }
 
 /* ---- Microsoft Graph plumbing ---- */
@@ -2025,16 +2086,21 @@ const CANONICAL_FIELD_LABELS = {
 async function getListColumnMap(listName){
   if(listColumnMapCache[listName]) return listColumnMapCache[listName];
   const listId = await getListId(listName);
-  const data = await graphFetch("/sites/" + siteId + "/lists/" + listId + "/columns?$select=name,displayName,hidden,readOnly");
-  const displayToInternal = {}, normalizedToInternal = {}, internalToDisplay = {};
+  const data = await graphFetch("/sites/" + siteId + "/lists/" + listId + "/columns");
+  const displayToInternal = {}, normalizedToInternal = {}, internalToDisplay = {}, columnsByDisplay = {};
   (data.value || []).forEach(c=>{
     if(c.hidden || c.readOnly) return;
     const displayName = String(c.displayName || '').trim();
     displayToInternal[displayName] = c.name;
     normalizedToInternal[normalizeColumnLabel(displayName)] = c.name;
     internalToDisplay[c.name] = CANONICAL_FIELD_LABELS[normalizeColumnLabel(displayName)] || displayName;
+    columnsByDisplay[normalizeColumnLabel(displayName)] = c;
+    // Person/Group fields are returned by list items using the LookupId suffix.
+    if(c.personOrGroup){
+      internalToDisplay[c.name + 'LookupId'] = CANONICAL_FIELD_LABELS[normalizeColumnLabel(displayName)] || displayName;
+    }
   });
-  const map = { displayToInternal, normalizedToInternal, internalToDisplay };
+  const map = { displayToInternal, normalizedToInternal, internalToDisplay, columnsByDisplay };
   listColumnMapCache[listName] = map;
   return map;
 }
@@ -2051,11 +2117,53 @@ function fieldsPayloadFromDisplay(map, displayValues){
   if(skipped.length) console.warn('A SharePoint list has no column(s) matching these names — skipped: ' + skipped.join(', '));
   return fields;
 }
+
+async function getSharePointUserLookupId(email){
+  email = String(email || '').trim().toLowerCase();
+  if(!email) throw new Error('Assigned Admin email is blank.');
+  // SharePoint person fields store an integer lookup into the site's hidden
+  // User Information List. Resolve that lookup by email through Graph.
+  const lists = await graphFetch('/sites/' + siteId + '/lists?$select=id,displayName,system');
+  const userList = (lists.value || []).find(l =>
+    String(l.displayName || '').toLowerCase() === 'user information list' ||
+    (l.system && String(l.system.template || '').toLowerCase() === 'users')
+  );
+  if(!userList) throw new Error('Could not locate the SharePoint User Information List needed for the Assigned To person field.');
+  const items = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
+  const match = (items.value || []).find(item=>{
+    const f = item.fields || {};
+    const candidates = [f.EMail, f.Email, f.UserName, f.Name, f.Title];
+    return candidates.some(v => String(v || '').trim().toLowerCase() === email);
+  });
+  if(!match) throw new Error('The selected Admin is not known to this SharePoint site yet. Ask the Admin to open the Operations SharePoint site once, then try assigning again.');
+  return String(match.id);
+}
+
+async function fieldsPayloadFromDisplayAsync(map, displayValues){
+  const fields = {};
+  const skipped = [];
+  for(const display of Object.keys(displayValues)){
+    const value = displayValues[display];
+    if(value === undefined) continue;
+    const norm = normalizeColumnLabel(display);
+    const internal = map.displayToInternal[display] || map.normalizedToInternal[norm];
+    if(!internal){ skipped.push(display); continue; }
+    const column = map.columnsByDisplay && map.columnsByDisplay[norm];
+    if(column && column.personOrGroup){
+      if(value === null || value === '') fields[internal + 'LookupId'] = null;
+      else fields[internal + 'LookupId'] = await getSharePointUserLookupId(value);
+    }else{
+      fields[internal] = value;
+    }
+  }
+  if(skipped.length) console.warn('A SharePoint list has no column(s) matching these names — skipped: ' + skipped.join(', '));
+  return fields;
+}
 async function getListItems(listName){
   const listId = await getListId(listName);
   const map = await getListColumnMap(listName);
   const data = await graphFetch("/sites/" + siteId + "/lists/" + listId + "/items?$expand=fields&$top=999");
-  return (data.value || []).map(item=>{
+  const rows = (data.value || []).map(item=>{
     const row = { id: item.id };
     Object.keys(item.fields || {}).forEach(internalName=>{
       const display = map.internalToDisplay[internalName] || internalName;
@@ -2063,11 +2171,35 @@ async function getListItems(listName){
     });
     return row;
   });
+  // For person fields, list item data contains only a LookupId. Resolve the
+  // Assigned To lookup IDs back to email addresses so permissions, filtering,
+  // task display and notifications keep using emails everywhere else in the app.
+  const assignedCol = map.columnsByDisplay && map.columnsByDisplay['assigned to'];
+  if(assignedCol && assignedCol.personOrGroup){
+    const lookupIds = Array.from(new Set(rows.map(r=>r['Assigned To']).filter(Boolean).map(String)));
+    if(lookupIds.length){
+      try{
+        const lists = await graphFetch('/sites/' + siteId + '/lists?$select=id,displayName,system');
+        const userList = (lists.value || []).find(l => String(l.displayName || '').toLowerCase() === 'user information list' || (l.system && String(l.system.template || '').toLowerCase() === 'users'));
+        if(userList){
+          const users = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
+          const emailById = {};
+          (users.value || []).forEach(u=>{
+            const f=u.fields||{};
+            const mail=f.EMail || f.Email || f.UserName || '';
+            if(mail) emailById[String(u.id)] = mail;
+          });
+          rows.forEach(r=>{ if(r['Assigned To'] && emailById[String(r['Assigned To'])]) r['Assigned To'] = emailById[String(r['Assigned To'])]; });
+        }
+      }catch(e){ console.warn('Could not resolve Assigned To person values to email addresses', e); }
+    }
+  }
+  return rows;
 }
 async function createListItem(listName, displayValues){
   const listId = await getListId(listName);
   const map = await getListColumnMap(listName);
-  const fields = fieldsPayloadFromDisplay(map, displayValues);
+  const fields = await fieldsPayloadFromDisplayAsync(map, displayValues);
   return graphFetch("/sites/" + siteId + "/lists/" + listId + "/items", {
     method: 'POST',
     body: JSON.stringify({ fields })
@@ -2076,7 +2208,7 @@ async function createListItem(listName, displayValues){
 async function updateListItem(listName, itemId, displayValues){
   const listId = await getListId(listName);
   const map = await getListColumnMap(listName);
-  const fields = fieldsPayloadFromDisplay(map, displayValues);
+  const fields = await fieldsPayloadFromDisplayAsync(map, displayValues);
   return graphFetch("/sites/" + siteId + "/lists/" + listId + "/items/" + itemId + "/fields", {
     method: 'PATCH',
     body: JSON.stringify(fields)
@@ -2765,9 +2897,12 @@ async function ropsCreateReviewDocumentationTask(companyName, uploadedItems){
     'Last Updated Date': nowIso
   });
   const newTaskId = created && created.id ? created.id : null;
+  let newTaskNumber = null;
+  if(newTaskId) newTaskNumber = await assignTaskNumberToItem(newTaskId);
   await loadAllData();
   if(newTaskId){
-    notifySuperadmins(newTaskId, 'Review Documentation').catch(e=>console.error('Notify superadmins failed', e));
+    const createdTask = taskById(newTaskId) || {id:newTaskId, 'Task Number':newTaskNumber, Title:'Review Documentation'};
+    notifySuperadmins(createdTask).catch(e=>console.error('Notify superadmins failed', e));
   }
   return newTaskId;
 }
