@@ -490,6 +490,13 @@
   <div class="card" id="my-tasks-card" style="display:none;">
     <p class="card-title">My tasks</p>
     <p class="card-note">Your own task requests — status, deadline, and who it's assigned to. Click a task to see the full timeline and comments.</p>
+    <div class="filter-row">
+      <div><label for="my-filter-status">Status</label><select id="my-filter-status"><option value="">All</option><option value="Not Started">Not Started</option><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Rejected">Rejected</option></select></div>
+      <div><label for="my-filter-assignee">Assigned to</label><select id="my-filter-assignee"><option value="">All</option></select></div>
+      <div><label for="my-filter-request-type">Request type</label><select id="my-filter-request-type"><option value="">All</option></select></div>
+      <div><label for="my-filter-task">Task</label><select id="my-filter-task"><option value="">All</option></select></div>
+      <div><label for="my-filter-priority">Priority</label><select id="my-filter-priority"><option value="">All</option></select></div>
+    </div>
     <div id="my-tasks-list"><p class="empty-note">Loading…</p></div>
   </div>
   </div>
@@ -501,6 +508,12 @@
   <div class="card" id="assign-queue-card" style="display:none;">
     <p class="card-title">Assignment queue</p>
     <p class="card-note">New task requests waiting to be assigned to an Admin, with a deadline.</p>
+    <div class="filter-row">
+      <div><label for="queue-filter-status">Status</label><select id="queue-filter-status"><option value="">All</option><option value="Not Started">Not Started</option><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Rejected">Rejected</option></select></div>
+      <div><label for="queue-filter-request-type">Request type</label><select id="queue-filter-request-type"><option value="">All</option></select></div>
+      <div><label for="queue-filter-task">Task</label><select id="queue-filter-task"><option value="">All</option></select></div>
+      <div><label for="queue-filter-priority">Priority</label><select id="queue-filter-priority"><option value="">All</option></select></div>
+    </div>
     <div id="assign-queue-list"><p class="empty-note">Loading…</p></div>
   </div>
 
@@ -508,6 +521,12 @@
   <div class="card" id="my-assigned-card" style="display:none;">
     <p class="card-title">Assigned to me</p>
     <p class="card-note">Tasks Super Admin has assigned to you. Update status and send comments back to the requester.</p>
+    <div class="filter-row">
+      <div><label for="assigned-filter-status">Status</label><select id="assigned-filter-status"><option value="">All</option><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Rejected">Rejected</option></select></div>
+      <div><label for="assigned-filter-request-type">Request type</label><select id="assigned-filter-request-type"><option value="">All</option></select></div>
+      <div><label for="assigned-filter-task">Task</label><select id="assigned-filter-task"><option value="">All</option></select></div>
+      <div><label for="assigned-filter-priority">Priority</label><select id="assigned-filter-priority"><option value="">All</option></select></div>
+    </div>
     <div id="my-assigned-list"><p class="empty-note">Loading…</p></div>
   </div>
 
@@ -936,6 +955,16 @@ const TASK_OPTIONS = [
     TASK_OPTIONS.map(t => '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>').join('');
 })();
 
+function populateExtraTaskFilters(){
+  ['my-filter-request-type','queue-filter-request-type','assigned-filter-request-type'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.innerHTML='<option value="">All</option>'+REQUEST_TYPES.map(t=>'<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>').join('');
+  });
+  ['my-filter-task','queue-filter-task','assigned-filter-task'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.innerHTML='<option value="">All</option>'+TASK_OPTIONS.map(t=>'<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>').join('');
+  });
+}
+populateExtraTaskFilters();
+
 /* ---- Priority ----
    Set only by Super Admin (at assignment time, or later from the task detail
    view) — must match the "Priority" Choice column's options exactly (see
@@ -956,6 +985,10 @@ const PRIORITY_OPTIONS = [
     filterSel.innerHTML = '<option value="">All</option>' +
       PRIORITY_OPTIONS.map(p => '<option value="'+p.replace(/"/g,'&quot;')+'">'+p+'</option>').join('');
   }
+  ['my-filter-priority','queue-filter-priority','assigned-filter-priority'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.innerHTML='<option value="">All</option>'+PRIORITY_OPTIONS.map(p=>'<option value="'+p.replace(/"/g,'&quot;')+'">'+priorityShortLabel(p)+'</option>').join('');
+  });
 })();
 function canSeePriority(){
   // Super Admin sets it; the assigned Admin can see it read-only; the
@@ -1380,20 +1413,35 @@ function commentsForTask(taskId){
     .filter(c => String(c['Task Item ID']) === String(taskId))
     .sort((a,b) => new Date(a['Comment Date']) - new Date(b['Comment Date']));
 }
+function filterValue(id){ const el=document.getElementById(id); return el ? el.value : ''; }
+function applyTaskFilters(tasks, prefix, includeAssignee){
+  const statusFilter = filterValue(prefix+'-filter-status');
+  const requestTypeFilter = filterValue(prefix+'-filter-request-type');
+  const taskFilter = filterValue(prefix+'-filter-task');
+  const priorityFilter = filterValue(prefix+'-filter-priority');
+  const assigneeFilter = includeAssignee ? filterValue(prefix+'-filter-assignee') : '';
+  return tasks
+    .filter(t => !statusFilter || t.Status === statusFilter)
+    .filter(t => !assigneeFilter || (t['Assigned To']||'').toLowerCase() === assigneeFilter.toLowerCase())
+    .filter(t => !requestTypeFilter || t['Request Type'] === requestTypeFilter)
+    .filter(t => !taskFilter || t['Task'] === taskFilter)
+    .filter(t => !priorityFilter || t['Priority'] === priorityFilter)
+    .sort(sortByPriorityThenDeadline);
+}
 function myTasks(){
   const email = (currentAccount.username||'').toLowerCase();
-  return taskItemsCache.filter(t => (t['Requested By']||'').toLowerCase() === email)
-    .sort(sortByPriorityThenDeadline);
+  const base = taskItemsCache.filter(t => (t['Requested By']||'').toLowerCase() === email);
+  return applyTaskFilters(base, 'my', true);
 }
 function pendingTasks(){
   // Awaiting assignment = no Assigned To yet, regardless of Status value.
-  return taskItemsCache.filter(t => !t['Assigned To'] && t.Status !== STATUS_REJECTED)
-    .sort(sortByPriorityThenDeadline);
+  const base = taskItemsCache.filter(t => !t['Assigned To'] && t.Status !== STATUS_REJECTED);
+  return applyTaskFilters(base, 'queue', false);
 }
 function assignedToMe(){
   const email = (currentAccount.username||'').toLowerCase();
-  return taskItemsCache.filter(t => (t['Assigned To']||'').toLowerCase() === email && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED)
-    .sort(sortByPriorityThenDeadline);
+  const base = taskItemsCache.filter(t => (t['Assigned To']||'').toLowerCase() === email);
+  return applyTaskFilters(base, 'assigned', false);
 }
 function allTasksFiltered(){
   const statusFilter = document.getElementById('filter-status').value;
@@ -1422,6 +1470,12 @@ function populateAssigneeDropdowns(){
   const currentFilter = filterSel.value;
   filterSel.innerHTML = '<option value="">All</option>' + pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
   filterSel.value = currentFilter;
+  const myFilterSel = document.getElementById('my-filter-assignee');
+  if(myFilterSel){
+    const currentMy = myFilterSel.value;
+    myFilterSel.innerHTML = '<option value="">All</option>' + pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
+    myFilterSel.value = currentMy;
+  }
   const amSel = document.getElementById('am-assignee');
   amSel.innerHTML = pool.length
     ? pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('')
@@ -1543,6 +1597,9 @@ document.getElementById('filter-assignee').addEventListener('change', renderAllT
 document.getElementById('filter-request-type').addEventListener('change', renderAllTasks);
 document.getElementById('filter-task').addEventListener('change', renderAllTasks);
 document.getElementById('filter-priority').addEventListener('change', renderAllTasks);
+['my-filter-status','my-filter-assignee','my-filter-request-type','my-filter-task','my-filter-priority'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderMyTasks); });
+['queue-filter-status','queue-filter-request-type','queue-filter-task','queue-filter-priority'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderAssignQueue); });
+['assigned-filter-status','assigned-filter-request-type','assigned-filter-task','assigned-filter-priority'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderMyAssigned); });
 
 /* ---- New task request ---- */
 function wireOptionalFieldToggle(toggleId, inputId){
