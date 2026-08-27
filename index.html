@@ -3053,33 +3053,77 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
   if(!ropsUploadQueue.length){ ropsShowStatus('rops-upload-status','Choose at least one document to upload.',false); return; }
   const companyAtStart=ropsCurrentContext().company;
   const btn=document.getElementById('rops-upload-all'); btn.disabled=true; ropsHideStatus('rops-upload-status');
-  let done=0; const total=ropsUploadQueue.length;
+  let done=0;
+  const batchItems=[...ropsUploadQueue];
+  const total=batchItems.length;
+  const uploadedItems=[];
+  let uploadError=null;
+
   try{
-    for(const item of [...ropsUploadQueue]){
+    for(const item of batchItems){
       ropsShowStatus('rops-upload-status','Uploading '+(done+1)+' of '+total+': '+item.renamed,true);
-      await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
-      ropsAppendLog(item); done++;
+      try{
+        await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
+        uploadedItems.push(item);
+        ropsAppendLog(item);
+        done++;
+      }catch(err){
+        uploadError=err;
+        break;
+      }
     }
-    ropsRememberCompanyFolder(companyAtStart);
-    const uploadedItems=[...ropsUploadQueue];
-    ropsUploadQueue=[];
-    await ropsCheckExistingFolder();
-    const complete=docs.filter(ropsCategoryIsComplete).length;
-    const remaining=Math.max(0,docs.length-complete);
-    let taskMessage='';
-    try{
-      const reviewTaskId=await ropsCreateReviewDocumentationTask(companyAtStart, uploadedItems);
-      taskMessage=reviewTaskId ? ' Review Documentation task #'+reviewTaskId+' was created and sent to Super Admin.' : ' Review Documentation task was created and sent to Super Admin.';
-    }catch(taskErr){
-      console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
-      taskMessage=' Files were uploaded successfully, but the Review Documentation task could not be created: '+taskErr.message;
+
+    // Remove only files that actually uploaded. If a later file failed, keep the
+    // failed/not-yet-uploaded files in the queue so the user can retry them.
+    const uploadedSet=new Set(uploadedItems);
+    ropsUploadQueue=ropsUploadQueue.filter(item=>!uploadedSet.has(item));
+
+    if(done>0){
+      ropsRememberCompanyFolder(companyAtStart);
+
+      // Every successful Rename & File upload action must create a fresh review
+      // task, regardless of whether this is a new folder, an existing folder,
+      // a newly-added missing document, or a replacement document.
+      let taskMessage='';
+      try{
+        const reviewTaskId=await ropsCreateReviewDocumentationTask(companyAtStart, uploadedItems);
+        const reviewTask=reviewTaskId ? taskById(reviewTaskId) : null;
+        const reviewNumber=reviewTask ? displayTaskNumber(reviewTask) : '';
+        taskMessage=reviewTaskId
+          ? ' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created and sent to Super Admin.'
+          : ' Review Documentation task was created and sent to Super Admin.';
+      }catch(taskErr){
+        console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
+        taskMessage=' Files were uploaded successfully, but the Review Documentation task could not be created: '+taskErr.message;
+      }
+
+      // Refresh folder state only after the review task has been created. The
+      // task trigger is deliberately independent of whether this folder existed
+      // before this upload.
+      await ropsCheckExistingFolder();
+      const complete=docs.filter(ropsCategoryIsComplete).length;
+      const remaining=Math.max(0,docs.length-complete);
+      const retryMessage=uploadError ? ' '+(total-done)+' file(s) remain queued for retry.' : '';
+      ropsShowStatus('rops-upload-status',
+        'Uploaded '+done+' document(s) to BD Usage / '+companyAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+
+        (remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.')+
+        taskMessage+retryMessage,
+        !uploadError
+      );
+    }else if(uploadError){
+      throw uploadError;
     }
-    ropsShowStatus('rops-upload-status','Uploaded '+done+' document(s) to BD Usage / '+companyAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+(remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.')+taskMessage,true);
+
+    if(uploadError) console.error('Upload stopped after '+done+' successful file(s).', uploadError);
+    ropsRenderRequiredChecklist();
     ropsRenderQueue();
   }catch(err){
     console.error(err);
-    if(done>0) ropsRememberCompanyFolder(companyAtStart);
-    ropsShowStatus('rops-upload-status','Upload stopped after '+done+' successful file(s).\n'+err.message,false); ropsRenderRequiredChecklist();
+    ropsShowStatus('rops-upload-status','Upload failed before any document was saved.\n'+err.message,false);
+    ropsRenderRequiredChecklist();
+    ropsRenderQueue();
+  }finally{
+    btn.disabled=ropsUploadQueue.length===0;
   }
 });
 
