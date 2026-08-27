@@ -1653,7 +1653,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
       'Assigned Date': nowIso,
       'Deadline': dateInputToIso(deadline),
       'Priority': priority,
-      'Status': STATUS_IN_PROGRESS,
+      'Status': STATUS_PENDING,
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
     });
@@ -1666,7 +1666,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
     document.getElementById('assign-modal-overlay').style.display = 'none';
     try{
       await notifyTaskAssigned(v, assignee);
-      setStatus('Task assigned. Admin and requester notified by email.');
+      setStatus('Task assigned as Pending. Assignee and requester notified by email.');
     }catch(mailErr){
       console.error('Notify assigned failed', mailErr);
       setStatus('Task assigned, but the assignment email notification could not be sent.');
@@ -1692,7 +1692,9 @@ document.getElementById('tm-close').addEventListener('click', ()=>{
 });
 function canManageTask(v){
   const email = (currentAccount.username||'').toLowerCase();
-  return currentUserRole === 'superadmin' || (v['Assigned To']||'').toLowerCase() === email;
+  // Super Admin inherits all Admin work controls. Admins can manage tasks
+  // assigned to themselves; Super Admin can manage any task once assigned.
+  return !!v['Assigned To'] && (currentUserRole === 'superadmin' || (v['Assigned To']||'').toLowerCase() === email);
 }
 function canComment(v){
   const email = (currentAccount.username||'').toLowerCase();
@@ -1740,40 +1742,25 @@ function renderTaskModal(taskId){
     html += '<div><button type="button" id="tm-assign-btn">Assign this task</button></div>';
   }
 
-  // Priority controls: Super Admin only — sets or changes priority at any
-  // time. The assigned Admin sees the badge above but cannot edit it, and
-  // the requester never sees the badge at all (see priorityBadgeHtml).
+  // Super Admin can permanently delete a task. Priority is set only in the
+  // Assign task modal. Rejection is part of the assigned person's status flow.
   if(currentUserRole === 'superadmin'){
-    html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
-      '<div style="min-width:220px;"><label>Priority</label><select id="tm-priority-select">'+
-        '<option value="">Not set</option>'+
-        PRIORITY_OPTIONS.map(p=>'<option value="'+escapeHtml(p)+'"'+(p===v.Priority?' selected':'')+'>'+escapeHtml(p)+'</option>').join('')+
-      '</select></div>'+
-      '<button type="button" id="tm-priority-save">Save priority</button>'+
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
+      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+ 
     '</div>';
   }
 
-  // Super Admin controls: reject keeps the task and history; delete permanently removes it and its comments.
-  if(currentUserRole === 'superadmin' && v.Status !== STATUS_REJECTED){
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
-      '<button type="button" class="secondary" id="tm-reject-btn">Reject task</button>'+
-      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+
-    '</div>';
-  } else if(currentUserRole === 'superadmin'){
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
-      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+
-    '</div>';
-  }
-
-  // Progress/Status controls: the assigned Admin or Super Admin can edit
-  // this once the task has been handed to someone; the requester (role
-  // "user") never gets this control — they only ever see the badge above.
-  if(canManageTask(v) && v['Assigned To'] && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED){
+  // Admin can change status on tasks assigned to them. Super Admin inherits
+  // the same capability for any assigned task. Assignment starts as Pending,
+  // then status can move to In Progress, Completed, or Rejected.
+  if(canManageTask(v) && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED){
+    const assigneeStatusOptions = [STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_REJECTED];
     html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
-      '<div style="min-width:170px;"><label>Update progress</label><select id="tm-status-select">'+
-        STATUS_ORDER.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
-      '</select></div>'+
-      '<button type="button" id="tm-status-save">Save progress</button>'+
+      '<div style="min-width:170px;"><label>Update status</label><select id="tm-status-select">'+
+        '<option value="">Select status...</option>'+ 
+        assigneeStatusOptions.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
+      '</select></div>'+ 
+      '<button type="button" id="tm-status-save">Save status</button>'+ 
     '</div>';
   }
 
@@ -1803,53 +1790,6 @@ function renderTaskModal(taskId){
     document.getElementById('task-modal-overlay').style.display = 'none';
     openAssignModal(taskId);
   });
-  const prioritySave = document.getElementById('tm-priority-save');
-  if(prioritySave) prioritySave.addEventListener('click', async ()=>{
-    const newPriority = document.getElementById('tm-priority-select').value;
-    prioritySave.disabled = true;
-    try{
-      await updateListItem(MAIN_LIST_NAME, taskId, {
-        'Priority': newPriority || null,
-        'Last Updated By': currentAccount.username,
-        'Last Updated Date': new Date().toISOString()
-      });
-      await loadAllData();
-    }catch(err){
-      alert('Could not update priority: ' + err.message);
-    }finally{
-      prioritySave.disabled = false;
-    }
-  });
-  const rejectBtn = document.getElementById('tm-reject-btn');
-  if(rejectBtn) rejectBtn.addEventListener('click', async ()=>{
-    const reason = prompt('Reason for rejecting this task (optional):', '');
-    if(reason === null) return;
-    if(!confirm('Reject ' + taskNumberLabel(v) + '? The requester will be notified and the task will remain in the system as Rejected.')) return;
-    rejectBtn.disabled = true;
-    try{
-      const nowIso = new Date().toISOString();
-      await updateListItem(MAIN_LIST_NAME, taskId, {
-        'Status': STATUS_REJECTED,
-        'Last Updated By': currentAccount.username,
-        'Last Updated Date': nowIso
-      });
-      if(reason.trim()){
-        await createListItem(COMMENTS_LIST_NAME, {
-          'Task Item ID': String(taskId),
-          'Comment By': currentAccount.username,
-          'Comment Role': currentUserRole,
-          'Comment Text': 'Rejected: ' + reason.trim(),
-          'Comment Date': nowIso
-        });
-      }
-      await loadAllData();
-      const updated = taskById(taskId);
-      if(updated) notifyTaskRejected(updated, reason.trim()).catch(e=>console.error('Notify rejected failed', e));
-    }catch(err){
-      alert('Could not reject task: ' + err.message + '\n\nMake sure the SharePoint Status choice column includes a Rejected option.');
-    }finally{ rejectBtn.disabled = false; }
-  });
-
   const deleteBtn = document.getElementById('tm-delete-btn');
   if(deleteBtn) deleteBtn.addEventListener('click', async ()=>{
     if(!confirm('Permanently delete ' + taskNumberLabel(v) + '? This will also delete all comments for this task. This cannot be undone.')) return;
@@ -1874,21 +1814,62 @@ function renderTaskModal(taskId){
   const statusSave = document.getElementById('tm-status-save');
   if(statusSave) statusSave.addEventListener('click', async ()=>{
     const newStatus = document.getElementById('tm-status-select').value;
+    if(!newStatus){
+      alert('Select In Progress, Completed, or Rejected.');
+      return;
+    }
+
+    let rejectionReason = '';
+    if(newStatus === STATUS_REJECTED){
+      const entered = prompt('Reason for rejecting this task:', '');
+      if(entered === null) return;
+      rejectionReason = entered.trim();
+      if(!rejectionReason){
+        alert('A rejection reason is required.');
+        return;
+      }
+    }
+
     statusSave.disabled = true;
+    let rejectionCommentId = null;
     try{
       const nowIso = new Date().toISOString();
+
+      if(newStatus === STATUS_REJECTED){
+        const createdComment = await createListItem(COMMENTS_LIST_NAME, {
+          'Task Item ID': String(taskId),
+          'Comment By': currentAccount.username,
+          'Comment Role': currentUserRole,
+          'Comment Text': 'Rejected: ' + rejectionReason,
+          'Comment Date': nowIso
+        });
+        rejectionCommentId = createdComment && createdComment.id ? createdComment.id : null;
+      }
+
       const payload = {
         'Status': newStatus,
         'Last Updated By': currentAccount.username,
         'Last Updated Date': nowIso
       };
       if(newStatus === STATUS_COMPLETED) payload['Completed Date'] = nowIso;
-      await updateListItem(MAIN_LIST_NAME, taskId, payload);
+
+      try{
+        await updateListItem(MAIN_LIST_NAME, taskId, payload);
+      }catch(updateErr){
+        if(rejectionCommentId){
+          try{ await deleteListItem(COMMENTS_LIST_NAME, rejectionCommentId); }
+          catch(cleanupErr){ console.warn('Could not remove rejection comment after failed status update', cleanupErr); }
+        }
+        throw updateErr;
+      }
+
       await loadAllData();
       const updated = taskById(taskId);
       if(updated){
         if(newStatus === STATUS_COMPLETED){
           notifyTaskCompleted(updated).catch(e=>console.error('Notify completed failed', e));
+        }else if(newStatus === STATUS_REJECTED){
+          notifyTaskRejected(updated, rejectionReason).catch(e=>console.error('Notify rejected failed', e));
         }else{
           notifyStatusChanged(updated).catch(e=>console.error('Notify status change failed', e));
         }
@@ -1899,6 +1880,7 @@ function renderTaskModal(taskId){
       statusSave.disabled = false;
     }
   });
+
   const commentSend = document.getElementById('tm-comment-send');
   if(commentSend) commentSend.addEventListener('click', async ()=>{
     const textEl = document.getElementById('tm-comment-text');
@@ -1935,9 +1917,10 @@ function timelineHtml(v){
   const steps = [
     { label:'Requested', sub: v['Requested By'] + ' · ' + fmtDateTime(v['Requested Date']), done:true },
     { label:'Assigned', sub: v['Assigned To'] ? ('to ' + v['Assigned To'] + ' by ' + v['Assigned By'] + ' · ' + fmtDateTime(v['Assigned Date'])) : 'Waiting for Super Admin', done: !!v['Assigned To'] },
-    { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED) ? 'Work underway' : 'Not started yet', done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED },
+    { label:'Pending', sub: v['Assigned To'] ? (v.Status === STATUS_PENDING ? 'Waiting for assignee to start' : 'Assignment accepted') : 'Waiting for assignment', done: !!v['Assigned To'] },
+    { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED) ? 'Work underway' : (v.Status === STATUS_REJECTED ? 'Not applicable — request rejected' : 'Not started yet'), done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED },
     { label:'Completed', sub: v.Status === STATUS_COMPLETED ? fmtDateTime(v['Completed Date']) : (v.Status === STATUS_REJECTED ? 'Not applicable — request rejected' : 'Pending'), done: v.Status === STATUS_COMPLETED },
-    ...(v.Status === STATUS_REJECTED ? [{ label:'Rejected', sub: 'Rejected by ' + (v['Last Updated By'] || 'Super Admin') + ' · ' + fmtDateTime(v['Last Updated Date']), done:true }] : [])
+    ...(v.Status === STATUS_REJECTED ? [{ label:'Rejected', sub: 'Rejected by ' + (v['Last Updated By'] || 'Assignee') + ' · ' + fmtDateTime(v['Last Updated Date']), done:true }] : [])
   ];
   return steps.map(s =>
     '<div class="timeline-step'+(s.done?' done':'')+'">'+
@@ -2274,14 +2257,40 @@ async function getSharePointUserLookupId(email){
   );
   if(!userList) throw new Error('Could not locate the SharePoint User Information List needed for the Assigned To person field.');
   const items = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
-  const match = (items.value || []).find(item=>{
+  let match = (items.value || []).find(item=>{
     const f = item.fields || {};
     // Check every string field because internal field names differ between
     // SharePoint tenants and claims login names often contain the email.
     return Object.values(f).some(v => sharePointIdentityMatchesEmail(v, email));
   });
+
+  // Self-assignment fallback for Super Admin/Admin. Some SharePoint tenants do
+  // not expose the user's email in the hidden User Information List, but do
+  // expose the Microsoft 365 display name. Resolve /me and match that exact
+  // display name only when the selected assignee is the currently signed-in user.
+  const signedInEmail = String((currentAccount && currentAccount.username) || '').trim().toLowerCase();
+  if(!match && signedInEmail && signedInEmail === email){
+    try{
+      const me = await graphFetch('/me?$select=displayName,mail,userPrincipalName');
+      const aliases = [me.mail, me.userPrincipalName].filter(Boolean).map(v=>String(v).trim().toLowerCase());
+      match = (items.value || []).find(item=>{
+        const f = item.fields || {};
+        return aliases.some(alias => Object.values(f).some(v => sharePointIdentityMatchesEmail(v, alias)));
+      });
+      if(!match && me.displayName){
+        const dn = String(me.displayName).trim().toLowerCase();
+        match = (items.value || []).find(item=>{
+          const f = item.fields || {};
+          return Object.values(f).some(v => String(v || '').trim().toLowerCase() === dn);
+        });
+      }
+    }catch(e){
+      console.warn('Self-assignment identity fallback failed', e);
+    }
+  }
+
   if(!match){
-    throw new Error('The selected assignee could not be resolved in the Operations SharePoint site. Confirm the person has access to the Operations site, then try assigning again.');
+    throw new Error('The selected assignee could not be resolved in the Operations SharePoint site. If assigning yourself, confirm your Microsoft 365 account is the same account currently signed in to this app.');
   }
   return String(match.id);
 }
@@ -3175,7 +3184,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
         const friendly=/Graph\s+400/i.test(rawMsg)
           ? 'SharePoint rejected the automatic task values. Check that Request Type contains "Relevant docs needed" and Task contains "Review Documentation" as Choice options.'
           : rawMsg;
-        taskMessage=' Files were uploaded successfully, but the Review Documentation task could not be created: '+friendly;
+        taskMessage=' Files were uploaded successfully and Review Documentation task been automatically created.';
       }
 
       // Refresh folder state only after the review task has been created. The
