@@ -501,7 +501,7 @@
     <div class="rops-head">
       <div>
         <h1>User Management</h1>
-        <p class="rops-subtitle">Super Admin only — manage Admin/User role assignments. Normal users default to User. Everyone who signs in is recorded in a separate sign-in register; only Admin/User role changes are stored in the role-management list.</p>
+        <p class="rops-subtitle">Super Admin only — manage Admin/User role assignments. Normal users default to User and do not need access to this role-management list.</p>
       </div>
       <span class="rops-conn">Role assignments: SharePoint</span>
     </div>
@@ -510,7 +510,7 @@
       <div class="card-title-row">
         <div>
           <p class="card-title" style="margin:0;">Known users &amp; role assignments</p>
-          <p class="card-note" style="margin:4px 0 0;">Everyone who signs in appears below from the sign-in register. Normal users default to User automatically. Assign Admin here only when elevated access is needed.</p>
+          <p class="card-note" style="margin:4px 0 0;">Normal users default to User automatically and are not written to this list. Assign Admin here only when elevated access is needed.</p>
         </div>
         <button type="button" class="secondary small-btn" id="user-mgmt-refresh-btn">Refresh users</button>
       </div>
@@ -786,15 +786,6 @@
         Assigned By     Single line of text
         Assigned Date   Date and Time
 
-   4) "Job Distribution Tracker Roles" (create this list) — sign-in register:
-        Title           Single line of text   (built-in; app fills with email)
-        Email           Single line of text
-        First Sign-In   Date and Time
-        Last Sign-In    Date and Time
-      Give normal users Contribute access to this list. For tighter SharePoint security,
-      use item-level settings so users can read/edit only items they created, while
-      Super Admin retains full read access to see the complete register.
-
    NOTE on "Assigned To": per your answer, the requester never picks this —
    it's shown to them read-only. For the Super Admin's own picker, this app
    defaults to a FIXED list: only people you've explicitly given the Admin
@@ -1014,7 +1005,6 @@ let siteId = null;
 let currentUserRole = 'user';
 let isAdmin = false;
 let userRolesCache = [];     // [{id, Email, Role, 'Assigned By', 'Assigned Date'}]
-let  // [{id, Email, 'First Sign-In', 'Last Sign-In'}]
 let taskItemsCache = [];     // [{id, Title, Description, Priority, 'Requested By', ...}]
 let commentItemsCache = [];  // [{id, 'Task Item ID', 'Comment By', 'Comment Role', 'Comment Text', 'Comment Date'}]
 let activeTaskId = null;     // SharePoint item id (string) of the task open in the detail modal
@@ -1068,7 +1058,6 @@ async function onSignedIn(){
   setStatus('Connecting to SharePoint…');
   try{
     await resolveSite();
-    await recordAndLoadSignedInUser();
     await loadUserRoles();
     applyRoleUi();
     appContent.style.display = 'flex';
@@ -1088,43 +1077,6 @@ async function onSignedIn(){
   }
 }
 function setStatus(msg){ document.getElementById('status-line').textContent = msg || ''; }
-
-/* ---- Sign-in register ----
-   Separate from role management so normal users never need write access to
-   Job Distribution Tracker Roles. The Users list is only a lightweight
-   registry of who has actually signed in to this HTML. */
-async function recordAndLoadSignedInUser(){
-  const emailRaw = (currentAccount && currentAccount.username || '').trim();
-  if(!emailRaw) throw new Error('Microsoft account email is unavailable.');
-  const email = emailRaw.toLowerCase();
-  let rows = [];
-  try{
-  }catch(err){
-    const msg = String(err && err.message ? err.message : err);
-  }
-  const existing = rows.find(r => (r.Email||'').trim().toLowerCase() === email);
-  const nowIso = new Date().toISOString();
-  if(existing){
-      'Email': emailRaw,
-      'Last Sign-In': nowIso
-    });
-  }else{
-      'Title': emailRaw,
-      'Email': emailRaw,
-      'First Sign-In': nowIso,
-      'Last Sign-In': nowIso
-    });
-  }
-  // Reload so Super Admin sees the newest registry state after refresh/sign-in.
-}
-
-async function loadSignedInUsers(){
-  try{
-  }catch(err){
-    console.warn('Could not load sign-in register', err);
-    
-  }
-}
 
 /* ---- Role resolution ---- */
 function getUserRole(email){
@@ -1209,7 +1161,6 @@ async function loadAllData(){
   try{
     taskItemsCache = await getListItems(MAIN_LIST_NAME);
     commentItemsCache = await getListItems(COMMENTS_LIST_NAME);
-    if(currentUserRole === 'superadmin') await loadSignedInUsers();
   }catch(err){
     console.error('Could not load tasks', err);
     setStatus('Could not load tasks: ' + err.message);
@@ -1798,7 +1749,6 @@ function knownSystemUsers(){
     if(!byEmail.has(key)) byEmail.set(key, { Email:email, sources:new Set() });
     byEmail.get(key).sources.add(source);
   }
-  signedInUsersCache.forEach(r => add(r.Email, 'Signed in'));
   userRolesCache.forEach(r => add(r.Email, 'Role assignment'));
   (taskItemsCache||[]).forEach(t=>{
     add(t['Requested By'], 'Task activity');
@@ -1822,15 +1772,12 @@ function renderUserMgmtList(){
     superadminRows +
     rows.map(v=>{
       const registered = roleByEmail.get(v.Email.toLowerCase());
-      const signedIn = signedInUsersCache.find(u => (u.Email||'').trim().toLowerCase() === v.Email.toLowerCase());
       const roleKey = registered ? (registered.Role||'user').toLowerCase() : 'user';
       const sourceText = Array.from(v.sources).join(', ');
-      const registeredBy = registered ? (registered['Assigned By']||'') : (signedIn ? '(Microsoft sign-in)' : '(historical activity)');
-      const displayDate = registered ? registered['Assigned Date'] : (signedIn ? (signedIn['Last Sign-In'] || signedIn['First Sign-In']) : null);
       return '<tr><td>'+escapeHtml(v.Email)+'</td><td>'+escapeHtml(ROLE_LABELS[roleKey]||roleKey)+'</td>'+ 
         '<td>'+escapeHtml(sourceText)+'</td>'+ 
-        '<td>'+escapeHtml(registeredBy)+'</td>'+ 
-        '<td>'+(displayDate ? fmtDate(displayDate) : '—')+'</td>'+ 
+        '<td>'+escapeHtml(registered ? (registered['Assigned By']||'') : '(historical activity)')+'</td>'+ 
+        '<td>'+(registered ? fmtDate(registered['Assigned Date']) : '—')+'</td>'+ 
         '<td>'+(roleKey!=='user' ? '<button type="button" class="secondary small-btn" data-remove="'+escapeHtml(v.Email)+'">Set to User</button>' : '')+'</td></tr>';
     }).join('')+
     '</tbody></table>';
