@@ -3008,7 +3008,32 @@ document.getElementById('rops-company-search').addEventListener('input',ropsRend
 function ropsDownloadFile(file, filename){
   const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
+async function getSharePointChoiceOptions(listName, displayName){
+  const listId = await getListId(listName);
+  const data = await graphFetch('/sites/' + siteId + '/lists/' + listId + '/columns');
+  const wanted = normalizeColumnLabel(displayName);
+  const col = (data.value || []).find(c => normalizeColumnLabel(c.displayName) === wanted);
+  if(!col) throw new Error('SharePoint column "' + displayName + '" was not found in ' + listName + '.');
+  if(!col.choice || !Array.isArray(col.choice.choices)){
+    throw new Error('SharePoint column "' + displayName + '" must be a Choice column for the automatic Review Documentation task.');
+  }
+  return col.choice.choices.map(v => String(v));
+}
+async function validateReviewDocumentationTaskChoices(){
+  const requiredRequestType = 'Relevant docs needed';
+  const requiredTask = 'Review Documentation';
+  const requestChoices = await getSharePointChoiceOptions(MAIN_LIST_NAME, 'Request Type');
+  const taskChoices = await getSharePointChoiceOptions(MAIN_LIST_NAME, 'Task');
+  const missing = [];
+  if(!requestChoices.includes(requiredRequestType)) missing.push('Request Type → "' + requiredRequestType + '"');
+  if(!taskChoices.includes(requiredTask)) missing.push('Task → "' + requiredTask + '"');
+  if(missing.length){
+    throw new Error('SharePoint setup required: add ' + missing.join(' and ') + ' to the Job Distribution Tracker Choice column options, then upload again. The documents already uploaded do not need to be re-uploaded.');
+  }
+}
+
 async function ropsCreateReviewDocumentationTask(companyName, uploadedItems){
+  await validateReviewDocumentationTaskChoices();
   const nowIso = new Date().toISOString();
   const count = Array.isArray(uploadedItems) ? uploadedItems.length : 0;
   const fileNames = (uploadedItems || []).map(i => i.renamed).filter(Boolean);
@@ -3094,7 +3119,11 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
           : ' Review Documentation task was created and sent to Super Admin.';
       }catch(taskErr){
         console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
-        taskMessage=' Files were uploaded successfully, but the Review Documentation task could not be created: '+taskErr.message;
+        const rawMsg=String(taskErr && taskErr.message ? taskErr.message : taskErr);
+        const friendly=/Graph\s+400/i.test(rawMsg)
+          ? 'SharePoint rejected the automatic task values. Check that Request Type contains "Relevant docs needed" and Task contains "Review Documentation" as Choice options.'
+          : rawMsg;
+        taskMessage=' Files were uploaded successfully, but the Review Documentation task could not be created: '+friendly;
       }
 
       // Refresh folder state only after the review task has been created. The
