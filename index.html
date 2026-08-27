@@ -148,6 +148,24 @@
   #user-role-label{color:var(--text-secondary);font-weight:400;}
   #status-line{font-size:12px;color:var(--text-secondary);margin:0;}
 
+  /* ---- Per-user notification bell ---- */
+  .notification-wrap{position:relative;}
+  #notification-bell-btn{position:relative;width:38px;height:38px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);font-size:18px;}
+  #notification-bell-btn:hover{background:var(--surface-2);}
+  #notification-count{display:none;position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;line-height:19px;text-align:center;border:2px solid var(--surface);}
+  #notification-panel{display:none;position:absolute;right:0;top:46px;width:min(390px,calc(100vw - 32px));max-height:470px;overflow:auto;background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.22);z-index:1300;}
+  #notification-panel.show{display:block;}
+  .notification-head{position:sticky;top:0;background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);z-index:1;}
+  .notification-title{font-size:13px;font-weight:700;color:var(--text);}
+  #notification-mark-read{padding:5px 9px;font-size:11px;}
+  #notification-list{display:flex;flex-direction:column;}
+  .notification-item{padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:var(--surface);}
+  .notification-item:hover{background:var(--surface-2);}
+  .notification-item.unread{border-left:3px solid var(--accent);padding-left:11px;background:var(--surface-2);}
+  .notification-item .n-main{font-size:12px;font-weight:600;color:var(--text);line-height:1.35;}
+  .notification-item .n-sub{font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.35;}
+  .notification-empty{padding:18px 14px;font-size:12px;color:var(--text-secondary);text-align:center;}
+
   /* ---- Badges ---- */
   .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;white-space:nowrap;}
   .badge-not-started{background:var(--surface-2);color:var(--text-secondary);border:1px dashed var(--border-strong);}
@@ -391,6 +409,13 @@
     <span>Signed in as <strong id="user-email-label"></strong><span id="user-role-label"></span></span>
     <div class="right">
       <span id="status-line"></span>
+      <div class="notification-wrap" id="notification-wrap">
+        <button type="button" id="notification-bell-btn" title="Notifications" aria-label="Notifications" aria-expanded="false">🔔<span id="notification-count"></span></button>
+        <div id="notification-panel" role="dialog" aria-label="Notifications">
+          <div class="notification-head"><span class="notification-title">Notifications</span><button type="button" class="secondary" id="notification-mark-read">Mark all read</button></div>
+          <div id="notification-list"><div class="notification-empty">No new updates.</div></div>
+        </div>
+      </div>
       <button type="button" id="refresh-btn" class="secondary">Refresh</button>
       <button type="button" id="signout-btn" class="secondary">Sign out</button>
     </div>
@@ -1052,6 +1077,8 @@ let assignTargetTaskId = null;
 const initialUrlParams = new URLSearchParams(window.location.search);
 let pendingDeepLinkTaskNumber = initialUrlParams.get('taskNumber');
 let pendingDeepLinkTaskId = initialUrlParams.get('task');
+let notificationEventsCache = [];
+let notificationPollTimer = null;
 
 const loginOverlay = document.getElementById('login-overlay');
 const appContent = document.getElementById('app-content');
@@ -1105,6 +1132,10 @@ async function onSignedIn(){
     appContent.style.display = 'flex';
     registryInit().catch(e => console.warn('Registry Ops init failed', e));
     await loadAllData();
+    if(notificationPollTimer) clearInterval(notificationPollTimer);
+    notificationPollTimer = setInterval(()=>{
+      if(currentAccount && document.visibilityState !== 'hidden') loadAllData(true).catch(e=>console.warn('Notification refresh failed', e));
+    }, 60000);
     setStatus('');
   }catch(err){
     console.error('Could not initialise signed-in user', err);
@@ -1213,15 +1244,75 @@ function applyRoleUi(){
   if(currentUserRole === 'superadmin') renderUserMgmtList();
 }
 
+/* ---- In-app notification center ---- */
+function notificationStorageKey(){
+  return 'taskNotificationsLastRead:' + ((currentAccount && currentAccount.username) || 'unknown').toLowerCase();
+}
+function notificationLastRead(){
+  const raw = localStorage.getItem(notificationStorageKey());
+  if(!raw){ const now = new Date().toISOString(); localStorage.setItem(notificationStorageKey(), now); return new Date(now).getTime(); }
+  const ms = new Date(raw).getTime(); return isNaN(ms) ? 0 : ms;
+}
+function notificationTimestamp(v){ const ms = new Date(v || 0).getTime(); return isNaN(ms) ? 0 : ms; }
+function buildNotificationEvents(){
+  if(!currentAccount) return [];
+  const me = (currentAccount.username || '').toLowerCase();
+  const events = [];
+  const add = (type, task, when, main, sub) => { const ms=notificationTimestamp(when); if(task&&ms) events.push({type,taskId:String(task.id),when,ms,main,sub:sub||''}); };
+  (taskItemsCache||[]).forEach(t=>{
+    const requestedBy=(t['Requested By']||'').toLowerCase();
+    const assignedTo=(t['Assigned To']||'').toLowerCase();
+    const lastBy=(t['Last Updated By']||'').toLowerCase();
+    const label=taskNumberLabel(t);
+    if(currentUserRole==='superadmin' && !t['Assigned To'] && t.Status!==STATUS_REJECTED) add('new-task',t,t['Requested Date'],'New task needs assignment',label+' — '+(t.Title||'Untitled task'));
+    if(assignedTo===me && t['Assigned Date']) add('assigned',t,t['Assigned Date'],'Task assigned to you',label+' — '+(t.Title||'Untitled task'));
+    if(requestedBy===me){
+      if(t['Assigned To']&&t['Assigned Date']) add('request-assigned',t,t['Assigned Date'],'Your task was assigned',label+' → '+t['Assigned To']);
+      const lastMs=notificationTimestamp(t['Last Updated Date']); const assignedMs=notificationTimestamp(t['Assigned Date']);
+      if(lastMs&&lastBy&&lastBy!==me&&(!assignedMs||Math.abs(lastMs-assignedMs)>3000)){
+        const state=t.Status===STATUS_COMPLETED?'completed':(t.Status===STATUS_REJECTED?'rejected':'updated');
+        add('status-'+state,t,t['Last Updated Date'],'Your task was '+state,label+' — '+(t.Status||'Updated'));
+      }
+    }
+  });
+  (commentItemsCache||[]).forEach(c=>{
+    const task=taskById(c['Task Item ID']); if(!task) return;
+    const commenter=(c['Comment By']||'').toLowerCase(); if(!commenter||commenter===me) return;
+    const requestedBy=(task['Requested By']||'').toLowerCase(); const assignedTo=(task['Assigned To']||'').toLowerCase();
+    const relevant=requestedBy===me||assignedTo===me||(currentUserRole==='superadmin'&&!task['Assigned To']); if(!relevant) return;
+    const preview=String(c['Comment Text']||'').replace(/\s+/g,' ').trim();
+    add('comment',task,c['Comment Date'],'New comment from '+(c['Comment By']||'user'),taskNumberLabel(task)+(preview?' — '+preview.slice(0,90):''));
+  });
+  const seen=new Set();
+  return events.filter(e=>{const k=[e.type,e.taskId,e.ms].join('|'); if(seen.has(k)) return false; seen.add(k); return true;}).sort((a,b)=>b.ms-a.ms).slice(0,60);
+}
+function renderNotificationCenter(){
+  const list=document.getElementById('notification-list'), count=document.getElementById('notification-count');
+  if(!list||!count||!currentAccount) return;
+  notificationEventsCache=buildNotificationEvents(); const lastRead=notificationLastRead(); const unread=notificationEventsCache.filter(e=>e.ms>lastRead);
+  if(unread.length){ count.textContent=unread.length>99?'99+':String(unread.length); count.style.display='block'; } else { count.textContent=''; count.style.display='none'; }
+  if(!notificationEventsCache.length){ list.innerHTML='<div class="notification-empty">No updates yet.</div>'; return; }
+  list.innerHTML=notificationEventsCache.map((e,i)=>'<div class="notification-item'+(e.ms>lastRead?' unread':'')+'" data-notification-index="'+i+'"><div class="n-main">'+escapeHtml(e.main)+'</div><div class="n-sub">'+escapeHtml(e.sub)+' · '+escapeHtml(fmtDateTime(e.when))+'</div></div>').join('');
+  list.querySelectorAll('[data-notification-index]').forEach(el=>el.addEventListener('click',()=>{ const e=notificationEventsCache[Number(el.getAttribute('data-notification-index'))]; if(!e)return; const task=taskById(e.taskId); if(task){ document.getElementById('notification-panel').classList.remove('show'); document.getElementById('notification-bell-btn').setAttribute('aria-expanded','false'); openTaskModal(task.id); } }));
+}
+function markAllNotificationsRead(){ localStorage.setItem(notificationStorageKey(),new Date().toISOString()); renderNotificationCenter(); }
+(function wireNotificationBell(){
+  const bell=document.getElementById('notification-bell-btn'), panel=document.getElementById('notification-panel'), mark=document.getElementById('notification-mark-read');
+  if(!bell||!panel||!mark)return;
+  bell.addEventListener('click',e=>{e.stopPropagation();const show=!panel.classList.contains('show');panel.classList.toggle('show',show);bell.setAttribute('aria-expanded',show?'true':'false');});
+  mark.addEventListener('click',e=>{e.stopPropagation();markAllNotificationsRead();}); panel.addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>{panel.classList.remove('show');bell.setAttribute('aria-expanded','false');});
+})();
+
 /* ---- Data loading ---- */
-async function loadAllData(){
-  setStatus('Loading tasks…');
+async function loadAllData(silent){
+  if(!silent) setStatus('Loading tasks…');
   try{
     taskItemsCache = await getListItems(MAIN_LIST_NAME);
     commentItemsCache = await getListItems(COMMENTS_LIST_NAME);
   }catch(err){
     console.error('Could not load tasks', err);
-    setStatus('Could not load tasks: ' + err.message);
+    if(!silent) setStatus('Could not load tasks: ' + err.message);
     return;
   }
   populateAssigneeDropdowns();
@@ -1229,7 +1320,8 @@ async function loadAllData(){
   renderAssignQueue();
   renderMyAssigned();
   renderAllTasks();
-  setStatus('');
+  renderNotificationCenter();
+  if(!silent) setStatus('');
   if(activeTaskId) renderTaskModal(activeTaskId);
 
   // Email notifications use the visible Task Number in the URL. Legacy
@@ -1512,7 +1604,13 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     document.getElementById('nt-requested-deadline').value = '';
     await loadAllData();
     const createdTask = taskById(created.id);
-    notifySuperadmins(createdTask || {id:created.id, 'Task Number':newTaskNumber, Title:title}).catch(e=>console.error('Notify superadmins failed', e));
+    try{
+      await notifySuperadmins(createdTask || {id:created.id, 'Task Number':newTaskNumber, Title:title});
+      setStatus('Request submitted. Super Admin notified by email.');
+    }catch(mailErr){
+      console.error('Notify superadmins failed', mailErr);
+      setStatus('Request submitted, but the Super Admin email notification could not be sent.');
+    }
   }catch(err){
     errEl.textContent = 'Could not submit: ' + err.message;
     errEl.style.display = 'block';
@@ -1566,7 +1664,14 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
       throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. The app now supports both Single line of text and Person or Group fields; verify the selected Admin has visited the Operations SharePoint site at least once.');
     }
     document.getElementById('assign-modal-overlay').style.display = 'none';
-    notifyTaskAssigned(v, assignee).catch(e=>console.error('Notify assigned failed', e));
+    try{
+      await notifyTaskAssigned(v, assignee);
+      setStatus('Task assigned. Admin and requester notified by email.');
+    }catch(mailErr){
+      console.error('Notify assigned failed', mailErr);
+      setStatus('Task assigned, but the assignment email notification could not be sent.');
+      alert('The task was assigned successfully, but the email notification could not be sent. Details: ' + mailErr.message);
+    }
   }catch(err){
     errEl.textContent = 'Could not assign: ' + err.message;
     errEl.style.display = 'block';
@@ -1810,7 +1915,15 @@ function renderTaskModal(taskId){
       });
       textEl.value = '';
       await loadAllData();
-      notifyOnComment(v, text).catch(e=>console.error('Notify comment failed', e));
+      const updatedTask = taskById(taskId) || v;
+      try{
+        const sentTo = await notifyOnComment(updatedTask, text);
+        setStatus(sentTo && sentTo.length ? 'Comment sent. Recipient notified by email.' : 'Comment sent.');
+      }catch(mailErr){
+        console.error('Notify comment failed', mailErr);
+        setStatus('Comment sent, but the email notification could not be sent.');
+        alert('Your comment was saved, but the email notification could not be sent. Details: ' + mailErr.message);
+      }
     }catch(err){
       alert('Could not send comment: ' + err.message);
     }finally{
@@ -1924,9 +2037,12 @@ document.getElementById('user-mgmt-assign-btn').addEventListener('click', async 
    Mail.Send delegated permission (admin consent) on the Azure app
    registration; if it isn't granted yet, sending just throws and is
    caught/logged so it never blocks the actual action itself.
-   Per your requirements: notify on assignment (assignee + requester) and on
-   completion (requester). Comment notifications are also wired up as a
-   bonus — remove notifyOnComment's call site above if you don't want them. */
+   Notification flow:
+   - New task request -> every Super Admin
+   - Assignment -> assigned Admin + requester
+   - New comment -> the other party; if still unassigned, requester comments go to Super Admin
+   - Completion/status changes -> requester
+   Mail failures are surfaced to the person taking the action instead of being silent. */
 function taskDeepLink(v){
   const n = taskNumberValue(v);
   return location.origin + location.pathname + (n
@@ -2002,11 +2118,27 @@ async function notifyOnComment(v, text){
   const link = taskDeepLink(v);
   const commenter = (currentAccount.username||'').toLowerCase();
   const recipients = new Set();
+
+  // Normal two-way thread: requester -> assigned Admin, and Admin -> requester.
   if(v['Requested By'] && v['Requested By'].toLowerCase() !== commenter) recipients.add(v['Requested By']);
   if(v['Assigned To'] && v['Assigned To'].toLowerCase() !== commenter) recipients.add(v['Assigned To']);
-  if(!recipients.size) return;
-  const html = '<p>New comment on <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong> from '+escapeHtml(currentAccount.username)+':</p>'+    '<p style="white-space:pre-wrap;">'+escapeHtml(text)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to read the thread and reply</a></p>';
-  await sendMailGraph(Array.from(recipients), 'New comment — ' + label + ' — ' + v.Title, html);
+
+  // Before assignment there is no Admin yet. If the requester comments on an
+  // unassigned task, notify every Super Admin so the message is not missed.
+  const requesterIsCommenter = (v['Requested By'] || '').toLowerCase() === commenter;
+  if(requesterIsCommenter && !v['Assigned To']){
+    emailsForRole('superadmin').forEach(e=>{
+      if(e && e.toLowerCase() !== commenter) recipients.add(e);
+    });
+  }
+
+  const toEmails = Array.from(recipients);
+  if(!toEmails.length) return [];
+  const html = '<p>New comment on <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong> from '+escapeHtml(currentAccount.username)+':</p>'+
+    '<p style="white-space:pre-wrap;">'+escapeHtml(text)+'</p>'+
+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to read the thread and reply</a></p>';
+  await sendMailGraph(toEmails, 'New comment — ' + label + ' — ' + v.Title, html);
+  return toEmails;
 }
 
 /* ---- Microsoft Graph plumbing ---- */
