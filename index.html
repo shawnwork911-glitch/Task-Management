@@ -2247,32 +2247,62 @@ function sharePointIdentityMatchesEmail(value, email){
 async function getSharePointUserLookupId(email){
   email = String(email || '').trim().toLowerCase();
   if(!email) throw new Error('Selected assignee email is blank.');
-  // SharePoint person fields store an integer lookup into the site's hidden
-  // User Information List. Resolve Admins and Super Admins by either their
-  // normal email or SharePoint claims-format login identity.
+
   const lists = await graphFetch('/sites/' + siteId + '/lists?$select=id,displayName,system');
   const userList = (lists.value || []).find(l =>
     String(l.displayName || '').toLowerCase() === 'user information list' ||
     (l.system && String(l.system.template || '').toLowerCase() === 'users')
   );
   if(!userList) throw new Error('Could not locate the SharePoint User Information List needed for the Assigned To person field.');
-  const items = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
+
+  // The hidden User Information List often does NOT return EMail/Name in a
+  // generic $expand=fields call. Inspect its column schema, identify the useful
+  // identity fields, then request those internal fields explicitly.
+  let identityInternalNames = [];
+  try{
+    const cols = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/columns?$select=name,displayName,hidden,readOnly');
+    const wanted = new Set([
+      'email','e-mail','e mail','work email','email address',
+      'name','user name','username','login name','account',
+      'title','display name','sip address','sipaddress'
+    ]);
+    (cols.value || []).forEach(c=>{
+      const dn = String(c.displayName || '').trim().toLowerCase();
+      const nm = String(c.name || '').trim().toLowerCase();
+      if(wanted.has(dn) || wanted.has(nm) || /email|e-mail|login|user.?name|sip|title|name/.test(dn) || /email|e.?mail|login|user.?name|sip|title|name/.test(nm)){
+        if(c.name && !identityInternalNames.includes(c.name)) identityInternalNames.push(c.name);
+      }
+    });
+  }catch(e){
+    console.warn('Could not inspect SharePoint user-list columns', e);
+  }
+
+  async function fetchUserItems(){
+    if(identityInternalNames.length){
+      try{
+        const select = identityInternalNames.map(encodeURIComponent).join(',');
+        return await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields($select=' + select + ')&$top=999');
+      }catch(e){
+        console.warn('Explicit user identity field query failed; falling back to all visible fields', e);
+      }
+    }
+    return graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
+  }
+
+  const items = await fetchUserItems();
   let match = (items.value || []).find(item=>{
     const f = item.fields || {};
-    // Check every string field because internal field names differ between
-    // SharePoint tenants and claims login names often contain the email.
     return Object.values(f).some(v => sharePointIdentityMatchesEmail(v, email));
   });
 
-  // Self-assignment fallback for Super Admin/Admin. Some SharePoint tenants do
-  // not expose the user's email in the hidden User Information List, but do
-  // expose the Microsoft 365 display name. Resolve /me and match that exact
-  // display name only when the selected assignee is the currently signed-in user.
+  // Self-assignment: also match the signed-in Microsoft account's aliases and
+  // exact display name. This is only used when assigning the current account to
+  // itself, so it cannot accidentally resolve another person with a similar name.
   const signedInEmail = String((currentAccount && currentAccount.username) || '').trim().toLowerCase();
   if(!match && signedInEmail && signedInEmail === email){
     try{
       const me = await graphFetch('/me?$select=displayName,mail,userPrincipalName');
-      const aliases = [me.mail, me.userPrincipalName].filter(Boolean).map(v=>String(v).trim().toLowerCase());
+      const aliases = [email, me.mail, me.userPrincipalName].filter(Boolean).map(v=>String(v).trim().toLowerCase());
       match = (items.value || []).find(item=>{
         const f = item.fields || {};
         return aliases.some(alias => Object.values(f).some(v => sharePointIdentityMatchesEmail(v, alias)));
@@ -2290,7 +2320,7 @@ async function getSharePointUserLookupId(email){
   }
 
   if(!match){
-    throw new Error('The selected assignee could not be resolved in the Operations SharePoint site. If assigning yourself, confirm your Microsoft 365 account is the same account currently signed in to this app.');
+    throw new Error('The selected assignee could not be resolved in the Operations SharePoint site. The account is signed in correctly, but SharePoint did not expose a matching Person record for Assigned To.');
   }
   return String(match.id);
 }
