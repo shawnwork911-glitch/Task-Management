@@ -1648,7 +1648,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
   try{
     const nowIso = new Date().toISOString();
     await updateListItem(MAIN_LIST_NAME, assignTargetTaskId, {
-      'Assigned To': assignee,
+      'Assigned To Email': assignee,
       'Assigned By': currentAccount.username,
       'Assigned Date': nowIso,
       'Deadline': dateInputToIso(deadline),
@@ -1660,8 +1660,8 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
     await loadAllData();
     const v = taskById(assignTargetTaskId);
     if(!v) throw new Error('The task could not be reloaded after assignment.');
-    if((v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
-      throw new Error('The assignee was not saved to the SharePoint "Assigned To" column. The app supports both Admin and Super Admin assignees and both text and Person or Group fields; verify the selected person has access to the Operations SharePoint site.');
+    if((v['Assigned To Email'] || v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
+      throw new Error('The assignee was not saved to the SharePoint "Assigned To Email" column. Confirm that column exists and is a Single line of text field.');
     }
     document.getElementById('assign-modal-overlay').style.display = 'none';
     try{
@@ -2191,7 +2191,7 @@ function normalizeColumnLabel(v){
   return String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 const CANONICAL_FIELD_LABELS = {
-  'assigned to': 'Assigned To', 'assigned by': 'Assigned By', 'assigned date': 'Assigned Date',
+  'assigned to': 'Assigned To', 'assigned to email': 'Assigned To Email', 'assigned by': 'Assigned By', 'assigned date': 'Assigned Date',
   'requested by': 'Requested By', 'requested date': 'Requested Date', 'requested deadline': 'Requested Deadline',
   'last updated by': 'Last Updated By', 'last updated date': 'Last Updated Date', 'completed date': 'Completed Date',
   'agreement id': 'Agreement ID', 'company name': 'Company Name', 'request type': 'Request Type',
@@ -2355,14 +2355,15 @@ async function getListItems(listName){
       const display = map.internalToDisplay[internalName] || internalName;
       row[display] = item.fields[internalName];
     });
+    if(row['Assigned To Email']) row['Assigned To'] = row['Assigned To Email'];
     return row;
   });
-  // For person fields, list item data contains only a LookupId. Resolve the
+  // For legacy records only, resolve the old Person/Group Assigned To field., list item data contains only a LookupId. Resolve the
   // Assigned To lookup IDs back to email addresses so permissions, filtering,
   // task display and notifications keep using emails everywhere else in the app.
   const assignedCol = map.columnsByDisplay && map.columnsByDisplay['assigned to'];
   if(assignedCol && assignedCol.personOrGroup){
-    const lookupIds = Array.from(new Set(rows.map(r=>r['Assigned To']).filter(Boolean).map(String)));
+    const lookupIds = Array.from(new Set(rows.filter(r=>!r['Assigned To Email']).map(r=>r['Assigned To']).filter(Boolean).map(String)));
     if(lookupIds.length){
       try{
         const lists = await graphFetch('/sites/' + siteId + '/lists?$select=id,displayName,system');
