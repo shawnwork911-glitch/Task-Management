@@ -178,14 +178,14 @@
   html[data-theme="dark"] .badge-progress{background:#3a2c5c;color:#cbb6f2;}
   html[data-theme="dark"] .badge-completed{background:#1f4a2c;color:#a3dcae;}
   .badge-priority-unset{background:var(--surface-2);color:var(--text-secondary);border:1px dashed var(--border-strong);}
-  .badge-priority-critical{background:#fbdcd6;color:#93291a;}
-  .badge-priority-high{background:#fff1b8;color:#7a5a00;}
-  .badge-priority-medium{background:#eadcf8;color:#6b3f91;}
-  .badge-priority-low{background:#d9f0dd;color:#256b38;}
-  html[data-theme="dark"] .badge-priority-critical{background:#5c2a20;color:#f0a996;}
-  html[data-theme="dark"] .badge-priority-high{background:#574714;color:#f5d96b;}
-  html[data-theme="dark"] .badge-priority-medium{background:#432c5a;color:#d9b8f3;}
-  html[data-theme="dark"] .badge-priority-low{background:#1f4a2c;color:#a3dcae;}
+  .badge-priority-critical{background:#d7e6fb;color:#264c8c;}
+  .badge-priority-high{background:#d9f0dd;color:#256b38;}
+  .badge-priority-medium{background:#f4e6cc;color:#8a6d1f;}
+  .badge-priority-low{background:#fbdcd6;color:#93291a;}
+  html[data-theme="dark"] .badge-priority-critical{background:#233a63;color:#a9c3ef;}
+  html[data-theme="dark"] .badge-priority-high{background:#1f4a2c;color:#a3dcae;}
+  html[data-theme="dark"] .badge-priority-medium{background:#4a3d1f;color:#e0c98a;}
+  html[data-theme="dark"] .badge-priority-low{background:#5c2a20;color:#f0a996;}
   .deadline-overdue{color:var(--danger);font-weight:600;}
   .deadline-soon{color:var(--warn);font-weight:600;}
 
@@ -490,13 +490,6 @@
   <div class="card" id="my-tasks-card" style="display:none;">
     <p class="card-title">My tasks</p>
     <p class="card-note">Your own task requests — status, deadline, and who it's assigned to. Click a task to see the full timeline and comments.</p>
-    <div class="filter-row">
-      <div><label for="my-filter-status">Status</label><select id="my-filter-status"><option value="">All</option><option value="Not Started">Not Started</option><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Rejected">Rejected</option></select></div>
-      <div><label for="my-filter-assignee">Assigned to</label><select id="my-filter-assignee"><option value="">All</option></select></div>
-      <div><label for="my-filter-request-type">Request type</label><select id="my-filter-request-type"><option value="">All</option></select></div>
-      <div><label for="my-filter-task">Task</label><select id="my-filter-task"><option value="">All</option></select></div>
-      <div><label for="my-filter-priority">Priority</label><select id="my-filter-priority"><option value="">All</option></select></div>
-    </div>
     <div id="my-tasks-list"><p class="empty-note">Loading…</p></div>
   </div>
   </div>
@@ -508,12 +501,6 @@
   <div class="card" id="assign-queue-card" style="display:none;">
     <p class="card-title">Assignment queue</p>
     <p class="card-note">New task requests waiting to be assigned to an Admin, with a deadline.</p>
-    <div class="filter-row">
-      <div><label for="queue-filter-status">Status</label><select id="queue-filter-status"><option value="">All</option><option value="Not Started">Not Started</option><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Rejected">Rejected</option></select></div>
-      <div><label for="queue-filter-request-type">Request type</label><select id="queue-filter-request-type"><option value="">All</option></select></div>
-      <div><label for="queue-filter-task">Task</label><select id="queue-filter-task"><option value="">All</option></select></div>
-      <div><label for="queue-filter-priority">Priority</label><select id="queue-filter-priority"><option value="">All</option></select></div>
-    </div>
     <div id="assign-queue-list"><p class="empty-note">Loading…</p></div>
   </div>
 
@@ -521,12 +508,6 @@
   <div class="card" id="my-assigned-card" style="display:none;">
     <p class="card-title">Assigned to me</p>
     <p class="card-note">Tasks Super Admin has assigned to you. Update status and send comments back to the requester.</p>
-    <div class="filter-row">
-      <div><label for="assigned-filter-status">Status</label><select id="assigned-filter-status"><option value="">All</option><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Rejected">Rejected</option></select></div>
-      <div><label for="assigned-filter-request-type">Request type</label><select id="assigned-filter-request-type"><option value="">All</option></select></div>
-      <div><label for="assigned-filter-task">Task</label><select id="assigned-filter-task"><option value="">All</option></select></div>
-      <div><label for="assigned-filter-priority">Priority</label><select id="assigned-filter-priority"><option value="">All</option></select></div>
-    </div>
     <div id="my-assigned-list"><p class="empty-note">Loading…</p></div>
   </div>
 
@@ -640,10 +621,11 @@
           <div><label for="rops-country">Country</label><select id="rops-country"><option value="">Select country...</option></select></div>
           <div><label for="rops-type">Type</label><select id="rops-type"><option value="">Select type...</option></select></div>
           <div><label for="rops-company-name">Company Name</label><input type="text" id="rops-company-name" placeholder="Enter company name"></div>
+          <div><label for="rops-master-company">Master Company <span style="opacity:.65">(optional, e.g. parent/group company)</span></label><input type="text" id="rops-master-company" placeholder="Leave blank if not part of a group"></div>
         </div>
         <div class="rops-required-wrap" id="rops-required-wrap">
           <div class="rops-required-head">
-            <div><strong style="font-size:13px;">Required documents</strong><div class="rops-note">Upload any available items now. Missing items can be completed later; existing files in the same Company Name folder will be detected automatically.</div></div>
+            <div><strong style="font-size:13px;">Required documents</strong><div class="rops-note">Upload any available items now. Missing items can be completed later; existing files in the same Company Name folder (and Master Company folder, if set) will be detected automatically.</div></div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="rops-progress" id="rops-required-progress">Select Registry, Country and Type</span><button type="button" class="secondary small-btn" id="rops-download-checklist" style="display:none;">Download checklist PDF</button><button type="button" class="secondary small-btn" id="rops-check-folder" disabled>Check SharePoint folder</button></div>
           </div>
           <div id="rops-required-list"><p class="empty-note" style="padding:12px;">Select Registry, Country and Type to load the required document checklist.</p></div>
@@ -955,16 +937,6 @@ const TASK_OPTIONS = [
     TASK_OPTIONS.map(t => '<option value="'+t.replace(/"/g,'&quot;')+'">'+t+'</option>').join('');
 })();
 
-function populateExtraTaskFilters(){
-  ['my-filter-request-type','queue-filter-request-type','assigned-filter-request-type'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.innerHTML='<option value="">All</option>'+REQUEST_TYPES.map(t=>'<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>').join('');
-  });
-  ['my-filter-task','queue-filter-task','assigned-filter-task'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.innerHTML='<option value="">All</option>'+TASK_OPTIONS.map(t=>'<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>').join('');
-  });
-}
-populateExtraTaskFilters();
-
 /* ---- Priority ----
    Set only by Super Admin (at assignment time, or later from the task detail
    view) — must match the "Priority" Choice column's options exactly (see
@@ -985,10 +957,6 @@ const PRIORITY_OPTIONS = [
     filterSel.innerHTML = '<option value="">All</option>' +
       PRIORITY_OPTIONS.map(p => '<option value="'+p.replace(/"/g,'&quot;')+'">'+p+'</option>').join('');
   }
-  ['my-filter-priority','queue-filter-priority','assigned-filter-priority'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.innerHTML='<option value="">All</option>'+PRIORITY_OPTIONS.map(p=>'<option value="'+p.replace(/"/g,'&quot;')+'">'+priorityShortLabel(p)+'</option>').join('');
-  });
 })();
 function canSeePriority(){
   // Super Admin sets it; the assigned Admin can see it read-only; the
@@ -1413,35 +1381,20 @@ function commentsForTask(taskId){
     .filter(c => String(c['Task Item ID']) === String(taskId))
     .sort((a,b) => new Date(a['Comment Date']) - new Date(b['Comment Date']));
 }
-function filterValue(id){ const el=document.getElementById(id); return el ? el.value : ''; }
-function applyTaskFilters(tasks, prefix, includeAssignee){
-  const statusFilter = filterValue(prefix+'-filter-status');
-  const requestTypeFilter = filterValue(prefix+'-filter-request-type');
-  const taskFilter = filterValue(prefix+'-filter-task');
-  const priorityFilter = filterValue(prefix+'-filter-priority');
-  const assigneeFilter = includeAssignee ? filterValue(prefix+'-filter-assignee') : '';
-  return tasks
-    .filter(t => !statusFilter || t.Status === statusFilter)
-    .filter(t => !assigneeFilter || (t['Assigned To']||'').toLowerCase() === assigneeFilter.toLowerCase())
-    .filter(t => !requestTypeFilter || t['Request Type'] === requestTypeFilter)
-    .filter(t => !taskFilter || t['Task'] === taskFilter)
-    .filter(t => !priorityFilter || t['Priority'] === priorityFilter)
-    .sort(sortByPriorityThenDeadline);
-}
 function myTasks(){
   const email = (currentAccount.username||'').toLowerCase();
-  const base = taskItemsCache.filter(t => (t['Requested By']||'').toLowerCase() === email);
-  return applyTaskFilters(base, 'my', true);
+  return taskItemsCache.filter(t => (t['Requested By']||'').toLowerCase() === email)
+    .sort(sortByPriorityThenDeadline);
 }
 function pendingTasks(){
   // Awaiting assignment = no Assigned To yet, regardless of Status value.
-  const base = taskItemsCache.filter(t => !t['Assigned To'] && t.Status !== STATUS_REJECTED);
-  return applyTaskFilters(base, 'queue', false);
+  return taskItemsCache.filter(t => !t['Assigned To'] && t.Status !== STATUS_REJECTED)
+    .sort(sortByPriorityThenDeadline);
 }
 function assignedToMe(){
   const email = (currentAccount.username||'').toLowerCase();
-  const base = taskItemsCache.filter(t => (t['Assigned To']||'').toLowerCase() === email);
-  return applyTaskFilters(base, 'assigned', false);
+  return taskItemsCache.filter(t => (t['Assigned To']||'').toLowerCase() === email && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED)
+    .sort(sortByPriorityThenDeadline);
 }
 function allTasksFiltered(){
   const statusFilter = document.getElementById('filter-status').value;
@@ -1470,12 +1423,6 @@ function populateAssigneeDropdowns(){
   const currentFilter = filterSel.value;
   filterSel.innerHTML = '<option value="">All</option>' + pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
   filterSel.value = currentFilter;
-  const myFilterSel = document.getElementById('my-filter-assignee');
-  if(myFilterSel){
-    const currentMy = myFilterSel.value;
-    myFilterSel.innerHTML = '<option value="">All</option>' + pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
-    myFilterSel.value = currentMy;
-  }
   const amSel = document.getElementById('am-assignee');
   amSel.innerHTML = pool.length
     ? pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('')
@@ -1597,9 +1544,6 @@ document.getElementById('filter-assignee').addEventListener('change', renderAllT
 document.getElementById('filter-request-type').addEventListener('change', renderAllTasks);
 document.getElementById('filter-task').addEventListener('change', renderAllTasks);
 document.getElementById('filter-priority').addEventListener('change', renderAllTasks);
-['my-filter-status','my-filter-assignee','my-filter-request-type','my-filter-task','my-filter-priority'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderMyTasks); });
-['queue-filter-status','queue-filter-request-type','queue-filter-task','queue-filter-priority'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderAssignQueue); });
-['assigned-filter-status','assigned-filter-request-type','assigned-filter-task','assigned-filter-priority'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('change', renderMyAssigned); });
 
 /* ---- New task request ---- */
 function wireOptionalFieldToggle(toggleId, inputId){
@@ -1705,25 +1649,25 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
   try{
     const nowIso = new Date().toISOString();
     await updateListItem(MAIN_LIST_NAME, assignTargetTaskId, {
-      'Assigned To Email': assignee,
+      'Assigned To': assignee,
       'Assigned By': currentAccount.username,
       'Assigned Date': nowIso,
       'Deadline': dateInputToIso(deadline),
       'Priority': priority,
-      'Status': STATUS_PENDING,
+      'Status': STATUS_IN_PROGRESS,
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
     });
     await loadAllData();
     const v = taskById(assignTargetTaskId);
     if(!v) throw new Error('The task could not be reloaded after assignment.');
-    if((v['Assigned To Email'] || v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
-      throw new Error('The assignee was not saved to the SharePoint "Assigned To Email" column. Confirm that column exists and is a Single line of text field.');
+    if((v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
+      throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. The app now supports both Single line of text and Person or Group fields; verify the selected Admin has visited the Operations SharePoint site at least once.');
     }
     document.getElementById('assign-modal-overlay').style.display = 'none';
     try{
       await notifyTaskAssigned(v, assignee);
-      setStatus('Task assigned as Pending. Assignee and requester notified by email.');
+      setStatus('Task assigned. Admin and requester notified by email.');
     }catch(mailErr){
       console.error('Notify assigned failed', mailErr);
       setStatus('Task assigned, but the assignment email notification could not be sent.');
@@ -1749,9 +1693,7 @@ document.getElementById('tm-close').addEventListener('click', ()=>{
 });
 function canManageTask(v){
   const email = (currentAccount.username||'').toLowerCase();
-  // Super Admin inherits all Admin work controls. Admins can manage tasks
-  // assigned to themselves; Super Admin can manage any task once assigned.
-  return !!v['Assigned To'] && (currentUserRole === 'superadmin' || (v['Assigned To']||'').toLowerCase() === email);
+  return currentUserRole === 'superadmin' || (v['Assigned To']||'').toLowerCase() === email;
 }
 function canComment(v){
   const email = (currentAccount.username||'').toLowerCase();
@@ -1799,25 +1741,40 @@ function renderTaskModal(taskId){
     html += '<div><button type="button" id="tm-assign-btn">Assign this task</button></div>';
   }
 
-  // Super Admin can permanently delete a task. Priority is set only in the
-  // Assign task modal. Rejection is part of the assigned person's status flow.
+  // Priority controls: Super Admin only — sets or changes priority at any
+  // time. The assigned Admin sees the badge above but cannot edit it, and
+  // the requester never sees the badge at all (see priorityBadgeHtml).
   if(currentUserRole === 'superadmin'){
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
-      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+ 
+    html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
+      '<div style="min-width:220px;"><label>Priority</label><select id="tm-priority-select">'+
+        '<option value="">Not set</option>'+
+        PRIORITY_OPTIONS.map(p=>'<option value="'+escapeHtml(p)+'"'+(p===v.Priority?' selected':'')+'>'+escapeHtml(p)+'</option>').join('')+
+      '</select></div>'+
+      '<button type="button" id="tm-priority-save">Save priority</button>'+
     '</div>';
   }
 
-  // Admin can change status on tasks assigned to them. Super Admin inherits
-  // the same capability for any assigned task. Assignment starts as Pending,
-  // then status can move to In Progress, Completed, or Rejected.
-  if(canManageTask(v) && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED){
-    const assigneeStatusOptions = [STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_REJECTED];
+  // Super Admin controls: reject keeps the task and history; delete permanently removes it and its comments.
+  if(currentUserRole === 'superadmin' && v.Status !== STATUS_REJECTED){
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
+      '<button type="button" class="secondary" id="tm-reject-btn">Reject task</button>'+
+      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+
+    '</div>';
+  } else if(currentUserRole === 'superadmin'){
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
+      '<button type="button" class="danger-btn" id="tm-delete-btn">Delete task</button>'+
+    '</div>';
+  }
+
+  // Progress/Status controls: the assigned Admin or Super Admin can edit
+  // this once the task has been handed to someone; the requester (role
+  // "user") never gets this control — they only ever see the badge above.
+  if(canManageTask(v) && v['Assigned To'] && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED){
     html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
-      '<div style="min-width:170px;"><label>Update status</label><select id="tm-status-select">'+
-        '<option value="">Select status...</option>'+ 
-        assigneeStatusOptions.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
-      '</select></div>'+ 
-      '<button type="button" id="tm-status-save">Save status</button>'+ 
+      '<div style="min-width:170px;"><label>Update progress</label><select id="tm-status-select">'+
+        STATUS_ORDER.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
+      '</select></div>'+
+      '<button type="button" id="tm-status-save">Save progress</button>'+
     '</div>';
   }
 
@@ -1847,6 +1804,53 @@ function renderTaskModal(taskId){
     document.getElementById('task-modal-overlay').style.display = 'none';
     openAssignModal(taskId);
   });
+  const prioritySave = document.getElementById('tm-priority-save');
+  if(prioritySave) prioritySave.addEventListener('click', async ()=>{
+    const newPriority = document.getElementById('tm-priority-select').value;
+    prioritySave.disabled = true;
+    try{
+      await updateListItem(MAIN_LIST_NAME, taskId, {
+        'Priority': newPriority || null,
+        'Last Updated By': currentAccount.username,
+        'Last Updated Date': new Date().toISOString()
+      });
+      await loadAllData();
+    }catch(err){
+      alert('Could not update priority: ' + err.message);
+    }finally{
+      prioritySave.disabled = false;
+    }
+  });
+  const rejectBtn = document.getElementById('tm-reject-btn');
+  if(rejectBtn) rejectBtn.addEventListener('click', async ()=>{
+    const reason = prompt('Reason for rejecting this task (optional):', '');
+    if(reason === null) return;
+    if(!confirm('Reject ' + taskNumberLabel(v) + '? The requester will be notified and the task will remain in the system as Rejected.')) return;
+    rejectBtn.disabled = true;
+    try{
+      const nowIso = new Date().toISOString();
+      await updateListItem(MAIN_LIST_NAME, taskId, {
+        'Status': STATUS_REJECTED,
+        'Last Updated By': currentAccount.username,
+        'Last Updated Date': nowIso
+      });
+      if(reason.trim()){
+        await createListItem(COMMENTS_LIST_NAME, {
+          'Task Item ID': String(taskId),
+          'Comment By': currentAccount.username,
+          'Comment Role': currentUserRole,
+          'Comment Text': 'Rejected: ' + reason.trim(),
+          'Comment Date': nowIso
+        });
+      }
+      await loadAllData();
+      const updated = taskById(taskId);
+      if(updated) notifyTaskRejected(updated, reason.trim()).catch(e=>console.error('Notify rejected failed', e));
+    }catch(err){
+      alert('Could not reject task: ' + err.message + '\n\nMake sure the SharePoint Status choice column includes a Rejected option.');
+    }finally{ rejectBtn.disabled = false; }
+  });
+
   const deleteBtn = document.getElementById('tm-delete-btn');
   if(deleteBtn) deleteBtn.addEventListener('click', async ()=>{
     if(!confirm('Permanently delete ' + taskNumberLabel(v) + '? This will also delete all comments for this task. This cannot be undone.')) return;
@@ -1871,62 +1875,21 @@ function renderTaskModal(taskId){
   const statusSave = document.getElementById('tm-status-save');
   if(statusSave) statusSave.addEventListener('click', async ()=>{
     const newStatus = document.getElementById('tm-status-select').value;
-    if(!newStatus){
-      alert('Select In Progress, Completed, or Rejected.');
-      return;
-    }
-
-    let rejectionReason = '';
-    if(newStatus === STATUS_REJECTED){
-      const entered = prompt('Reason for rejecting this task:', '');
-      if(entered === null) return;
-      rejectionReason = entered.trim();
-      if(!rejectionReason){
-        alert('A rejection reason is required.');
-        return;
-      }
-    }
-
     statusSave.disabled = true;
-    let rejectionCommentId = null;
     try{
       const nowIso = new Date().toISOString();
-
-      if(newStatus === STATUS_REJECTED){
-        const createdComment = await createListItem(COMMENTS_LIST_NAME, {
-          'Task Item ID': String(taskId),
-          'Comment By': currentAccount.username,
-          'Comment Role': currentUserRole,
-          'Comment Text': 'Rejected: ' + rejectionReason,
-          'Comment Date': nowIso
-        });
-        rejectionCommentId = createdComment && createdComment.id ? createdComment.id : null;
-      }
-
       const payload = {
         'Status': newStatus,
         'Last Updated By': currentAccount.username,
         'Last Updated Date': nowIso
       };
       if(newStatus === STATUS_COMPLETED) payload['Completed Date'] = nowIso;
-
-      try{
-        await updateListItem(MAIN_LIST_NAME, taskId, payload);
-      }catch(updateErr){
-        if(rejectionCommentId){
-          try{ await deleteListItem(COMMENTS_LIST_NAME, rejectionCommentId); }
-          catch(cleanupErr){ console.warn('Could not remove rejection comment after failed status update', cleanupErr); }
-        }
-        throw updateErr;
-      }
-
+      await updateListItem(MAIN_LIST_NAME, taskId, payload);
       await loadAllData();
       const updated = taskById(taskId);
       if(updated){
         if(newStatus === STATUS_COMPLETED){
           notifyTaskCompleted(updated).catch(e=>console.error('Notify completed failed', e));
-        }else if(newStatus === STATUS_REJECTED){
-          notifyTaskRejected(updated, rejectionReason).catch(e=>console.error('Notify rejected failed', e));
         }else{
           notifyStatusChanged(updated).catch(e=>console.error('Notify status change failed', e));
         }
@@ -1937,7 +1900,6 @@ function renderTaskModal(taskId){
       statusSave.disabled = false;
     }
   });
-
   const commentSend = document.getElementById('tm-comment-send');
   if(commentSend) commentSend.addEventListener('click', async ()=>{
     const textEl = document.getElementById('tm-comment-text');
@@ -1974,10 +1936,9 @@ function timelineHtml(v){
   const steps = [
     { label:'Requested', sub: v['Requested By'] + ' · ' + fmtDateTime(v['Requested Date']), done:true },
     { label:'Assigned', sub: v['Assigned To'] ? ('to ' + v['Assigned To'] + ' by ' + v['Assigned By'] + ' · ' + fmtDateTime(v['Assigned Date'])) : 'Waiting for Super Admin', done: !!v['Assigned To'] },
-    { label:'Pending', sub: v['Assigned To'] ? (v.Status === STATUS_PENDING ? 'Waiting for assignee to start' : 'Assignment accepted') : 'Waiting for assignment', done: !!v['Assigned To'] },
-    { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED) ? 'Work underway' : (v.Status === STATUS_REJECTED ? 'Not applicable — request rejected' : 'Not started yet'), done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED },
+    { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED) ? 'Work underway' : 'Not started yet', done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED },
     { label:'Completed', sub: v.Status === STATUS_COMPLETED ? fmtDateTime(v['Completed Date']) : (v.Status === STATUS_REJECTED ? 'Not applicable — request rejected' : 'Pending'), done: v.Status === STATUS_COMPLETED },
-    ...(v.Status === STATUS_REJECTED ? [{ label:'Rejected', sub: 'Rejected by ' + (v['Last Updated By'] || 'Assignee') + ' · ' + fmtDateTime(v['Last Updated Date']), done:true }] : [])
+    ...(v.Status === STATUS_REJECTED ? [{ label:'Rejected', sub: 'Rejected by ' + (v['Last Updated By'] || 'Super Admin') + ' · ' + fmtDateTime(v['Last Updated Date']), done:true }] : [])
   ];
   return steps.map(s =>
     '<div class="timeline-step'+(s.done?' done':'')+'">'+
@@ -2248,7 +2209,7 @@ function normalizeColumnLabel(v){
   return String(v || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 const CANONICAL_FIELD_LABELS = {
-  'assigned to': 'Assigned To', 'assigned to email': 'Assigned To Email', 'assigned by': 'Assigned By', 'assigned date': 'Assigned Date',
+  'assigned to': 'Assigned To', 'assigned by': 'Assigned By', 'assigned date': 'Assigned Date',
   'requested by': 'Requested By', 'requested date': 'Requested Date', 'requested deadline': 'Requested Deadline',
   'last updated by': 'Last Updated By', 'last updated date': 'Last Updated Date', 'completed date': 'Completed Date',
   'agreement id': 'Agreement ID', 'company name': 'Company Name', 'request type': 'Request Type',
@@ -2290,95 +2251,24 @@ function fieldsPayloadFromDisplay(map, displayValues){
   return fields;
 }
 
-function sharePointIdentityMatchesEmail(value, email){
-  const v = String(value || '').trim().toLowerCase();
-  const e = String(email || '').trim().toLowerCase();
-  if(!v || !e) return false;
-  if(v === e) return true;
-  // SharePoint commonly stores people as claims identities, e.g.
-  // i:0#.f|membership|name@company.com rather than as a plain email.
-  if(v.endsWith('|' + e)) return true;
-  // Some tenants expose the email inside another login-name style value.
-  return v.includes(e);
-}
 async function getSharePointUserLookupId(email){
   email = String(email || '').trim().toLowerCase();
-  if(!email) throw new Error('Selected assignee email is blank.');
-
+  if(!email) throw new Error('Assigned Admin email is blank.');
+  // SharePoint person fields store an integer lookup into the site's hidden
+  // User Information List. Resolve that lookup by email through Graph.
   const lists = await graphFetch('/sites/' + siteId + '/lists?$select=id,displayName,system');
   const userList = (lists.value || []).find(l =>
     String(l.displayName || '').toLowerCase() === 'user information list' ||
     (l.system && String(l.system.template || '').toLowerCase() === 'users')
   );
   if(!userList) throw new Error('Could not locate the SharePoint User Information List needed for the Assigned To person field.');
-
-  // The hidden User Information List often does NOT return EMail/Name in a
-  // generic $expand=fields call. Inspect its column schema, identify the useful
-  // identity fields, then request those internal fields explicitly.
-  let identityInternalNames = [];
-  try{
-    const cols = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/columns?$select=name,displayName,hidden,readOnly');
-    const wanted = new Set([
-      'email','e-mail','e mail','work email','email address',
-      'name','user name','username','login name','account',
-      'title','display name','sip address','sipaddress'
-    ]);
-    (cols.value || []).forEach(c=>{
-      const dn = String(c.displayName || '').trim().toLowerCase();
-      const nm = String(c.name || '').trim().toLowerCase();
-      if(wanted.has(dn) || wanted.has(nm) || /email|e-mail|login|user.?name|sip|title|name/.test(dn) || /email|e.?mail|login|user.?name|sip|title|name/.test(nm)){
-        if(c.name && !identityInternalNames.includes(c.name)) identityInternalNames.push(c.name);
-      }
-    });
-  }catch(e){
-    console.warn('Could not inspect SharePoint user-list columns', e);
-  }
-
-  async function fetchUserItems(){
-    if(identityInternalNames.length){
-      try{
-        const select = identityInternalNames.map(encodeURIComponent).join(',');
-        return await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields($select=' + select + ')&$top=999');
-      }catch(e){
-        console.warn('Explicit user identity field query failed; falling back to all visible fields', e);
-      }
-    }
-    return graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
-  }
-
-  const items = await fetchUserItems();
-  let match = (items.value || []).find(item=>{
+  const items = await graphFetch('/sites/' + siteId + '/lists/' + userList.id + '/items?$expand=fields&$top=999');
+  const match = (items.value || []).find(item=>{
     const f = item.fields || {};
-    return Object.values(f).some(v => sharePointIdentityMatchesEmail(v, email));
+    const candidates = [f.EMail, f.Email, f.UserName, f.Name, f.Title];
+    return candidates.some(v => String(v || '').trim().toLowerCase() === email);
   });
-
-  // Self-assignment: also match the signed-in Microsoft account's aliases and
-  // exact display name. This is only used when assigning the current account to
-  // itself, so it cannot accidentally resolve another person with a similar name.
-  const signedInEmail = String((currentAccount && currentAccount.username) || '').trim().toLowerCase();
-  if(!match && signedInEmail && signedInEmail === email){
-    try{
-      const me = await graphFetch('/me?$select=displayName,mail,userPrincipalName');
-      const aliases = [email, me.mail, me.userPrincipalName].filter(Boolean).map(v=>String(v).trim().toLowerCase());
-      match = (items.value || []).find(item=>{
-        const f = item.fields || {};
-        return aliases.some(alias => Object.values(f).some(v => sharePointIdentityMatchesEmail(v, alias)));
-      });
-      if(!match && me.displayName){
-        const dn = String(me.displayName).trim().toLowerCase();
-        match = (items.value || []).find(item=>{
-          const f = item.fields || {};
-          return Object.values(f).some(v => String(v || '').trim().toLowerCase() === dn);
-        });
-      }
-    }catch(e){
-      console.warn('Self-assignment identity fallback failed', e);
-    }
-  }
-
-  if(!match){
-    throw new Error('The selected assignee could not be resolved in the Operations SharePoint site. The account is signed in correctly, but SharePoint did not expose a matching Person record for Assigned To.');
-  }
+  if(!match) throw new Error('The selected Admin is not known to this SharePoint site yet. Ask the Admin to open the Operations SharePoint site once, then try assigning again.');
   return String(match.id);
 }
 
@@ -2412,15 +2302,14 @@ async function getListItems(listName){
       const display = map.internalToDisplay[internalName] || internalName;
       row[display] = item.fields[internalName];
     });
-    if(row['Assigned To Email']) row['Assigned To'] = row['Assigned To Email'];
     return row;
   });
-  // For legacy records only, resolve the old Person/Group Assigned To field., list item data contains only a LookupId. Resolve the
+  // For person fields, list item data contains only a LookupId. Resolve the
   // Assigned To lookup IDs back to email addresses so permissions, filtering,
   // task display and notifications keep using emails everywhere else in the app.
   const assignedCol = map.columnsByDisplay && map.columnsByDisplay['assigned to'];
   if(assignedCol && assignedCol.personOrGroup){
-    const lookupIds = Array.from(new Set(rows.filter(r=>!r['Assigned To Email']).map(r=>r['Assigned To']).filter(Boolean).map(String)));
+    const lookupIds = Array.from(new Set(rows.map(r=>r['Assigned To']).filter(Boolean).map(String)));
     if(lookupIds.length){
       try{
         const lists = await graphFetch('/sites/' + siteId + '/lists?$select=id,displayName,system');
@@ -2964,12 +2853,13 @@ function ropsCurrentChecklistDocs(){
 function ropsCurrentContext(){
   return {
     company:document.getElementById('rops-company-name').value.trim(),
+    master:document.getElementById('rops-master-company').value.trim(),
     registry:document.getElementById('rops-registry').value,
     country:document.getElementById('rops-country').value,
     type:document.getElementById('rops-type').value
   };
 }
-function ropsContextKey(){ const c=ropsCurrentContext(); return [c.company,c.registry,c.country,c.type].join('|'); }
+function ropsContextKey(){ const c=ropsCurrentContext(); return [c.master,c.company,c.registry,c.country,c.type].join('|'); }
 let ropsExistingCategoryFiles={};
 let ropsChecklistContextKey='';
 let ropsFolderCheckTimer=null;
@@ -2993,11 +2883,15 @@ function ropsPopulateTypes(){
 }
 function ropsSafeNamePart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/\s+/g,'_'); }
 function ropsSafeFolderPart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/[. ]+$/g,''); }
-function ropsBuildFilename(file, category){
-  const c=ropsCurrentContext();
+function ropsFolderName(c){
+  const sub=ropsSafeNamePart(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type);
+  return c.master ? ropsSafeFolderPart(c.master)+'/'+sub : sub;
+}
+function ropsBuildFilename(file, category, index){
   const name=file ? file.name : 'file.pdf';
   const dot=name.lastIndexOf('.'); const ext=dot>=0 ? name.slice(dot+1) : 'pdf';
-  return ropsSafeNamePart(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type)+'_'+ropsSafeNamePart(category)+'.'+ext;
+  const suffix=(index && index>0) ? ('_'+(index+1)) : '';
+  return ropsSafeNamePart(category)+suffix+'.'+ext;
 }
 function ropsResetChecklistForContext(){
   ropsUploadType=document.getElementById('rops-type').value;
@@ -3009,8 +2903,8 @@ function ropsResetChecklistForContext(){
   ropsRenderQueue();
   ropsScheduleFolderCheck();
 }
-function ropsQueuedItemForCategory(category){ return ropsUploadQueue.find(x=>x.category===category) || null; }
-function ropsCategoryIsComplete(category){ return !!(ropsExistingCategoryFiles[category] || ropsQueuedItemForCategory(category)); }
+function ropsQueuedItemsForCategory(category){ return ropsUploadQueue.filter(x=>x.category===category); }
+function ropsCategoryIsComplete(category){ return (ropsExistingCategoryFiles[category]||[]).length>0 || ropsQueuedItemsForCategory(category).length>0; }
 function ropsAllRequiredComplete(){ const docs=ropsCurrentChecklistDocs(); return !!docs.length && docs.every(ropsCategoryIsComplete); }
 function ropsRenderRequiredChecklist(){
   ropsUpdateChecklistDownloadButton();
@@ -3029,50 +2923,56 @@ function ropsRenderRequiredChecklist(){
   const complete=docs.filter(ropsCategoryIsComplete).length;
   progress.textContent=complete+' / '+docs.length+' complete';
   list.innerHTML=docs.map((category,i)=>{
-    const existing=ropsExistingCategoryFiles[category];
-    const queued=ropsQueuedItemForCategory(category);
-    let status='<span class="rops-doc-status missing">Missing</span>';
-    let fileText='No file selected';
-    if(existing){ status='<span class="rops-doc-status saved">Already in SharePoint</span>'; fileText=existing.name||'Existing file'; }
-    else if(queued){ status='<span class="rops-doc-status queued">Ready to upload</span>'; fileText=queued.file.name+' → '+queued.renamed; }
-    const action=existing
-      ? '<button type="button" class="secondary small-btn" data-replace-cat="'+i+'">Replace</button>'
-      : '<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">'+(queued?'Change file':'Choose file')+'</button>'+(queued?'<button type="button" class="secondary small-btn" data-remove-cat="'+i+'">Remove</button>':'');
-    return '<div class="rops-required-row"><div><div class="rops-doc-name">'+ropsEsc(category)+'</div><div class="rops-doc-file">'+ropsEsc(fileText)+'</div></div><div>'+status+'</div><div class="rops-doc-actions">'+action+'<input class="rops-hidden-file" type="file" data-file-cat="'+i+'"></div></div>';
+    const existingList=ropsExistingCategoryFiles[category]||[];
+    const queuedList=ropsQueuedItemsForCategory(category);
+    const totalCount=existingList.length+queuedList.length;
+    const status=totalCount
+      ? '<span class="rops-doc-status saved">'+totalCount+' file'+(totalCount>1?'s':'')+'</span>'
+      : '<span class="rops-doc-status missing">Missing</span>';
+    const existingRows=existingList.map(f=>'<div class="rops-doc-file">'+ropsEsc(f.name||'Existing file')+' <span class="rops-note">(already in SharePoint)</span></div>').join('');
+    const queuedRows=queuedList.map(q=>'<div class="rops-doc-file">'+ropsEsc(q.file.name)+' → '+ropsEsc(q.renamed)+' <button type="button" class="secondary small-btn" data-remove-uid="'+q.uid+'">Remove</button></div>').join('');
+    const fileRows=existingRows+queuedRows || '<div class="rops-doc-file">No file selected</div>';
+    const action='<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">'+(totalCount?'Add another file':'Choose file')+'</button>';
+    return '<div class="rops-required-row"><div><div class="rops-doc-name">'+ropsEsc(category)+'</div>'+fileRows+'</div><div>'+status+'</div><div class="rops-doc-actions">'+action+'<input class="rops-hidden-file" type="file" multiple data-file-cat="'+i+'"></div></div>';
   }).join('');
-  list.querySelectorAll('[data-pick-cat],[data-replace-cat]').forEach(btn=>btn.addEventListener('click',()=>{
-    const i=Number(btn.getAttribute('data-pick-cat') ?? btn.getAttribute('data-replace-cat'));
+  list.querySelectorAll('[data-pick-cat]').forEach(btn=>btn.addEventListener('click',()=>{
+    const i=Number(btn.getAttribute('data-pick-cat'));
     const input=list.querySelector('[data-file-cat="'+i+'"]'); if(input) input.click();
   }));
   list.querySelectorAll('[data-file-cat]').forEach(input=>input.addEventListener('change',()=>{
     if(!input.files.length) return;
-    const i=Number(input.getAttribute('data-file-cat')); ropsQueueCategoryFile(docs[i],input.files[0]);
+    const i=Number(input.getAttribute('data-file-cat')); ropsQueueCategoryFiles(docs[i],input.files);
+    input.value='';
   }));
-  list.querySelectorAll('[data-remove-cat]').forEach(btn=>btn.addEventListener('click',()=>{
-    const category=docs[Number(btn.getAttribute('data-remove-cat'))];
-    ropsUploadQueue=ropsUploadQueue.filter(x=>x.category!==category); ropsRenderRequiredChecklist(); ropsRenderQueue();
+  list.querySelectorAll('[data-remove-uid]').forEach(btn=>btn.addEventListener('click',()=>{
+    const uid=btn.getAttribute('data-remove-uid');
+    ropsUploadQueue=ropsUploadQueue.filter(x=>x.uid!==uid); ropsRenderRequiredChecklist(); ropsRenderQueue();
   }));
   document.getElementById('rops-upload-all').disabled=ropsUploadQueue.length===0;
 }
-function ropsQueueCategoryFile(category,file){
+let ropsQueueUidCounter=0;
+function ropsQueueCategoryFiles(category,fileList){
   const c=ropsCurrentContext();
   if(!(c.company&&c.registry&&c.country&&c.type)){ ropsShowStatus('rops-folder-status','Enter Company Name and select Registry, Country and Type first.',false); return; }
-  const item={file,renamed:ropsBuildFilename(file,category),company:c.company,registry:c.registry,country:c.country,type:c.type,category,folder:ropsSafeFolderPart(c.company)};
-  ropsUploadQueue=ropsUploadQueue.filter(x=>x.category!==category);
-  ropsUploadQueue.push(item);
-  delete ropsExistingCategoryFiles[category];
+  const existingCount=(ropsExistingCategoryFiles[category]||[]).length;
+  const alreadyQueued=ropsQueuedItemsForCategory(category).length;
+  let offset=existingCount+alreadyQueued;
+  Array.from(fileList).forEach(file=>{
+    const item={file,renamed:ropsBuildFilename(file,category,offset),company:c.company,registry:c.registry,country:c.country,type:c.type,category,folder:ropsFolderName(c),uid:'q'+(++ropsQueueUidCounter)};
+    ropsUploadQueue.push(item);
+    offset++;
+  });
   ropsRenderRequiredChecklist(); ropsRenderQueue();
 }
 function ropsRenderQueue(){
   const list=document.getElementById('rops-queue-list');
   if(!ropsUploadQueue.length){list.innerHTML='<p class="empty-note">No new files queued. Existing SharePoint files still count toward checklist completion.</p>';return;}
-  list.innerHTML=ropsUploadQueue.map(x=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.company)+'</span></span></div>').join('');
+  list.innerHTML=ropsUploadQueue.map(x=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.folder)+'</span></span></div>').join('');
 }
-async function ropsListCompanyFolderFiles(company){
+async function ropsListFolderFiles(folderName){
   const driveId=await ropsResolveBdDrive();
-  const folder=ropsSafeFolderPart(company);
   try{
-    const data=await graphFetch('/drives/'+driveId+'/root:/'+ropsEncodePath(folder)+':/children?$select=id,name,webUrl,file,folder&$top=999');
+    const data=await graphFetch('/drives/'+driveId+'/root:/'+ropsEncodePath(folderName)+':/children?$select=id,name,webUrl,file,folder&$top=999');
     return (data&&data.value)||[];
   }catch(err){
     if(String(err&&err.message||err).includes('Graph 404')) return [];
@@ -3084,22 +2984,22 @@ async function ropsCheckExistingFolder(){
   if(!(c.company&&c.registry&&c.country&&c.type&&docs.length)) return;
   const key=ropsContextKey(); ropsChecklistContextKey=key;
   const btn=document.getElementById('rops-check-folder'); btn.disabled=true;
-  ropsShowStatus('rops-folder-status','Checking BD Usage / '+c.company+' for existing required documents…',true);
+  const folderName=ropsFolderName(c);
+  ropsShowStatus('rops-folder-status','Checking BD Usage / '+folderName+' for existing required documents…',true);
   try{
-    const files=await ropsListCompanyFolderFiles(c.company);
+    const files=await ropsListFolderFiles(folderName);
     if(ropsContextKey()!==key) return;
     ropsExistingCategoryFiles={};
-    const prefix=(ropsSafeNamePart(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type)+'_').toLowerCase();
     for(const category of docs){
       const cat=ropsSafeNamePart(category).toLowerCase();
-      const hit=files.find(f=>{ const n=String(f.name||'').toLowerCase(); return n.startsWith(prefix+cat+'.') || n.startsWith(prefix+cat+'_'); });
-      if(hit && !ropsQueuedItemForCategory(category)) ropsExistingCategoryFiles[category]=hit;
+      const hits=files.filter(f=>{ const n=String(f.name||'').toLowerCase(); return n.startsWith(cat+'.') || n.startsWith(cat+'_'); });
+      if(hits.length) ropsExistingCategoryFiles[category]=hits;
     }
-    const existingCount=Object.keys(ropsExistingCategoryFiles).length;
-    ropsShowStatus('rops-folder-status','SharePoint check complete: '+existingCount+' of '+docs.length+' required document(s) already found in BD Usage / '+c.company+'.',true);
+    const existingCount=docs.filter(category=>(ropsExistingCategoryFiles[category]||[]).length>0).length;
+    ropsShowStatus('rops-folder-status','SharePoint check complete: '+existingCount+' of '+docs.length+' required document(s) already found in BD Usage / '+folderName+'.',true);
     ropsRenderRequiredChecklist();
   }catch(err){
-    console.error(err); ropsShowStatus('rops-folder-status','Could not check the Company Name folder. '+err.message,false);
+    console.error(err); ropsShowStatus('rops-folder-status','Could not check the folder. '+err.message,false);
   }finally{ btn.disabled=!(ropsCurrentContext().company&&ropsCurrentChecklistDocs().length); }
 }
 function ropsScheduleFolderCheck(){
@@ -3113,6 +3013,7 @@ document.getElementById('rops-registry').addEventListener('change',ropsPopulateC
 document.getElementById('rops-country').addEventListener('change',ropsPopulateTypes);
 document.getElementById('rops-type').addEventListener('change',ropsResetChecklistForContext);
 document.getElementById('rops-company-name').addEventListener('input',()=>{ropsResetChecklistForContext(); ropsRenderCompanyFolders();});
+document.getElementById('rops-master-company').addEventListener('input',ropsResetChecklistForContext);
 document.getElementById('rops-check-folder').addEventListener('click',ropsCheckExistingFolder);
 document.getElementById('rops-refresh-companies').addEventListener('click',ropsLoadCompanyFolders);
 document.getElementById('rops-company-search').addEventListener('input',ropsRenderCompanyFolders);
@@ -3120,106 +3021,42 @@ document.getElementById('rops-company-search').addEventListener('input',ropsRend
 function ropsDownloadFile(file, filename){
   const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
-async function getSharePointChoiceOptions(listName, displayName){
-  const listId = await getListId(listName);
-  const data = await graphFetch('/sites/' + siteId + '/lists/' + listId + '/columns');
-  const wanted = normalizeColumnLabel(displayName);
-  const col = (data.value || []).find(c => normalizeColumnLabel(c.displayName) === wanted);
-  if(!col) throw new Error('SharePoint column "' + displayName + '" was not found in ' + listName + '.');
-  if(!col.choice || !Array.isArray(col.choice.choices)){
-    throw new Error('SharePoint column "' + displayName + '" must be a Choice column for the automatic Review Documentation task.');
-  }
-  return col.choice.choices.map(v => String(v));
-}
-async function validateReviewDocumentationTaskChoices(){
-  const requiredRequestType = 'Relevant docs needed';
-  const requiredTask = 'Review Documentation';
-  const requestChoices = await getSharePointChoiceOptions(MAIN_LIST_NAME, 'Request Type');
-  const taskChoices = await getSharePointChoiceOptions(MAIN_LIST_NAME, 'Task');
-  const missing = [];
-  if(!requestChoices.includes(requiredRequestType)) missing.push('Request Type → "' + requiredRequestType + '"');
-  if(!taskChoices.includes(requiredTask)) missing.push('Task → "' + requiredTask + '"');
-  if(missing.length){
-    throw new Error('SharePoint setup required: add ' + missing.join(' and ') + ' to the Job Distribution Tracker Choice column options, then upload again. The documents already uploaded do not need to be re-uploaded.');
-  }
-}
-
-async function ropsCreateReviewDocumentationTask(companyName, uploadedItems){
-  // Create the actual task first. Validation/numbering/notification are follow-up
-  // steps and must never prevent a successful upload from generating the task.
+async function ropsCreateReviewDocumentationTask(companyName, folderName, uploadedItems){
   const nowIso = new Date().toISOString();
   const count = Array.isArray(uploadedItems) ? uploadedItems.length : 0;
   const fileNames = (uploadedItems || []).map(i => i.renamed).filter(Boolean);
   const description = 'Review documentation uploaded through Rename & File.\n' +
     'Company: ' + (companyName || '—') + '\n' +
-    'SharePoint folder: BD Usage / ' + (companyName || '') + '\n' +
+    'SharePoint folder: BD Usage / ' + (folderName || '') + '\n' +
     'Uploaded files (' + count + '):' + (fileNames.length ? '\n- ' + fileNames.join('\n- ') : ' —');
-
-  let created;
-  try{
-    created = await createListItem(MAIN_LIST_NAME, {
-      'Title': 'Review Documentation',
-      'Company Name': companyName || null,
-      'Description': description,
-      'Request Type': 'Relevant docs needed',
-      'Task': 'Review Documentation',
-      'Requested By': currentAccount.username,
-      'Requested Date': nowIso,
-      'Status': STATUS_NOT_STARTED,
-      'Last Updated By': currentAccount.username,
-      'Last Updated Date': nowIso
-    });
-  }catch(err){
-    const raw = String(err && err.message ? err.message : err);
-    if(/Graph\s+400/i.test(raw)){
-      // Best-effort metadata validation only after the actual create fails.
-      try{ await validateReviewDocumentationTaskChoices(); }
-      catch(validationErr){ throw validationErr; }
-      throw new Error('SharePoint rejected the Review Documentation task fields. Confirm the Job Distribution Tracker columns and field types match the task form. Original error: ' + raw);
-    }
-    throw err;
-  }
-
-  const newTaskId = created && created.id ? String(created.id) : null;
-  if(!newTaskId) throw new Error('SharePoint created the request but did not return a task item ID.');
-
-  // Task Number is helpful for display, but failure here must not undo or hide
-  // the task that was already created successfully.
+  const created = await createListItem(MAIN_LIST_NAME, {
+    'Title': 'Review Documentation',
+    'Company Name': companyName || null,
+    'Description': description,
+    'Request Type': 'Relevant docs needed',
+    'Task': 'Review Documentation',
+    'Requested By': currentAccount.username,
+    'Requested Date': nowIso,
+    'Status': STATUS_NOT_STARTED,
+    'Last Updated By': currentAccount.username,
+    'Last Updated Date': nowIso
+  });
+  const newTaskId = created && created.id ? created.id : null;
   let newTaskNumber = null;
-  try{
-    newTaskNumber = await assignTaskNumberToItem(newTaskId);
-  }catch(numberErr){
-    console.warn('Review Documentation task created, but Task Number could not be assigned', numberErr);
+  if(newTaskId) newTaskNumber = await assignTaskNumberToItem(newTaskId);
+  await loadAllData();
+  if(newTaskId){
+    const createdTask = taskById(newTaskId) || {id:newTaskId, 'Task Number':newTaskNumber, Title:'Review Documentation'};
+    notifySuperadmins(createdTask).catch(e=>console.error('Notify superadmins failed', e));
   }
-
-  // Always refresh so the newly-created task becomes visible immediately even
-  // when numbering or notification has an issue.
-  try{ await loadAllData(); }
-  catch(refreshErr){ console.warn('Review task created but task list refresh failed', refreshErr); }
-
-  const createdTask = taskById(newTaskId) || {
-    id:newTaskId,
-    'Task Number':newTaskNumber,
-    Title:'Review Documentation',
-    'Requested By':currentAccount.username,
-    'Requested Date':nowIso,
-    Status:STATUS_NOT_STARTED
-  };
-
-  try{
-    await notifySuperadmins(createdTask);
-  }catch(mailErr){
-    console.warn('Review Documentation task created, but Super Admin email notification failed', mailErr);
-  }
-
-  return { id:newTaskId, taskNumber:newTaskNumber };
+  return newTaskId;
 }
 
 function ropsAppendLog(item){
   const body=document.getElementById('rops-log-body');
   if(body.querySelector('td[colspan]')) body.innerHTML='';
   const tr=document.createElement('tr');
-  tr.innerHTML='<td>'+ropsEsc(item.renamed)+'</td><td>'+ropsEsc(item.registry)+'</td><td>'+ropsEsc(item.country+' / '+item.type)+'</td><td>'+ropsEsc(item.category)+'</td><td>'+ropsEsc('BD Usage / '+item.company)+'</td><td><button type="button" class="secondary small-btn">Download</button></td><td>'+ropsEsc(new Date().toLocaleTimeString())+'</td>';
+  tr.innerHTML='<td>'+ropsEsc(item.renamed)+'</td><td>'+ropsEsc(item.registry)+'</td><td>'+ropsEsc(item.country+' / '+item.type)+'</td><td>'+ropsEsc(item.category)+'</td><td>'+ropsEsc('BD Usage / '+item.folder)+'</td><td><button type="button" class="secondary small-btn">Download</button></td><td>'+ropsEsc(new Date().toLocaleTimeString())+'</td>';
   tr.querySelector('button').addEventListener('click',()=>ropsDownloadFile(item.file,item.renamed));
   body.prepend(tr);
 }
@@ -3228,6 +3065,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
   const docs=ropsCurrentChecklistDocs();
   if(!ropsUploadQueue.length){ ropsShowStatus('rops-upload-status','Choose at least one document to upload.',false); return; }
   const companyAtStart=ropsCurrentContext().company;
+  const folderAtStart=ropsFolderName(ropsCurrentContext());
   const btn=document.getElementById('rops-upload-all'); btn.disabled=true; ropsHideStatus('rops-upload-status');
   let done=0;
   const batchItems=[...ropsUploadQueue];
@@ -3262,17 +3100,15 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       // a newly-added missing document, or a replacement document.
       let taskMessage='';
       try{
-        const reviewResult=await ropsCreateReviewDocumentationTask(companyAtStart, uploadedItems);
-        const reviewTask=reviewResult && reviewResult.id ? taskById(reviewResult.id) : null;
-        const reviewNumber=reviewTask ? taskNumberValue(reviewTask) : (reviewResult && reviewResult.taskNumber ? reviewResult.taskNumber : '');
-        taskMessage=' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created for Super Admin review.';
+        const reviewTaskId=await ropsCreateReviewDocumentationTask(companyAtStart, folderAtStart, uploadedItems);
+        const reviewTask=reviewTaskId ? taskById(reviewTaskId) : null;
+        const reviewNumber=reviewTask ? displayTaskNumber(reviewTask) : '';
+        taskMessage=reviewTaskId
+          ? ' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created and sent to Super Admin.'
+          : ' Review Documentation task was created and sent to Super Admin.';
       }catch(taskErr){
         console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
-        const rawMsg=String(taskErr && taskErr.message ? taskErr.message : taskErr);
-        const friendly=/Graph\s+400/i.test(rawMsg)
-          ? 'SharePoint rejected the automatic task values. Check that Request Type contains "Relevant docs needed" and Task contains "Review Documentation" as Choice options.'
-          : rawMsg;
-        taskMessage=' Files were uploaded successfully and Review Documentation task been automatically created.';
+        taskMessage=' Files were uploaded successfully, but the Review Documentation task could not be created: '+taskErr.message;
       }
 
       // Refresh folder state only after the review task has been created. The
@@ -3283,7 +3119,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       const remaining=Math.max(0,docs.length-complete);
       const retryMessage=uploadError ? ' '+(total-done)+' file(s) remain queued for retry.' : '';
       ropsShowStatus('rops-upload-status',
-        'Uploaded '+done+' document(s) to BD Usage / '+companyAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+
+        'Uploaded '+done+' document(s) to BD Usage / '+folderAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+
         (remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.')+
         taskMessage+retryMessage,
         !uploadError
