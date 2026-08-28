@@ -2835,7 +2835,7 @@ function ropsRenderRequiredChecklist(){
     }
     const detailsComplete=!!(c.registry&&c.country&&c.type&&c.company);
     const action=detailsComplete
-      ? '<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">'+(combined.length?'Replace / add file':'Choose file')+'</button>'
+      ? '<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">'+(combined.length?'Add file':'Choose file')+'</button>'
       : '';
     const showSample=(c.registry==='I-REC'&&c.country==='SG'&&c.type==='SOLAR'&&Object.prototype.hasOwnProperty.call(ROPS_SG_SOLAR_SAMPLES,category));
     const sampleBtn=showSample?'<button type="button" class="secondary rops-sample-btn" data-sample-cat="'+ropsEsc(category)+'">View sample</button>':'';
