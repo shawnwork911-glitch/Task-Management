@@ -351,7 +351,17 @@
   .rops-preset-box{border:1px solid var(--border);border-radius:8px;background:var(--surface-2);padding:10px 12px;margin:10px 0;}
   .rops-preset-box summary{cursor:pointer;font-size:12px;font-weight:600;}
   .rops-preset-header{margin-top:8px;font:11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre;overflow:auto;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);}
-  #rops-manual-paste{min-height:150px;font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;}
+  #rops-manual-paste{display:none;}
+  .rops-grid-paste-wrap{border:1px solid var(--border);border-radius:8px;overflow:auto;max-width:100%;background:var(--surface);}
+  .rops-grid-paste{border-collapse:collapse;width:max-content;min-width:100%;font-size:12px;}
+  .rops-grid-paste th,.rops-grid-paste td{border-right:1px solid var(--border);border-bottom:1px solid var(--border);min-width:150px;max-width:240px;height:36px;padding:7px 9px;text-align:left;vertical-align:top;}
+  .rops-grid-paste th{position:sticky;top:0;z-index:2;background:var(--surface-2);font-weight:700;white-space:normal;}
+  .rops-grid-paste th:first-child,.rops-grid-paste td:first-child{position:sticky;left:0;z-index:1;background:var(--surface-2);min-width:42px;width:42px;text-align:center;color:var(--text-secondary);}
+  .rops-grid-paste th:first-child{z-index:3;}
+  .rops-grid-paste td[contenteditable="true"]{background:var(--surface);outline:none;white-space:pre-wrap;word-break:break-word;}
+  .rops-grid-paste td[contenteditable="true"]:focus{box-shadow:inset 0 0 0 2px var(--accent);}
+  .rops-grid-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 10px;}
+  .rops-grid-help{font-size:11px;color:var(--text-secondary);}
   .rops-batch-summary{display:none;margin-top:16px;}
   .rops-batch-summary.show{display:block;}
   .rops-batch-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
@@ -424,7 +434,7 @@
   <div class="main-tabs" id="main-tabs" role="tablist" aria-label="Operations tools">
     <button type="button" class="main-tab-btn active" data-main-view="task">Task Management</button>
     <button type="button" class="main-tab-btn" data-main-view="rename">Rename &amp; File</button>
-    <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill Agreement</button>
+    <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill DRP</button>
     <button type="button" class="main-tab-btn" id="user-mgmt-tab-btn" data-main-view="users" style="display:none;">User Management</button>
   </div>
 
@@ -636,7 +646,7 @@
   <section id="main-view-autofill" class="main-view">
     <div class="rops-head">
       <div>
-        <h1>Autofill Agreement</h1>
+        <h1>Autofill DRP</h1>
         <p class="rops-subtitle">Look up Agreement ID (Ops Internal) from the live Assets table in Master Folder_250923.xlsx, fill the embedded PDF template, save to SharePoint, or download.</p>
       </div>
       <span class="rops-conn" id="rops-autofill-conn">Excel source: ready after sign-in</span>
@@ -673,12 +683,19 @@
           <div class="rops-note" style="margin-top:7px;">The template contains only fields that are filled into the agreement form. Each row represents one agreement. You may leave any field blank and edit it during review.</div>
           <div class="rops-preset-header" id="rops-preset-header"></div>
         </details>
-        <label for="rops-manual-paste">Paste table here</label>
-        <textarea id="rops-manual-paste" placeholder="Paste the header row and one or more data rows here..."></textarea>
+        <label>Paste table here</label>
+        <div class="rops-grid-toolbar">
+          <button type="button" class="secondary small-btn" id="rops-add-grid-row-btn">Add row</button>
+          <span class="rops-grid-help">Click any cell and paste directly from Excel. Rows and columns will fill automatically.</span>
+        </div>
+        <div class="rops-grid-paste-wrap" id="rops-grid-paste-wrap">
+          <table class="rops-grid-paste" id="rops-manual-grid"><thead></thead><tbody></tbody></table>
+        </div>
+        <textarea id="rops-manual-paste" aria-hidden="true" tabindex="-1"></textarea>
         <div class="rops-actions">
           <button type="button" id="rops-parse-table-btn">Extract multiple items</button>
-          <button type="button" class="secondary" id="rops-clear-table-btn">Clear pasted table</button>
-          <span class="rops-note">Tab-separated tables copied directly from Excel are recommended. CSV is also supported.</span>
+          <button type="button" class="secondary" id="rops-clear-table-btn">Clear table</button>
+          <span class="rops-note">Excel-style paste is supported. You can paste one cell, one row, or multiple rows at once.</span>
         </div>
         <div class="rops-status" id="rops-manual-status"></div>
 
@@ -2445,40 +2462,40 @@ function ropsCloseSampleDocument(){
 const ROPS_RENAME_CHECKLISTS = {
   "TIGR": {
     "MY": {
-      "NEM": ["ST License", "NEM Cert", "Meter Photo", "Asset Photo", "Generation Data", "DRP", "PPA (if available)", "Others"],
-      "FIT": ["ST License", "FiAH Cert", "Meter Photo", "Asset Photo", "Generation Data", "DRP", "PPA (if available)", "Others"],
-      "SELCO": ["ST License", "Meter Photo", "Asset Photo", "Generation Data", "DRP", "PPA (if available)", "Others"]
+      "NEM": ["ST License", "NEM Cert", "Meter Photo", "Asset Photo (min 2)", "Generation Data", "DRP", "PPA (if available)", "Others"],
+      "FIT": ["ST License", "FiAH Cert", "Meter Photo", "Asset Photo (min 2)", "Generation Data", "DRP", "PPA (if available)", "Others"],
+      "SELCO": ["ST License", "Meter Photo", "Asset Photo (min 2)", "Generation Data", "DRP", "PPA (if available)", "Others"]
     },
     "SG": {
-      "SOLAR": ["CoC", "CoPV", "SP Approval", "Others", "Meter Photo", "Asset Photo", "Generation Data", "DRP", "PPA"]
+      "SOLAR": ["CoC", "CoPV", "SP Approval", "Others", "Meter Photo", "Asset Photo (min 2)", "Generation Data", "DRP", "PPA"]
     },
     "VN": {},
     "OTHER": {}
   },
   "I-REC": {
     "MY": {
-      "NEM": ["ST License", "NEM Cert", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "FIT": ["ST License", "FiAH Cert", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "SELCO": ["ST License", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "NEM": ["ST License", "NEM Cert", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "FIT": ["ST License", "FiAH Cert", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "SELCO": ["ST License", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
       "HYDRO": ["ST License", "Water Abstraction License", "E&S Docs", "Interconnection", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "BIOGAS_BIOMASS": ["ST License", "SEDA Approval & Connection", "Declaration", "Sustainability Docs", "COD", "Approval Letter", "SF-04C form", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "LABUAN": ["ST License", "Registration Letter", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "PPA", "Others"],
-      "SABAH": ["ECoS Generating License", "Approval Letter", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "SARAWAK": ["Generating License", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
+      "BIOGAS_BIOMASS": ["ST License", "SEDA Approval & Connection", "Declaration", "Sustainability Docs", "COD", "Approval Letter", "SF-04C form", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "LABUAN": ["ST License", "Registration Letter", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "PPA", "Others"],
+      "SABAH": ["ECoS Generating License", "Approval Letter", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "SARAWAK": ["Generating License", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
     },
     "SG": {
-      "SOLAR": ["CoC", "CoPV", "SP Approval", "Others", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA"],
-      "HYDRO": ["E&S Docs", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "BIOGAS_BIOMASS": ["Declaration", "Sustainability Docs", "COD", "SF-04C form", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
+      "SOLAR": ["CoC", "CoPV", "SP Approval", "Others", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA"],
+      "HYDRO": ["E&S Docs", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "BIOGAS_BIOMASS": ["Declaration", "Sustainability Docs", "COD", "SF-04C form", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
     },
     "VN": {
-      "WIND": ["Connection", "Others", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA"],
-      "HYDRO": ["E&S Docs", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "BIOGAS_BIOMASS": ["Declaration", "Sustainability Docs", "COD", "SF-04C form", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
+      "WIND": ["Connection", "Others", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA"],
+      "HYDRO": ["E&S Docs", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "BIOGAS_BIOMASS": ["Declaration", "Sustainability Docs", "COD", "SF-04C form", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
     },
     "OTHER": {
-      "HYDRO": ["E&S Docs", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "BIOGAS_BIOMASS": ["Declaration", "Sustainability Docs", "COD", "SF-04C form", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
+      "HYDRO": ["E&S Docs", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "BIOGAS_BIOMASS": ["Declaration", "Sustainability Docs", "COD", "SF-04C form", "SLD", "Meter Photo", "Asset Photo (min 2)", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
     }
   }
 };
@@ -2778,8 +2795,14 @@ function ropsResetChecklistForContext(){
   ropsRenderQueue();
   ropsScheduleFolderCheck();
 }
+function ropsIsAssetPhotoCategory(category){ return ropsCategoryStorageName(category)==='Asset Photo'; }
 function ropsCategoryStorageName(category){ return category==='Asset Photo (min 2)' ? 'Asset Photo' : category; }
-function ropsCategoryMinFiles(category){ return category==='Asset Photo (min 2)' ? 2 : 1; }
+function ropsCategoryMinFiles(category){ return ropsIsAssetPhotoCategory(category) ? 2 : 1; }
+function ropsAssetPhotoFileIsValid(fileOrName){
+  const name=typeof fileOrName==='string' ? fileOrName : String((fileOrName&&fileOrName.name)||'');
+  const type=typeof fileOrName==='string' ? '' : String((fileOrName&&fileOrName.type)||'').toLowerCase();
+  return /\.(jpe?g)$/i.test(name) || type==='image/jpeg';
+}
 function ropsQueuedItemsForCategory(category){
   const storageName=ropsCategoryStorageName(category);
   return ropsUploadQueue.filter(x=>ropsCategoryStorageName(x.category)===storageName);
@@ -2787,7 +2810,15 @@ function ropsQueuedItemsForCategory(category){
 function ropsExistingItemsForCategory(category){
   return ropsExistingCategoryFiles[ropsCategoryStorageName(category)]||[];
 }
-function ropsCategoryFileCount(category){ return ropsExistingItemsForCategory(category).length + ropsQueuedItemsForCategory(category).length; }
+function ropsValidExistingItemsForCategory(category){
+  const items=ropsExistingItemsForCategory(category);
+  return ropsIsAssetPhotoCategory(category) ? items.filter(x=>ropsAssetPhotoFileIsValid(x.name||'')) : items;
+}
+function ropsCategoryFileCount(category){
+  const existing=ropsValidExistingItemsForCategory(category).length;
+  const queued=ropsQueuedItemsForCategory(category).filter(x=>!ropsIsAssetPhotoCategory(category)||ropsAssetPhotoFileIsValid(x.file)).length;
+  return existing+queued;
+}
 function ropsRequiredOccurrenceIndex(docs,index){
   const category=docs[index];
   let occurrence=0;
@@ -2821,7 +2852,7 @@ function ropsRenderRequiredChecklist(){
     const queuedList=ropsQueuedItemsForCategory(category);
     const combined=existingList.map(f=>({kind:'existing',item:f})).concat(queuedList.map(q=>({kind:'queued',item:q})));
     const minFiles=ropsCategoryMinFiles(category);
-    const fileCount=combined.length;
+    const fileCount=ropsCategoryFileCount(category);
     const complete=fileCount>=minFiles;
     const status=complete
       ? '<span class="rops-doc-status saved">'+fileCount+' file'+(fileCount===1?'':'s')+'</span>'
@@ -2847,7 +2878,8 @@ function ropsRenderRequiredChecklist(){
       : '';
     const showSample=(c.registry==='I-REC'&&c.country==='SG'&&c.type==='SOLAR'&&Object.prototype.hasOwnProperty.call(ROPS_SG_SOLAR_SAMPLES,category));
     const sampleBtn=showSample?'<button type="button" class="secondary rops-sample-btn" data-sample-cat="'+ropsEsc(category)+'">View sample</button>':'';
-    return '<div class="rops-required-row"><div><div class="rops-doc-name">'+ropsEsc(category)+sampleBtn+'</div>'+fileRows+'</div><div>'+status+'</div><div class="rops-doc-actions">'+action+(detailsComplete?'<input class="rops-hidden-file" type="file" data-file-cat="'+i+'" multiple>':'')+'</div></div>';
+    const acceptAttr=ropsIsAssetPhotoCategory(category)?' accept=".jpg,.jpeg,image/jpeg"':'';
+    return '<div class="rops-required-row"><div><div class="rops-doc-name">'+ropsEsc(category)+sampleBtn+'</div>'+fileRows+'</div><div>'+status+'</div><div class="rops-doc-actions">'+action+(detailsComplete?'<input class="rops-hidden-file" type="file"'+acceptAttr+' data-file-cat="'+i+'" multiple>':'')+'</div></div>';
   }).join('');
   list.querySelectorAll('[data-sample-cat]').forEach(btn=>btn.addEventListener('click',()=>{
     ropsOpenSampleDocument(btn.getAttribute('data-sample-cat'));
@@ -2916,6 +2948,10 @@ async function ropsReplaceExistingSharePointFile(category, existingIndex, file){
   const existing=ropsExistingItemsForCategory(category);
   const oldItem=existing[existingIndex];
   if(!oldItem || !file) return;
+  if(ropsIsAssetPhotoCategory(category)&&!ropsAssetPhotoFileIsValid(file)){
+    ropsShowStatus('rops-folder-status','Asset Photo files must be JPG or JPEG format only.',false);
+    return;
+  }
   const c=ropsCurrentContext();
   if(!(c.company&&c.registry&&c.country&&c.type)){
     ropsShowStatus('rops-folder-status','Complete File Details before replacing a SharePoint file.',false);
@@ -2962,7 +2998,14 @@ function ropsQueueCategoryFiles(category,fileList){
   const existingCount=(ropsExistingCategoryFiles[storageCategory]||[]).length;
   const alreadyQueued=ropsQueuedItemsForCategory(category).length;
   let offset=existingCount+alreadyQueued;
-  Array.from(fileList).forEach(file=>{
+  const files=Array.from(fileList);
+  if(ropsIsAssetPhotoCategory(category)){
+    const invalid=files.filter(file=>!ropsAssetPhotoFileIsValid(file));
+    if(invalid.length){
+      ropsShowStatus('rops-folder-status','Asset Photo files must be JPG or JPEG format only. Please select .jpg or .jpeg files.',false);
+    }
+  }
+  files.filter(file=>!ropsIsAssetPhotoCategory(category)||ropsAssetPhotoFileIsValid(file)).forEach(file=>{
     const item={file,renamed:ropsBuildFilename(file,storageCategory,offset),company:c.company,registry:c.registry,country:c.country,type:c.type,category,folder:ropsFolderName(c),uid:'q'+(++ropsQueueUidCounter)};
     ropsUploadQueue.push(item);
     offset++;
@@ -3200,7 +3243,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
   }
 });
 
-/* ---- Autofill Agreement ---- */
+/* ---- Autofill DRP ---- */
 // Manual batch template contains PDF form fields only.
 // Entity / Agreement ID / Company Name / Capacity are workflow metadata and are intentionally excluded.
 const ROPS_MANUAL_PRESET_HEADERS = ROPS_FIELD_MAP.map(f=>f.label);
@@ -3221,7 +3264,7 @@ function ropsDownloadManualTemplate(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
-  a.download='Autofill_Agreement_Batch_Template.csv';
+  a.download='Autofill_DRP_Batch_Template.csv';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -3230,7 +3273,68 @@ function ropsDownloadManualTemplate(){
 function ropsInitManualPreset(){
   const el=document.getElementById('rops-preset-header');
   if(el) el.textContent=ropsPresetHeaderText();
+  ropsInitManualGrid();
 }
+function ropsGridRowHtml(rowNo){
+  return '<tr><td class="rops-grid-rownum">'+rowNo+'</td>'+ROPS_MANUAL_PRESET_HEADERS.map((_,i)=>'<td contenteditable="true" spellcheck="false" data-col="'+i+'"></td>').join('')+'</tr>';
+}
+function ropsEnsureManualGridRows(count){
+  const tbody=document.querySelector('#rops-manual-grid tbody');
+  if(!tbody) return;
+  while(tbody.rows.length<count) tbody.insertAdjacentHTML('beforeend',ropsGridRowHtml(tbody.rows.length+1));
+}
+function ropsInitManualGrid(){
+  const table=document.getElementById('rops-manual-grid'); if(!table) return;
+  table.querySelector('thead').innerHTML='<tr><th>#</th>'+ROPS_MANUAL_PRESET_HEADERS.map(h=>'<th>'+ropsEsc(h)+'</th>').join('')+'</tr>';
+  table.querySelector('tbody').innerHTML='';
+  ropsEnsureManualGridRows(8);
+}
+function ropsClearManualGrid(){
+  const table=document.getElementById('rops-manual-grid'); if(!table) return;
+  table.querySelectorAll('tbody td[contenteditable="true"]').forEach(td=>td.textContent='');
+  const tbody=table.querySelector('tbody');
+  while(tbody.rows.length>8) tbody.deleteRow(tbody.rows.length-1);
+}
+function ropsManualGridRows(){
+  const table=document.getElementById('rops-manual-grid'); if(!table) return [];
+  const rows=[ROPS_MANUAL_PRESET_HEADERS.slice()];
+  table.querySelectorAll('tbody tr').forEach(tr=>{
+    const row=Array.from(tr.querySelectorAll('td[contenteditable="true"]')).map(td=>td.textContent.trim());
+    if(row.some(Boolean)) rows.push(row);
+  });
+  return rows;
+}
+function ropsPasteIntoManualGrid(startCell,text){
+  const parsed=ropsParseDelimitedTable(text); if(!parsed.length) return;
+  let data=parsed;
+  const recognizable=(parsed[0]||[]).filter(h=>ROPS_MANUAL_PRESET_HEADERS.some(p=>ropsNormalizeHeaderName(p)===ropsNormalizeHeaderName(h))).length;
+  if(recognizable>=3) data=parsed.slice(1);
+  if(!data.length) return;
+  const tr=startCell.closest('tr'); const tbody=tr.parentElement;
+  const startRow=Array.from(tbody.rows).indexOf(tr);
+  const startCol=Number(startCell.dataset.col||0);
+  ropsEnsureManualGridRows(startRow+data.length);
+  data.forEach((row,r)=>{
+    const targetRow=tbody.rows[startRow+r];
+    row.forEach((val,c)=>{
+      const col=startCol+c; if(col>=ROPS_MANUAL_PRESET_HEADERS.length) return;
+      const target=targetRow.querySelector('td[data-col="'+col+'"]'); if(target) target.textContent=val;
+    });
+  });
+}
+function ropsWireManualGrid(){
+  const table=document.getElementById('rops-manual-grid'); if(!table) return;
+  table.addEventListener('paste',e=>{
+    const cell=e.target.closest('td[contenteditable="true"]'); if(!cell) return;
+    const text=e.clipboardData&&e.clipboardData.getData('text/plain'); if(!text) return;
+    e.preventDefault(); ropsPasteIntoManualGrid(cell,text);
+  });
+  document.getElementById('rops-add-grid-row-btn').addEventListener('click',()=>{
+    ropsEnsureManualGridRows(table.tBodies[0].rows.length+1);
+    const row=table.tBodies[0].rows[table.tBodies[0].rows.length-1]; const cell=row.querySelector('td[contenteditable="true"]'); if(cell) cell.focus();
+  });
+}
+
 function ropsSetAutofillMode(mode){
   ropsAutofillMode=mode==='manual'?'manual':'lookup';
   document.querySelectorAll('[data-rops-autofill-mode]').forEach(b=>b.classList.toggle('active',b.dataset.ropsAutofillMode===ropsAutofillMode));
@@ -3244,6 +3348,7 @@ function ropsSetAutofillMode(mode){
 }
 document.querySelectorAll('[data-rops-autofill-mode]').forEach(btn=>btn.addEventListener('click',()=>ropsSetAutofillMode(btn.dataset.ropsAutofillMode)));
 ropsInitManualPreset();
+ropsWireManualGrid();
 document.getElementById('rops-download-template-btn').addEventListener('click',ropsDownloadManualTemplate);
 
 document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(btn=>btn.addEventListener('click',()=>{
@@ -3342,11 +3447,11 @@ function ropsLoadManualItem(id){
   document.getElementById('rops-workspace').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function ropsImportManualTable(){
-  const text=document.getElementById('rops-manual-paste').value; const rows=ropsParseDelimitedTable(text);
-  if(rows.length<2){ ropsShowStatus('rops-manual-status','Paste the preset header row plus at least one data row.',false); return; }
+  const rows=ropsManualGridRows();
+  if(rows.length<2){ ropsShowStatus('rops-manual-status','Paste at least one data row into the table.',false); return; }
   const headers=rows[0].map(v=>String(v||'').trim()); const map=ropsManualHeaderLookup(headers);
   const recognizable=ROPS_MANUAL_PRESET_HEADERS.filter(h=>map[ropsNormalizeHeaderName(h)]!==undefined).length;
-  if(recognizable<3){ ropsShowStatus('rops-manual-status','The pasted header row does not match the preset format. Expand “Preset table format” and use those column names.',false); return; }
+  if(recognizable<3){ ropsShowStatus('rops-manual-status','The table columns do not match the preset format.',false); return; }
   const items=[]; const skipped=[];
   rows.slice(1).forEach((row,idx)=>{
     if(!row.some(v=>String(v||'').trim())) return;
@@ -3364,7 +3469,7 @@ function ropsImportManualTable(){
   ropsManualItems=items; ropsActiveManualItemId=null; ropsRenderBatchList();
   document.getElementById('rops-workspace').style.display='none'; ropsLastFilledBytes=null;
   if(!items.length){ ropsShowStatus('rops-manual-status','No usable data rows were found.',false); return; }
-  ropsShowStatus('rops-manual-status','Extracted '+items.length+' agreement item(s). Select Review on an item, verify the fields, then generate its PDF preview.',true);
+  ropsShowStatus('rops-manual-status','Extracted '+items.length+' DRP item(s). Select Review on an item, verify the fields, then generate its PDF preview.',true);
   ropsLoadManualItem(items[0].id);
 }
 async function ropsDownloadManualItem(id){
@@ -3387,7 +3492,7 @@ async function ropsSaveManualItem(id,btn){
   finally{ if(btn) btn.disabled=false; }
 }
 document.getElementById('rops-parse-table-btn').addEventListener('click',ropsImportManualTable);
-document.getElementById('rops-clear-table-btn').addEventListener('click',()=>{ document.getElementById('rops-manual-paste').value=''; ropsHideStatus('rops-manual-status'); });
+document.getElementById('rops-clear-table-btn').addEventListener('click',()=>{ ropsClearManualGrid(); document.getElementById('rops-manual-paste').value=''; ropsHideStatus('rops-manual-status'); });
 document.getElementById('rops-clear-batch-btn').addEventListener('click',()=>{ ropsManualItems.forEach(x=>{if(x.previewUrl)URL.revokeObjectURL(x.previewUrl);}); ropsManualItems=[]; ropsActiveManualItemId=null; ropsRenderBatchList(); document.getElementById('rops-workspace').style.display='none'; ropsLastFilledBytes=null; ropsHideStatus('rops-manual-status'); });
 
 function ropsRowObject(headers,row){ const o={}; headers.forEach((h,i)=>o[String(h||'').trim()]=row[i]); return o; }
@@ -3437,7 +3542,7 @@ async function ropsFindAgreement(agreementId){
     if(ropsNorm(matrix[i][agrIdx])===wanted){
       const obj=ropsRowObject(headers,matrix[i]);
       // Fixed workbook positions requested for Autofill naming/data source:
-      // Fixed workbook columns for Autofill Agreement:
+      // Fixed workbook columns for Autofill DRP:
       // Column I (index 8) = Company (Granting Party) / Company Name.
       // Column P (index 15) = Capacity (MWac) -> field 8 Nameplate Capacity.
       // Column AT (index 45) = Asset City, State/Province -> field 4.
