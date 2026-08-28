@@ -2450,7 +2450,7 @@ const ROPS_RENAME_CHECKLISTS = {
       "SELCO": ["ST License", "Meter Photo", "Asset Photo", "Generation Data", "DRP", "PPA (if available)", "Others"]
     },
     "SG": {
-      "SOLAR": ["CoC", "CoPV", "SP Approval", "Others", "Meter Photo", "Asset Photo", "Generation Data", "DRP", "PPA"]
+      "SOLAR": ["CoC", "CoPV", "SP Approval", "Others", "Meter Photo", "Asset Photo", "Asset Photo", "Generation Data", "DRP", "PPA"]
     },
     "VN": {},
     "OTHER": {}
@@ -2460,8 +2460,8 @@ const ROPS_RENAME_CHECKLISTS = {
       "NEM": ["ST License", "NEM Cert", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
       "FIT": ["ST License", "FiAH Cert", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
       "SELCO": ["ST License", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "HYDRO": ["ST License", "E&S Docs", "Interconnection", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
-      "BIOGAS_BIOMASS": ["ST License", "SEDA Approval & Connection", "Declaration", "Sustainability Docs", "COD", "Approval Letter", "SF-04C form", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "HYDRO": ["ST License", "Water Abstraction License", "E&S Docs", "Interconnection", "COD", "Meter Calibration Certificates", "SLD", "Meter Photo", "Asset Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
+      "BIOGAS_BIOMASS": ["ST License", "SEDA Approval & Connection", "Declaration", "Sustainability Docs", "COD", "Approval Letter", "SF-04C form", "SLD", "Meter Photo", "Asset Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
       "LABUAN": ["ST License", "Registration Letter", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "PPA", "Others"],
       "SABAH": ["ECoS Generating License", "Approval Letter", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"],
       "SARAWAK": ["Generating License", "SLD", "Meter Photo", "Asset Photo", "Sample Metering Evidence", "Owner Declaration Form", "PPA", "Others"]
@@ -2779,8 +2779,18 @@ function ropsResetChecklistForContext(){
   ropsScheduleFolderCheck();
 }
 function ropsQueuedItemsForCategory(category){ return ropsUploadQueue.filter(x=>x.category===category); }
-function ropsCategoryIsComplete(category){ return (ropsExistingCategoryFiles[category]||[]).length>0 || ropsQueuedItemsForCategory(category).length>0; }
-function ropsAllRequiredComplete(){ const docs=ropsCurrentChecklistDocs(); return !!docs.length && docs.every(ropsCategoryIsComplete); }
+function ropsCategoryFileCount(category){ return (ropsExistingCategoryFiles[category]||[]).length + ropsQueuedItemsForCategory(category).length; }
+function ropsRequiredOccurrenceIndex(docs,index){
+  const category=docs[index];
+  let occurrence=0;
+  for(let i=0;i<index;i++) if(docs[i]===category) occurrence++;
+  return occurrence;
+}
+function ropsRequiredOccurrenceIsComplete(docs,index){
+  return ropsCategoryFileCount(docs[index]) > ropsRequiredOccurrenceIndex(docs,index);
+}
+function ropsCategoryIsComplete(category){ return ropsCategoryFileCount(category)>0; }
+function ropsAllRequiredComplete(){ const docs=ropsCurrentChecklistDocs(); return !!docs.length && docs.every((_,i)=>ropsRequiredOccurrenceIsComplete(docs,i)); }
 function ropsRenderRequiredChecklist(){
   ropsUpdateChecklistDownloadButton();
   const docs=ropsCurrentChecklistDocs();
@@ -2795,25 +2805,32 @@ function ropsRenderRequiredChecklist(){
     document.getElementById('rops-upload-all').disabled=true;
     return;
   }
-  const complete=docs.filter(ropsCategoryIsComplete).length;
+  const complete=docs.reduce((n,_,i)=>n+(ropsRequiredOccurrenceIsComplete(docs,i)?1:0),0);
   progress.textContent=complete+' / '+docs.length+' complete';
   list.innerHTML=docs.map((category,i)=>{
+    const occurrence=ropsRequiredOccurrenceIndex(docs,i);
     const existingList=ropsExistingCategoryFiles[category]||[];
     const queuedList=ropsQueuedItemsForCategory(category);
-    const totalCount=existingList.length+queuedList.length;
-    const status=totalCount
-      ? '<span class="rops-doc-status saved">'+totalCount+' file'+(totalCount>1?'s':'')+'</span>'
+    const combined=existingList.map(f=>({kind:'existing',item:f})).concat(queuedList.map(q=>({kind:'queued',item:q})));
+    const slot=combined[occurrence]||null;
+    const status=slot
+      ? '<span class="rops-doc-status saved">1 file</span>'
       : '<span class="rops-doc-status missing">Missing</span>';
-    const existingRows=existingList.map(f=>'<div class="rops-doc-file">'+ropsEsc(f.name||'Existing file')+' <span class="rops-note">(already in SharePoint)</span></div>').join('');
-    const queuedRows=queuedList.map(q=>'<div class="rops-doc-file">'+ropsEsc(q.file.name)+' → '+ropsEsc(q.renamed)+' <button type="button" class="secondary small-btn" data-remove-uid="'+q.uid+'">Remove</button></div>').join('');
-    const fileRows=existingRows+queuedRows || '<div class="rops-doc-file">No file selected</div>';
+    let fileRows='<div class="rops-doc-file">No file selected</div>';
+    if(slot){
+      if(slot.kind==='existing'){
+        fileRows='<div class="rops-doc-file">'+ropsEsc(slot.item.name||'Existing file')+' <span class="rops-note">(already in SharePoint)</span></div>';
+      }else{
+        fileRows='<div class="rops-doc-file">'+ropsEsc(slot.item.file.name)+' → '+ropsEsc(slot.item.renamed)+' <button type="button" class="secondary small-btn" data-remove-uid="'+slot.item.uid+'">Remove</button></div>';
+      }
+    }
     const detailsComplete=!!(c.registry&&c.country&&c.type&&c.company);
     const action=detailsComplete
-      ? '<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">'+(totalCount?'Add another file':'Choose file')+'</button>'
+      ? '<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">'+(slot?'Replace / add file':'Choose file')+'</button>'
       : '';
     const showSample=(c.registry==='I-REC'&&c.country==='SG'&&c.type==='SOLAR'&&Object.prototype.hasOwnProperty.call(ROPS_SG_SOLAR_SAMPLES,category));
     const sampleBtn=showSample?'<button type="button" class="secondary rops-sample-btn" data-sample-cat="'+ropsEsc(category)+'">View sample</button>':'';
-    return '<div class="rops-required-row"><div><div class="rops-doc-name">'+ropsEsc(category)+sampleBtn+'</div>'+fileRows+'</div><div>'+status+'</div><div class="rops-doc-actions">'+action+(detailsComplete?'<input class="rops-hidden-file" type="file" multiple data-file-cat="'+i+'">':'')+'</div></div>';
+    return '<div class="rops-required-row"><div><div class="rops-doc-name">'+ropsEsc(category)+sampleBtn+'</div>'+fileRows+'</div><div>'+status+'</div><div class="rops-doc-actions">'+action+(detailsComplete?'<input class="rops-hidden-file" type="file" data-file-cat="'+i+'">':'')+'</div></div>';
   }).join('');
   list.querySelectorAll('[data-sample-cat]').forEach(btn=>btn.addEventListener('click',()=>{
     ropsOpenSampleDocument(btn.getAttribute('data-sample-cat'));
@@ -2878,7 +2895,7 @@ async function ropsCheckExistingFolder(){
       const hits=files.filter(f=>{ const n=String(f.name||'').toLowerCase(); return n.startsWith(cat+'.') || n.startsWith(cat+'_'); });
       if(hits.length) ropsExistingCategoryFiles[category]=hits;
     }
-    const existingCount=docs.filter(category=>(ropsExistingCategoryFiles[category]||[]).length>0).length;
+    const existingCount=docs.reduce((n,_,i)=>n+(ropsRequiredOccurrenceIsComplete(docs,i)?1:0),0);
     ropsShowStatus('rops-folder-status','SharePoint check complete: '+existingCount+' of '+docs.length+' required document(s) already found in BD Usage / '+folderName+'.',true);
     ropsRenderRequiredChecklist();
   }catch(err){
