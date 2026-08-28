@@ -319,13 +319,6 @@
   .rops-queue-item{display:flex;justify-content:space-between;gap:10px;align-items:center;border:1px solid var(--border);background:var(--surface-2);padding:9px 10px;border-radius:7px;margin-top:8px;font-size:12px;}
   .rops-qname{word-break:break-all;}
   .rops-qactions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
-  .rops-company-history{margin-bottom:18px;}
-  .rops-company-toolbar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
-  .rops-company-toolbar > div{flex:1;min-width:220px;}
-  .rops-company-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-  .rops-company-chip{background:var(--surface-2);color:var(--text);border:1px solid var(--border);padding:7px 10px;border-radius:999px;font-size:12px;font-weight:500;}
-  .rops-company-chip:hover{background:var(--surface);border-color:var(--border-strong);}
-  .rops-company-chip.active{border-color:var(--accent);outline:1px solid var(--accent);}
   .rops-required-wrap{margin-top:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
   .rops-required-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);}
   .rops-progress{font-size:12px;font-weight:600;}
@@ -598,21 +591,6 @@
       <span class="rops-conn" id="rops-rename-conn">SharePoint: ready after sign-in</span>
     </div>
 
-    <div class="card rops-company-history">
-      <div class="card-title-row">
-        <div>
-          <p class="card-title" style="margin:0;">Previous companies</p>
-          <p class="card-note" style="margin:4px 0 0;">Companies with folders already created in the BD Usage SharePoint library. Select one to continue uploading documents later.</p>
-        </div>
-        <button type="button" class="secondary small-btn" id="rops-refresh-companies">Refresh company list</button>
-      </div>
-      <div class="rops-company-toolbar">
-        <div><label for="rops-company-search">Find company</label><input type="text" id="rops-company-search" placeholder="Search previous companies..."></div>
-      </div>
-      <div class="rops-company-list" id="rops-company-list"><span class="empty-note">Company list will load after SharePoint connects.</span></div>
-      <div class="rops-status" id="rops-company-status"></div>
-    </div>
-
     <div class="rops-grid-2">
       <div class="card">
         <p class="card-title">File details</p>
@@ -643,7 +621,7 @@
     <div class="card">
       <p class="card-title">Recent activity</p>
       <div style="overflow:auto;">
-        <table class="rops-activity"><thead><tr><th>Filed as</th><th>Registry</th><th>Country / Type</th><th>Category</th><th>Destination</th><th>Download</th><th>Time</th></tr></thead><tbody id="rops-log-body"><tr><td colspan="7" class="empty-note">Nothing filed yet this session.</td></tr></tbody></table>
+        <table class="rops-activity"><thead><tr><th>Filed as</th><th>Registry</th><th>Country / Type</th><th>Category</th><th>Master Folder</th><th>Subfolder</th><th>Time</th><th>Open</th><th>Remove</th></tr></thead><tbody id="rops-log-body"><tr><td colspan="9" class="empty-note">Nothing filed yet.</td></tr></tbody></table>
       </div>
     </div>
   </section>
@@ -2754,55 +2732,6 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
 }
 
 /* ---- Rename & File ---- */
-let ropsCompanyFolders=[];
-const ROPS_NON_COMPANY_FOLDERS=new Set(['forms','renamed my','renamed sg','autofilled form my','autofilled form sg']);
-
-async function ropsLoadCompanyFolders(){
-  const list=document.getElementById('rops-company-list');
-  if(!list) return;
-  const btn=document.getElementById('rops-refresh-companies');
-  if(btn) btn.disabled=true;
-  ropsShowStatus('rops-company-status','Loading previous company folders from SharePoint...',true);
-  try{
-    const driveId=await ropsResolveBdDrive();
-    const data=await graphFetch('/drives/'+driveId+'/root/children?$select=id,name,webUrl,folder,file&$top=999');
-    ropsCompanyFolders=((data&&data.value)||[])
-      .filter(x=>x.folder && x.name && !ROPS_NON_COMPANY_FOLDERS.has(String(x.name).toLowerCase()))
-      .map(x=>({id:x.id,name:x.name,webUrl:x.webUrl}))
-      .sort((a,b)=>a.name.localeCompare(b.name));
-    ropsRenderCompanyFolders();
-    ropsShowStatus('rops-company-status',ropsCompanyFolders.length+' previous company folder(s) found.',true);
-  }catch(err){
-    console.error(err);
-    list.innerHTML='<span class="empty-note">Could not load previous companies.</span>';
-    ropsShowStatus('rops-company-status','Could not load company list. '+err.message,false);
-  }finally{ if(btn) btn.disabled=false; }
-}
-function ropsRenderCompanyFolders(){
-  const list=document.getElementById('rops-company-list');
-  if(!list) return;
-  const q=(document.getElementById('rops-company-search')?.value||'').trim().toLowerCase();
-  const current=(document.getElementById('rops-company-name')?.value||'').trim().toLowerCase();
-  const rows=ropsCompanyFolders.filter(x=>!q || x.name.toLowerCase().includes(q));
-  if(!rows.length){ list.innerHTML='<span class="empty-note">'+(q?'No company matches this search.':'No previous company folders found.')+'</span>'; return; }
-  list.innerHTML=rows.map(x=>'<button type="button" class="rops-company-chip'+(x.name.toLowerCase()===current?' active':'')+'" data-company-name="'+ropsEsc(x.name)+'">'+ropsEsc(x.name)+'</button>').join('');
-  list.querySelectorAll('[data-company-name]').forEach(btn=>btn.addEventListener('click',()=>{
-    const name=btn.getAttribute('data-company-name')||'';
-    const input=document.getElementById('rops-company-name');
-    input.value=name;
-    ropsResetChecklistForContext();
-    ropsRenderCompanyFolders();
-    input.scrollIntoView({behavior:'smooth',block:'center'});
-  }));
-}
-function ropsRememberCompanyFolder(name){
-  name=String(name||'').trim(); if(!name) return;
-  if(!ropsCompanyFolders.some(x=>x.name.toLowerCase()===name.toLowerCase())){
-    ropsCompanyFolders.push({id:'',name,webUrl:''});
-    ropsCompanyFolders.sort((a,b)=>a.name.localeCompare(b.name));
-    ropsRenderCompanyFolders();
-  }
-}
 
 function ropsCurrentChecklistPdf(){
   const registry=document.getElementById('rops-registry').value;
@@ -3012,11 +2941,9 @@ document.getElementById('rops-download-checklist').addEventListener('click',rops
 document.getElementById('rops-registry').addEventListener('change',ropsPopulateCountries);
 document.getElementById('rops-country').addEventListener('change',ropsPopulateTypes);
 document.getElementById('rops-type').addEventListener('change',ropsResetChecklistForContext);
-document.getElementById('rops-company-name').addEventListener('input',()=>{ropsResetChecklistForContext(); ropsRenderCompanyFolders();});
+document.getElementById('rops-company-name').addEventListener('input',ropsResetChecklistForContext);
 document.getElementById('rops-master-company').addEventListener('input',ropsResetChecklistForContext);
 document.getElementById('rops-check-folder').addEventListener('click',ropsCheckExistingFolder);
-document.getElementById('rops-refresh-companies').addEventListener('click',ropsLoadCompanyFolders);
-document.getElementById('rops-company-search').addEventListener('input',ropsRenderCompanyFolders);
 
 function ropsDownloadFile(file, filename){
   const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
@@ -3052,13 +2979,67 @@ async function ropsCreateReviewDocumentationTask(companyName, folderName, upload
   return newTaskId;
 }
 
-function ropsAppendLog(item){
+function ropsActivityStorageKey(){
+  return 'ropsActivityLog:' + ((currentAccount && currentAccount.username) || 'unknown').toLowerCase();
+}
+let ropsActivityLog=[];
+function ropsLoadActivityLog(){
+  try{
+    const raw=localStorage.getItem(ropsActivityStorageKey());
+    ropsActivityLog=raw ? JSON.parse(raw) : [];
+    if(!Array.isArray(ropsActivityLog)) ropsActivityLog=[];
+  }catch(e){ console.warn('Could not load activity log', e); ropsActivityLog=[]; }
+  ropsRenderActivityLog();
+}
+function ropsSaveActivityLog(){
+  try{ localStorage.setItem(ropsActivityStorageKey(), JSON.stringify(ropsActivityLog)); }
+  catch(e){ console.warn('Could not save activity log', e); }
+}
+function ropsSplitFolder(folder){
+  const s=String(folder||'');
+  const i=s.indexOf('/');
+  return i>=0 ? {master:s.slice(0,i), sub:s.slice(i+1)} : {master:'', sub:s};
+}
+function ropsRenderActivityLog(){
   const body=document.getElementById('rops-log-body');
-  if(body.querySelector('td[colspan]')) body.innerHTML='';
-  const tr=document.createElement('tr');
-  tr.innerHTML='<td>'+ropsEsc(item.renamed)+'</td><td>'+ropsEsc(item.registry)+'</td><td>'+ropsEsc(item.country+' / '+item.type)+'</td><td>'+ropsEsc(item.category)+'</td><td>'+ropsEsc('BD Usage / '+item.folder)+'</td><td><button type="button" class="secondary small-btn">Download</button></td><td>'+ropsEsc(new Date().toLocaleTimeString())+'</td>';
-  tr.querySelector('button').addEventListener('click',()=>ropsDownloadFile(item.file,item.renamed));
-  body.prepend(tr);
+  if(!body) return;
+  if(!ropsActivityLog.length){
+    body.innerHTML='<tr><td colspan="9" class="empty-note">Nothing filed yet.</td></tr>';
+    return;
+  }
+  body.innerHTML=ropsActivityLog.map(entry=>{
+    const {master,sub}=ropsSplitFolder(entry.folder);
+    const openCell=entry.webUrl
+      ? '<a href="'+ropsEsc(entry.webUrl)+'" target="_blank" rel="noopener" class="secondary small-btn" style="text-decoration:none;display:inline-block;">Open</a>'
+      : '<span class="empty-note">—</span>';
+    return '<tr>'+
+      '<td>'+ropsEsc(entry.renamed)+'</td>'+
+      '<td>'+ropsEsc(entry.registry)+'</td>'+
+      '<td>'+ropsEsc(entry.country+' / '+entry.type)+'</td>'+
+      '<td>'+ropsEsc(entry.category)+'</td>'+
+      '<td>'+(master?ropsEsc(master):'<span class="empty-note">—</span>')+'</td>'+
+      '<td>'+ropsEsc(sub)+'</td>'+
+      '<td>'+ropsEsc(entry.time||'')+'</td>'+
+      '<td>'+openCell+'</td>'+
+      '<td><button type="button" class="secondary small-btn" data-remove-log="'+ropsEsc(entry.id)+'">Remove</button></td>'+
+      '</tr>';
+  }).join('');
+  body.querySelectorAll('[data-remove-log]').forEach(btn=>btn.addEventListener('click',()=>{
+    const id=btn.getAttribute('data-remove-log');
+    ropsActivityLog=ropsActivityLog.filter(e=>e.id!==id);
+    ropsSaveActivityLog();
+    ropsRenderActivityLog();
+  }));
+}
+function ropsAppendLog(item, webUrl){
+  const id=(window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('a'+Date.now()+Math.random().toString(16).slice(2));
+  const entry={
+    id, renamed:item.renamed, registry:item.registry, country:item.country, type:item.type,
+    category:item.category, folder:item.folder, webUrl:webUrl||'', time:new Date().toLocaleString()
+  };
+  ropsActivityLog.unshift(entry);
+  ropsSaveActivityLog();
+  ropsRenderActivityLog();
 }
 
 document.getElementById('rops-upload-all').addEventListener('click',async()=>{
@@ -3077,9 +3058,9 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
     for(const item of batchItems){
       ropsShowStatus('rops-upload-status','Uploading '+(done+1)+' of '+total+': '+item.renamed,true);
       try{
-        await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
+        const uploadRes=await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
         uploadedItems.push(item);
-        ropsAppendLog(item);
+        ropsAppendLog(item, uploadRes && uploadRes.webUrl);
         done++;
       }catch(err){
         uploadError=err;
@@ -3093,8 +3074,6 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
     ropsUploadQueue=ropsUploadQueue.filter(item=>!uploadedSet.has(item));
 
     if(done>0){
-      ropsRememberCompanyFolder(companyAtStart);
-
       // Every successful Rename & File upload action must create a fresh review
       // task, regardless of whether this is a new folder, an existing folder,
       // a newly-added missing document, or a replacement document.
@@ -3102,7 +3081,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       try{
         const reviewTaskId=await ropsCreateReviewDocumentationTask(companyAtStart, folderAtStart, uploadedItems);
         const reviewTask=reviewTaskId ? taskById(reviewTaskId) : null;
-        const reviewNumber=reviewTask ? displayTaskNumber(reviewTask) : '';
+        const reviewNumber=reviewTask ? taskNumberValue(reviewTask) : '';
         taskMessage=reviewTaskId
           ? ' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created and sent to Super Admin.'
           : ' Review Documentation task was created and sent to Super Admin.';
@@ -3505,7 +3484,8 @@ ropsPopulateCountries();
 
 // When the shared sign-in finishes, resolve the two Registry Ops destinations/source lazily in the background.
 async function registryInit(){
-  try{ await ropsResolveBdDrive(); await ropsLoadCompanyFolders(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
+  ropsLoadActivityLog();
+  try{ await ropsResolveBdDrive(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
   try{ await ropsResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('rops-autofill-conn').textContent='Excel source: not resolved'; }
 }
 </script>
