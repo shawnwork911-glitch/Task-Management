@@ -2828,14 +2828,22 @@ function ropsRenderRequiredChecklist(){
       : '<span class="rops-doc-status missing">'+(minFiles>1 ? (fileCount+' / '+minFiles+' files') : 'Missing')+'</span>';
     let fileRows='<div class="rops-doc-file">No file selected</div>';
     if(combined.length){
-      fileRows=combined.map(slot=>{
-        if(slot.kind==='existing') return '<div class="rops-doc-file">'+ropsEsc(slot.item.name||'Existing file')+' <span class="rops-note">(already in SharePoint)</span></div>';
-        return '<div class="rops-doc-file">'+ropsEsc(slot.item.file.name)+' → '+ropsEsc(slot.item.renamed)+' <button type="button" class="secondary small-btn" data-remove-uid="'+slot.item.uid+'">Remove</button></div>';
-      }).join('');
+      const existingRows=existingList.map((item,existingIndex)=>
+        '<div class="rops-doc-file">'+ropsEsc(item.name||'Existing file')+' <span class="rops-note">(already in SharePoint)</span> '+
+        '<button type="button" class="secondary small-btn" data-replace-existing-cat="'+i+'" data-existing-index="'+existingIndex+'">Replace</button> '+
+        '<button type="button" class="secondary small-btn" data-remove-existing-cat="'+i+'" data-existing-index="'+existingIndex+'">Remove</button>'+
+        '<input class="rops-hidden-file" type="file" data-replace-input-cat="'+i+'" data-existing-index="'+existingIndex+'">'+
+        '</div>'
+      ).join('');
+      const queuedRows=queuedList.map(item=>
+        '<div class="rops-doc-file">'+ropsEsc(item.file.name)+' → '+ropsEsc(item.renamed)+' '+
+        '<button type="button" class="secondary small-btn" data-remove-uid="'+item.uid+'">Remove</button></div>'
+      ).join('');
+      fileRows=existingRows+queuedRows;
     }
     const detailsComplete=!!(c.registry&&c.country&&c.type&&c.company);
     const action=detailsComplete
-      ? '<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">'+(combined.length?'Add file':'Choose file')+'</button>'
+      ? '<button type="button" class="secondary small-btn" data-pick-cat="'+i+'">Add file</button>'
       : '';
     const showSample=(c.registry==='I-REC'&&c.country==='SG'&&c.type==='SOLAR'&&Object.prototype.hasOwnProperty.call(ROPS_SG_SOLAR_SAMPLES,category));
     const sampleBtn=showSample?'<button type="button" class="secondary rops-sample-btn" data-sample-cat="'+ropsEsc(category)+'">View sample</button>':'';
@@ -2857,7 +2865,94 @@ function ropsRenderRequiredChecklist(){
     const uid=btn.getAttribute('data-remove-uid');
     ropsUploadQueue=ropsUploadQueue.filter(x=>x.uid!==uid); ropsRenderRequiredChecklist(); ropsRenderQueue();
   }));
+  list.querySelectorAll('[data-replace-existing-cat]').forEach(btn=>btn.addEventListener('click',()=>{
+    const catIndex=Number(btn.getAttribute('data-replace-existing-cat'));
+    const existingIndex=Number(btn.getAttribute('data-existing-index'));
+    const input=list.querySelector('[data-replace-input-cat="'+catIndex+'"][data-existing-index="'+existingIndex+'"]');
+    if(input) input.click();
+  }));
+  list.querySelectorAll('[data-replace-input-cat]').forEach(input=>input.addEventListener('change',async()=>{
+    if(!input.files || !input.files.length) return;
+    const catIndex=Number(input.getAttribute('data-replace-input-cat'));
+    const existingIndex=Number(input.getAttribute('data-existing-index'));
+    const file=input.files[0];
+    input.value='';
+    await ropsReplaceExistingSharePointFile(docs[catIndex], existingIndex, file);
+  }));
+  list.querySelectorAll('[data-remove-existing-cat]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const catIndex=Number(btn.getAttribute('data-remove-existing-cat'));
+    const existingIndex=Number(btn.getAttribute('data-existing-index'));
+    await ropsRemoveExistingSharePointFile(docs[catIndex], existingIndex);
+  }));
   document.getElementById('rops-upload-all').disabled=ropsUploadQueue.length===0;
+}
+function ropsNameParts(filename){
+  const name=String(filename||'file');
+  const dot=name.lastIndexOf('.');
+  return dot>0 ? {base:name.slice(0,dot),ext:name.slice(dot+1)} : {base:name,ext:''};
+}
+async function ropsDeleteDriveItem(item){
+  if(!item || !item.id) throw new Error('The selected SharePoint file could not be identified. Run Check SharePoint folder again.');
+  const driveId=await ropsResolveBdDrive();
+  return await ropsGraphBinaryFetch('/drives/'+driveId+'/items/'+encodeURIComponent(item.id),{method:'DELETE'});
+}
+async function ropsRemoveExistingSharePointFile(category, existingIndex){
+  const existing=ropsExistingItemsForCategory(category);
+  const item=existing[existingIndex];
+  if(!item) return;
+  const name=item.name||'this file';
+  if(!confirm('Remove "'+name+'" from SharePoint? This deletes the selected uploaded file and cannot be undone.')) return;
+  ropsShowStatus('rops-folder-status','Removing '+name+' from SharePoint…',true);
+  try{
+    await ropsDeleteDriveItem(item);
+    await ropsCheckExistingFolder();
+    ropsShowStatus('rops-folder-status','Removed '+name+' from SharePoint.',true);
+  }catch(err){
+    console.error(err);
+    ropsShowStatus('rops-folder-status','Could not remove '+name+'. '+err.message,false);
+  }
+}
+async function ropsReplaceExistingSharePointFile(category, existingIndex, file){
+  const existing=ropsExistingItemsForCategory(category);
+  const oldItem=existing[existingIndex];
+  if(!oldItem || !file) return;
+  const c=ropsCurrentContext();
+  if(!(c.company&&c.registry&&c.country&&c.type)){
+    ropsShowStatus('rops-folder-status','Complete File Details before replacing a SharePoint file.',false);
+    return;
+  }
+  const oldName=String(oldItem.name||'');
+  const oldParts=ropsNameParts(oldName);
+  const newParts=ropsNameParts(file.name);
+  const targetName=oldParts.base+(newParts.ext?'.'+newParts.ext:(oldParts.ext?'.'+oldParts.ext:''));
+  const folder=ropsFolderName(c);
+  if(!confirm('Replace "'+oldName+'" with "'+file.name+'"? Only this selected SharePoint file will be replaced.')) return;
+  ropsShowStatus('rops-folder-status','Replacing '+oldName+'…',true);
+  try{
+    const uploadRes=await ropsUploadBlob(folder,targetName,file,file.type||'application/octet-stream');
+    if(targetName.toLowerCase()!==oldName.toLowerCase()){
+      try{
+        await ropsDeleteDriveItem(oldItem);
+      }catch(deleteErr){
+        throw new Error('The replacement was uploaded as '+targetName+', but the old file '+oldName+' could not be removed. '+deleteErr.message);
+      }
+    }
+    const logItem={
+      file, renamed:targetName, company:c.company, registry:c.registry, country:c.country,
+      type:c.type, category, folder
+    };
+    ropsAppendLog(logItem,uploadRes&&uploadRes.webUrl);
+    try{
+      await ropsCreateReviewDocumentationTask(c.company,folder,[logItem]);
+    }catch(taskErr){
+      console.error('Replacement succeeded, but Review Documentation task creation failed',taskErr);
+    }
+    await ropsCheckExistingFolder();
+    ropsShowStatus('rops-folder-status','Replaced '+oldName+' with '+targetName+' successfully.',true);
+  }catch(err){
+    console.error(err);
+    ropsShowStatus('rops-folder-status','Could not replace '+oldName+'. '+err.message,false);
+  }
 }
 let ropsQueueUidCounter=0;
 function ropsQueueCategoryFiles(category,fileList){
