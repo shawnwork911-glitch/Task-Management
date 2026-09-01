@@ -916,13 +916,15 @@ const STATUS_CANCELLED = "Cancelled";
 const STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_BLOCKED, STATUS_PENDING, STATUS_COMPLETED];
 
 /* ---- Update progress control (Admin/Super Admin) ----
-   The "Update progress" dropdown on a task only offers these two choices —
-   the underlying Status values are unchanged ("Pending" / "Completed") so
-   they still match the SharePoint Choice column, but the labels shown to
-   Admin/Super Admin are simplified to just these two states. */
+   The "Update progress" dropdown on a task only offers these three choices —
+   the underlying Status values are unchanged ("In Progress" / "Pending" /
+   "Completed") so they still match the SharePoint Choice column, but the
+   "Pending" value is labeled "Pending-Need more confirmation" to Admin/Super
+   Admin. */
 const STATUS_MANAGE_OPTIONS = [
+  { value: STATUS_IN_PROGRESS, label: "In Progress" },
   { value: STATUS_PENDING, label: "Pending-Need more confirmation" },
-  { value: STATUS_COMPLETED, label: "Complete" }
+  { value: STATUS_COMPLETED, label: "Completed" }
 ];
 
 /* ---- Request types ----
@@ -1812,10 +1814,12 @@ function renderTaskModal(taskId){
     '</div>';
   }
 
-  // High alert: Admin and Super Admin only. Sends an urgent email to the
-  // requester with the accompanying comment, and logs the comment on the
-  // thread so there is a record of why the alert was raised.
-  if(canManageTask(v) && v.Status !== STATUS_REJECTED && v.Status !== STATUS_CANCELLED){
+  // High alert: Admin and Super Admin only, and only while the task is
+  // actively being worked (In Progress or Pending-Need more confirmation).
+  // Sends an urgent email to the requester with the accompanying comment,
+  // and logs the comment on the thread so there is a record of why the
+  // alert was raised.
+  if(canManageTask(v) && (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING)){
     html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
       '<button type="button" class="danger-btn" id="tm-high-alert-btn">🚨 Send high alert</button>'+
     '</div>';
@@ -2019,7 +2023,7 @@ function timelineHtml(v){
   const steps = [
     { label:'Requested', sub: v['Requested By'] + ' · ' + fmtDateTime(v['Requested Date']), done:true },
     { label:'Assigned', sub: v['Assigned To'] ? ('to ' + v['Assigned To'] + ' by ' + v['Assigned By'] + ' · ' + fmtDateTime(v['Assigned Date'])) : 'Waiting for Super Admin', done: !!v['Assigned To'] },
-    { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING || v.Status === STATUS_COMPLETED) ? 'Pending-Need more confirmation' : 'Not started yet', subClass: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING || v.Status === STATUS_COMPLETED) ? 'timeline-sub-red' : '', done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING || v.Status === STATUS_COMPLETED },
+    { label:'In Progress', sub: v.Status === STATUS_COMPLETED ? 'Confirmed' : v.Status === STATUS_PENDING ? 'Pending-Need more confirmation' : v.Status === STATUS_IN_PROGRESS ? 'Work underway' : 'Not started yet', subClass: v.Status === STATUS_PENDING ? 'timeline-sub-red' : '', done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING || v.Status === STATUS_COMPLETED },
     { label:'Completed', sub: v.Status === STATUS_COMPLETED ? fmtDateTime(v['Completed Date']) : (v.Status === STATUS_REJECTED ? 'Not applicable — request rejected' : (v.Status === STATUS_CANCELLED ? 'Not applicable — request cancelled' : 'Pending')), done: v.Status === STATUS_COMPLETED },
     ...(v.Status === STATUS_REJECTED ? [{ label:'Rejected', sub: 'Rejected by ' + (v['Last Updated By'] || 'Admin') + ' · ' + fmtDateTime(v['Last Updated Date']), done:true }] : []),
     ...(v.Status === STATUS_CANCELLED ? [{ label:'Cancelled', sub: 'Cancelled by requester · ' + fmtDateTime(v['Last Updated Date']), done:true }] : [])
