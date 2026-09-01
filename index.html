@@ -2569,8 +2569,9 @@ function ropsDownloadEmbeddedForm(category){
 
 function ropsGetSampleForContext(category,c){
   c=c||ropsCurrentContext();
-  // Existing Singapore Solar samples remain scoped to I-REC / SG / Solar only.
-  if(c.registry==='I-REC' && c.country==='SG' && c.type==='SOLAR' && ROPS_SG_SOLAR_SAMPLES[category]){
+  // Singapore Solar sample documents are shared by I-REC and TIGR when the
+  // required-document title is the same (for example CoC, CoPV and SP Approval).
+  if(['I-REC','TIGR'].includes(c.registry) && c.country==='SG' && c.type==='SOLAR' && ROPS_SG_SOLAR_SAMPLES[category]){
     return ROPS_SG_SOLAR_SAMPLES[category];
   }
   // Generic examples can be used across countries wherever the same required-document title appears.
