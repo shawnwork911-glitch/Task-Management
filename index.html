@@ -247,11 +247,13 @@
   .timeline-step .dot-col{display:flex;flex-direction:column;align-items:center;}
   .timeline-step .dot{width:10px;height:10px;border-radius:50%;background:var(--border-strong);margin-top:4px;}
   .timeline-step.done .dot{background:var(--success);}
+
   .timeline-step .line{flex:1;width:2px;background:var(--border);min-height:18px;}
   .timeline-step:last-child .line{display:none;}
   .timeline-step .content{padding-bottom:16px;font-size:13px;}
   .timeline-step .content .t-title{font-weight:600;margin:0 0 2px;}
   .timeline-step .content .t-sub{color:var(--text-secondary);font-size:12px;}
+  .timeline-step .content .t-sub.timeline-sub-red{color:var(--danger);font-weight:600;}
 
   /* ---- Comments ---- */
   #comment-thread{display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto;padding-right:4px;}
@@ -912,6 +914,16 @@ const STATUS_COMPLETED = "Completed";
 const STATUS_REJECTED = "Rejected";
 const STATUS_CANCELLED = "Cancelled";
 const STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_BLOCKED, STATUS_PENDING, STATUS_COMPLETED];
+
+/* ---- Update progress control (Admin/Super Admin) ----
+   The "Update progress" dropdown on a task only offers these two choices —
+   the underlying Status values are unchanged ("Pending" / "Completed") so
+   they still match the SharePoint Choice column, but the labels shown to
+   Admin/Super Admin are simplified to just these two states. */
+const STATUS_MANAGE_OPTIONS = [
+  { value: STATUS_PENDING, label: "Pending-Need more confirmation" },
+  { value: STATUS_COMPLETED, label: "Complete" }
+];
 
 /* ---- Request types ----
    Must match the "Request Type" Choice column's options exactly (see the
@@ -1794,9 +1806,18 @@ function renderTaskModal(taskId){
   if(canManageTask(v) && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED && v.Status !== STATUS_CANCELLED){
     html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
       '<div style="min-width:170px;"><label>Update progress</label><select id="tm-status-select">'+
-        STATUS_ORDER.map(s=>'<option value="'+s+'"'+(s===v.Status?' selected':'')+'>'+s+'</option>').join('')+
+        STATUS_MANAGE_OPTIONS.map(o=>'<option value="'+o.value+'"'+(o.value===v.Status?' selected':'')+'>'+o.label+'</option>').join('')+
       '</select></div>'+
       '<button type="button" id="tm-status-save">Save progress</button>'+
+    '</div>';
+  }
+
+  // High alert: Admin and Super Admin only. Sends an urgent email to the
+  // requester with the accompanying comment, and logs the comment on the
+  // thread so there is a record of why the alert was raised.
+  if(canManageTask(v) && v.Status !== STATUS_REJECTED && v.Status !== STATUS_CANCELLED){
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'+
+      '<button type="button" class="danger-btn" id="tm-high-alert-btn">🚨 Send high alert</button>'+
     '</div>';
   }
 
@@ -1902,6 +1923,38 @@ function renderTaskModal(taskId){
   });
 
 
+  const highAlertBtn = document.getElementById('tm-high-alert-btn');
+  if(highAlertBtn) highAlertBtn.addEventListener('click', async ()=>{
+    const message = prompt('High alert message for ' + (v['Requested By'] || 'the requester') + ':', '');
+    if(message === null) return;
+    if(!message.trim()){ alert('A message is required to send a high alert.'); return; }
+    if(!confirm('Send a HIGH ALERT email for ' + taskNumberLabel(v) + ' to ' + (v['Requested By'] || 'the requester') + '?')) return;
+    highAlertBtn.disabled = true;
+    try{
+      const nowIso = new Date().toISOString();
+      await createListItem(COMMENTS_LIST_NAME, {
+        'Task Item ID': String(taskId),
+        'Comment By': currentAccount.username,
+        'Comment Role': currentUserRole,
+        'Comment Text': '🚨 HIGH ALERT: ' + message.trim(),
+        'Comment Date': nowIso
+      });
+      await loadAllData();
+      const updated = taskById(taskId) || v;
+      try{
+        const sentTo = await notifyHighAlert(updated, message.trim());
+        setStatus(sentTo && sentTo.length ? 'High alert sent by email.' : 'High alert logged, but there was no recipient to email.');
+      }catch(mailErr){
+        console.error('Notify high alert failed', mailErr);
+        setStatus('High alert comment saved, but the email notification could not be sent.');
+        alert('The high alert was logged, but the email notification could not be sent. Details: ' + mailErr.message);
+      }
+    }catch(err){
+      alert('Could not send high alert: ' + err.message);
+    }finally{
+      highAlertBtn.disabled = false;
+    }
+  });
   const statusSave = document.getElementById('tm-status-save');
   if(statusSave) statusSave.addEventListener('click', async ()=>{
     const newStatus = document.getElementById('tm-status-select').value;
@@ -1966,7 +2019,7 @@ function timelineHtml(v){
   const steps = [
     { label:'Requested', sub: v['Requested By'] + ' · ' + fmtDateTime(v['Requested Date']), done:true },
     { label:'Assigned', sub: v['Assigned To'] ? ('to ' + v['Assigned To'] + ' by ' + v['Assigned By'] + ' · ' + fmtDateTime(v['Assigned Date'])) : 'Waiting for Super Admin', done: !!v['Assigned To'] },
-    { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED) ? 'Work underway' : 'Not started yet', done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_COMPLETED },
+    { label:'In Progress', sub: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING || v.Status === STATUS_COMPLETED) ? 'Pending-Need more confirmation' : 'Not started yet', subClass: (v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING || v.Status === STATUS_COMPLETED) ? 'timeline-sub-red' : '', done: v.Status === STATUS_IN_PROGRESS || v.Status === STATUS_PENDING || v.Status === STATUS_COMPLETED },
     { label:'Completed', sub: v.Status === STATUS_COMPLETED ? fmtDateTime(v['Completed Date']) : (v.Status === STATUS_REJECTED ? 'Not applicable — request rejected' : (v.Status === STATUS_CANCELLED ? 'Not applicable — request cancelled' : 'Pending')), done: v.Status === STATUS_COMPLETED },
     ...(v.Status === STATUS_REJECTED ? [{ label:'Rejected', sub: 'Rejected by ' + (v['Last Updated By'] || 'Admin') + ' · ' + fmtDateTime(v['Last Updated Date']), done:true }] : []),
     ...(v.Status === STATUS_CANCELLED ? [{ label:'Cancelled', sub: 'Cancelled by requester · ' + fmtDateTime(v['Last Updated Date']), done:true }] : [])
@@ -1974,7 +2027,7 @@ function timelineHtml(v){
   return steps.map(s =>
     '<div class="timeline-step'+(s.done?' done':'')+'">'+
       '<div class="dot-col"><div class="dot"></div><div class="line"></div></div>'+
-      '<div class="content"><p class="t-title">'+s.label+'</p><p class="t-sub">'+escapeHtml(s.sub)+'</p></div>'+
+      '<div class="content"><p class="t-title">'+s.label+'</p><p class="t-sub'+(s.subClass?' '+s.subClass:'')+'">'+escapeHtml(s.sub)+'</p></div>'+
     '</div>'
   ).join('');
 }
@@ -2074,6 +2127,8 @@ document.getElementById('user-mgmt-assign-btn').addEventListener('click', async 
    - Assignment -> assigned Admin + requester
    - New comment -> the other party; if still unassigned, requester comments go to Super Admin
    - Completion/status changes -> requester
+   - High alert (Admin/Super Admin, with a required comment) -> requester,
+     assigned Admin, and every Super Admin
    Mail failures are surfaced to the person taking the action instead of being silent. */
 function taskDeepLink(v){
   const n = taskNumberValue(v);
@@ -2159,6 +2214,26 @@ async function notifyTaskDeleted(v){
   const label = taskNumberLabel(v);
   const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was permanently deleted by the Super Admin.</p>';
   await sendMailGraph(Array.from(recipients), 'Task deleted — ' + label + ' — ' + v.Title, html);
+}
+async function notifyHighAlert(v, message){
+  // Admin/Super Admin triggered urgent notice to the requester, cc'ing the
+  // assigned Admin (if any) and every Super Admin so the escalation is seen
+  // by the people who can act on it, not just the requester.
+  const sender = (currentAccount.username || '').toLowerCase();
+  const recipients = new Set();
+  if(v['Requested By']) recipients.add(v['Requested By']);
+  if(v['Assigned To'] && v['Assigned To'].toLowerCase() !== sender) recipients.add(v['Assigned To']);
+  emailsForRole('superadmin').forEach(e=>{ if(e && e.toLowerCase() !== sender) recipients.add(e); });
+  const toEmails = Array.from(recipients);
+  if(!toEmails.length) return [];
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const html = '<p style="color:#c1493a;font-weight:700;">🚨 HIGH ALERT</p>'+
+    '<p>'+escapeHtml(currentAccount.username)+' ('+escapeHtml(ROLE_LABELS[currentUserRole]||currentUserRole)+') raised a high alert on <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>.</p>'+
+    '<p style="white-space:pre-wrap;border-left:3px solid #c1493a;padding-left:10px;">'+escapeHtml(message)+'</p>'+
+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph(toEmails, '🚨 HIGH ALERT — ' + label + ' — ' + v.Title, html);
+  return toEmails;
 }
 async function notifyOnComment(v, text){
   const label = taskNumberLabel(v);
