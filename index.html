@@ -1774,22 +1774,11 @@ function renderTaskModal(taskId){
   // Timeline
   html += '<div><p class="card-title" style="margin-bottom:8px;">Timeline</p><div class="timeline">'+timelineHtml(v)+'</div></div>';
 
-  // Super Admin: assign button if not yet assigned to anyone
+  // Super Admin: assign button if not yet assigned to anyone. Priority is
+  // set as part of the assign flow itself (see the Assign modal), so there
+  // is no separate standalone Priority editor here anymore.
   if(currentUserRole === 'superadmin' && !v['Assigned To']){
     html += '<div><button type="button" id="tm-assign-btn">Assign this task</button></div>';
-  }
-
-  // Priority controls: Super Admin only — sets or changes priority at any
-  // time. The assigned Admin sees the badge above but cannot edit it, and
-  // the requester never sees the badge at all (see priorityBadgeHtml).
-  if(currentUserRole === 'superadmin'){
-    html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
-      '<div style="min-width:220px;"><label>Priority</label><select id="tm-priority-select">'+
-        '<option value="">Not set</option>'+
-        PRIORITY_OPTIONS.map(p=>'<option value="'+escapeHtml(p)+'"'+(p===v.Priority?' selected':'')+'>'+escapeHtml(p)+'</option>').join('')+
-      '</select></div>'+
-      '<button type="button" id="tm-priority-save">Save priority</button>'+
-    '</div>';
   }
 
   // Requester can cancel only their own task. Admin and Super Admin can reject.
@@ -1804,8 +1793,9 @@ function renderTaskModal(taskId){
     '</div>';
   }
 
-  // Status controls: Admin and Super Admin only. Requesters never get this control.
-  if(canManageTask(v) && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED && v.Status !== STATUS_CANCELLED){
+  // Status controls: Admin and Super Admin only, and only once the task has
+  // been assigned to an Admin. Requesters never get this control.
+  if(canManageTask(v) && v['Assigned To'] && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED && v.Status !== STATUS_CANCELLED){
     html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">'+
       '<div style="min-width:170px;"><label>Update progress</label><select id="tm-status-select">'+
         STATUS_MANAGE_OPTIONS.map(o=>'<option value="'+o.value+'"'+(o.value===v.Status?' selected':'')+'>'+o.label+'</option>').join('')+
