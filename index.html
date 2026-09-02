@@ -848,13 +848,13 @@
 <!-- Assign modal (Super Admin) -->
 <div class="modal-overlay" id="assign-modal-overlay">
   <div class="modal-box" style="max-width:440px;">
-    <h2>Assign task <span id="am-taskid"></span></h2>
+    <h2>Review &amp; Assign task <span id="am-taskid"></span></h2>
     <div>
       <label for="am-assignee">Assign to</label>
       <select id="am-assignee"></select>
     </div>
-    <div id="am-important-review" style="display:none;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;background:var(--surface-2);">
-      <label style="font-weight:700;color:var(--text);">Important approval required</label>
+    <div id="am-important-review" style="display:block;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;background:var(--surface-2);">
+      <label style="font-weight:700;color:var(--text);">Important review</label>
       <p class="card-note" id="am-important-reason" style="margin:4px 0 8px;"></p>
       <select id="am-important-decision">
         <option value="">Select approval decision…</option>
@@ -1148,6 +1148,17 @@ function isImportantPending(t){
 }
 function isImportantDeclined(t){
   return !!t && t['Important Status'] === IMPORTANT_STATUS_DECLINED;
+}
+// Detect an Important request even on older SharePoint rows where the newer
+// Important Status column was not yet available. An unassigned row with
+// Important = Yes or an Important Reason is treated as awaiting Super Admin review.
+function hasImportantRequest(t){
+  if(!t) return false;
+  if(isImportantPending(t)) return true;
+  if(isImportantDeclined(t) || t['Important Status'] === IMPORTANT_STATUS_APPROVED) return false;
+  const flag = t.Important === true || t.Important === 1 || String(t.Important || '').toLowerCase() === 'true' || String(t.Important || '').toLowerCase() === 'yes';
+  const hasReason = !!String(t['Important Reason'] || '').trim();
+  return !t['Assigned To'] && (flag || hasReason);
 }
 function importantBadgeHtml(v){
   if(isImportantTask(v)) return '<span class="badge badge-important">Important</span>';
@@ -1980,7 +1991,7 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
       'Agreement ID': agreementId || null,
       'Company Name': companyName || null,
       'Description': description,
-      'Important': false,
+      'Important': importantOn,
       'Important Status': importantOn ? IMPORTANT_STATUS_PENDING : null,
       'Important Reason': importantReason || null,
       'Request Type': requestType,
@@ -2048,7 +2059,7 @@ function applyAssignmentPriorityRules(){
   const noteEl = document.getElementById('am-priority-note');
   deadlineEl.value = deadlineFromPriority(priority);
   if(/^critical\b/i.test(priority)){
-    if(decisionEl && document.getElementById('am-important-review').style.display !== 'none') decisionEl.value = 'approve';
+    if(decisionEl){ decisionEl.disabled = false; decisionEl.value = 'approve'; }
     if(noteEl) noteEl.textContent = 'Critical: deadline is today and the task is automatically marked Important.';
   }else if(/^high\b/i.test(priority)){
     if(noteEl) noteEl.textContent = 'High: deadline is automatically set to today.';
@@ -2070,12 +2081,13 @@ function openAssignModal(taskId){
   const reviewBox = document.getElementById('am-important-review');
   const decisionEl = document.getElementById('am-important-decision');
   const reasonEl = document.getElementById('am-important-reason');
-  const needsReview = !!v && isImportantPending(v);
-  reviewBox.style.display = needsReview ? 'block' : 'none';
+  const needsReview = hasImportantRequest(v);
+  reviewBox.style.display = 'block';
   decisionEl.value = '';
+  decisionEl.disabled = !needsReview;
   reasonEl.textContent = needsReview
-    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'The requester marked this task as Important.') + ' Approve or disapprove before assignment.')
-    : '';
+    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'This task was requested as Important.') + ' Super Admin must approve or disapprove before assignment.')
+    : (isImportantTask(v) ? 'Important has already been approved for this task.' : (isImportantDeclined(v) ? 'Important was disapproved. This task will be assigned as a normal task.' : 'No Important request was submitted for this task.'));
   applyAssignmentPriorityRules();
   document.getElementById('assign-modal-overlay').style.display = 'flex';
 }
@@ -2090,7 +2102,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
   const assignee = document.getElementById('am-assignee').value;
   const priority = document.getElementById('am-priority').value;
   const deadline = deadlineFromPriority(priority);
-  const needsImportantReview = !!taskBeforeAssign && isImportantPending(taskBeforeAssign);
+  const needsImportantReview = hasImportantRequest(taskBeforeAssign);
   let importantDecision = needsImportantReview ? document.getElementById('am-important-decision').value : '';
   if(/^critical\b/i.test(priority)) importantDecision = 'approve';
   if(!assignee){ errEl.textContent = 'Choose an Admin to assign this to.'; errEl.style.display = 'block'; return; }
@@ -2213,10 +2225,10 @@ function renderTaskModal(taskId){
   html += '<div style="display:flex;flex-direction:column;gap:6px;">'+
     (v['Agreement ID'] ? '<div class="detail-row"><span class="k">Agreement ID</span><span class="v">'+escapeHtml(v['Agreement ID'])+'</span></div>' : '')+
     (v['Company Name'] ? '<div class="detail-row"><span class="k">Company Name</span><span class="v">'+escapeHtml(v['Company Name'])+'</span></div>' : '')+
-    (isImportantTask(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Yes — approved by '+escapeHtml(v['Important Approved By']||'Admin')+'</span></div>' : '')+
-    (isImportantPending(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Requested — awaiting Super Admin approval</span></div>' : '')+
+    ((isImportantTask(v) && !hasImportantRequest(v)) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Yes — approved by '+escapeHtml(v['Important Approved By']||'Super Admin')+'</span></div>' : '')+
+    (hasImportantRequest(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Requested — awaiting Super Admin approval</span></div>' : '')+
     (isImportantDeclined(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Requested, but declined by '+escapeHtml(v['Important Approved By']||'Admin')+'</span></div>' : '')+
-    ((isImportantTask(v)||isImportantPending(v)||isImportantDeclined(v)) && v['Important Reason'] ? '<div class="detail-row"><span class="k">Why important</span><span class="v">'+escapeHtml(v['Important Reason'])+'</span></div>' : '')+
+    ((isImportantTask(v)||hasImportantRequest(v)||isImportantDeclined(v)) && v['Important Reason'] ? '<div class="detail-row"><span class="k">Why important</span><span class="v">'+escapeHtml(v['Important Reason'])+'</span></div>' : '')+
     '<div class="detail-row"><span class="k">Request type</span><span class="v">'+escapeHtml(v['Request Type']||'—')+'</span></div>'+
     '<div class="detail-row"><span class="k">Task</span><span class="v">'+escapeHtml(v['Task']||'—')+'</span></div>'+
     '<div class="detail-row"><span class="k">Requested by</span><span class="v">'+escapeHtml(v['Requested By'])+'</span></div>'+
@@ -2233,7 +2245,16 @@ function renderTaskModal(taskId){
   // set as part of the assign flow itself (see the Assign modal), so there
   // is no separate standalone Priority editor here anymore.
   if(currentUserRole === 'superadmin' && !v['Assigned To']){
-    html += '<div><button type="button" id="tm-assign-btn">Assign this task</button></div>';
+    if(hasImportantRequest(v)){
+      html += '<div style="display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--danger);border-radius:8px;background:var(--surface-2);">'+
+        '<div><span class="badge badge-important-pending">Important approval required</span></div>'+
+        '<p style="margin:0;font-size:13px;font-weight:600;">This task was requested as Important. Super Admin must approve or disapprove the Important request before assignment.</p>'+
+        (v['Important Reason'] ? '<p style="margin:0;font-size:12px;"><strong>Reason:</strong> '+escapeHtml(v['Important Reason'])+'</p>' : '')+
+        '<button type="button" id="tm-assign-btn">Review Important &amp; Assign</button>'+
+      '</div>';
+    }else{
+      html += '<div><button type="button" id="tm-assign-btn">Assign this task</button></div>';
+    }
   }
 
   // Requester can cancel only their own task. Admin and Super Admin can reject.
@@ -2252,7 +2273,7 @@ function renderTaskModal(taskId){
   // task assignment, so approval of importance sits with them, not Admin.
   // The requester's tick just requests importance — it only counts (badge,
   // Important tasks card, notifications) once approved here.
-  if(currentUserRole === 'superadmin' && isImportantPending(v)){
+  if(currentUserRole === 'superadmin' && !v['Assigned To'] && hasImportantRequest(v)){
     html += '<div style="display:flex;flex-direction:column;gap:8px;padding-top:8px;border-top:1px solid var(--border);">'+
       '<p class="card-note" style="margin:0;">'+escapeHtml(v['Requested By']||'The requester')+' has requested this task be marked Important. Review the reason above, then approve or decline.</p>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
