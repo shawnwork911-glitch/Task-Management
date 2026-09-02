@@ -1154,11 +1154,10 @@ const IMPORTANT_STATUS_PENDING = 'Pending Review';
 const IMPORTANT_STATUS_APPROVED = 'Approved';
 const IMPORTANT_STATUS_DECLINED = 'Declined';
 function isImportantTask(t){
-  // "Confirmed" important: only true once an Admin/Super Admin has approved
-  // the requester's Important tick. Ticking Important on the request form
-  // only ever sets it to Pending Review — see isImportantPending().
-  const v = t && t.Important;
-  return v === true || v === 1 || String(v || '').toLowerCase() === 'true' || String(v || '').toLowerCase() === 'yes';
+  // A task is Important ONLY after Super Admin approval.
+  // The requester's Important checkbox/flag alone must never make it appear
+  // in the Important Tasks section.
+  return !!t && t['Important Status'] === IMPORTANT_STATUS_APPROVED;
 }
 function isImportantPending(t){
   return !!t && t['Important Status'] === IMPORTANT_STATUS_PENDING;
@@ -1865,7 +1864,7 @@ function importantTasks(){
   // Super Admin approves them — see pendingImportantTasks().
   const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
   return taskItemsCache
-    .filter(t => isImportantTask(t) && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED && t.Status !== STATUS_CANCELLED)
+    .filter(t => t['Important Status'] === IMPORTANT_STATUS_APPROVED && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED && t.Status !== STATUS_CANCELLED)
     .filter(t => canSeeAll || isTaskRequester(t))
     .sort(sortByPriorityThenDeadline);
 }
