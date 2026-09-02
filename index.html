@@ -481,18 +481,11 @@
     <p class="subtitle" id="page-subtitle">Create a task request — Super Admin will assign it to an Admin with a deadline.</p>
   </div>
 
-  <div class="card" id="important-tasks-card">
-    <div class="card-title-row">
-      <p class="card-title" style="margin:0;">Important tasks</p>
-      <span class="badge badge-important">Important</span>
-    </div>
-    <p class="card-note">Important or high-alert tasks are pinned here so everyone can notice them first. A requester's Important tick only counts once a Super Admin approves it below.</p>
-    <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
-  </div>
+  
 
   <div class="task-subtabs" id="task-subtabs" role="tablist" aria-label="Task management views">
     <button type="button" class="task-subtab-btn active" data-task-subview="request">New Task Request</button>
-    <button type="button" class="task-subtab-btn" data-task-subview="work">Task Lists</button>
+    
   </div>
 
   <div id="task-subview-request" class="task-subview active">
@@ -621,6 +614,26 @@
       <p class="subtitle" id="analytics-subtitle">A Gantt-style timeline of every task and the stage it's at.</p>
     </div>
 
+    <div class="card" id="important-tasks-card">
+        <div class="card-title-row">
+          <p class="card-title" style="margin:0;">Important tasks</p>
+          <span class="badge badge-important">Important</span>
+        </div>
+        <p class="card-note">Approved Important tasks are shown here together with Analytics for quick visibility.</p>
+        <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
+      </div>
+
+
+    <div class="card" id="analytics-task-lists-card" style="display:none;">
+      <div class="card-title-row">
+        <div>
+          <p class="card-title" style="margin:0;">Task Lists</p>
+          <p class="card-note" style="margin:4px 0 0;">Open the Assignment Queue, Assigned to Me, and All Tasks management views.</p>
+        </div>
+        <button type="button" id="analytics-open-task-lists">Open Task Lists</button>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title-row">
         <p class="card-title" style="margin:0;">Task timeline</p>
@@ -629,7 +642,7 @@
 
       <div class="gantt-summary" id="gantt-summary"></div>
 
-      <div class="filter-row">
+      <div class="filter-row" style="margin-bottom:10px;">
         <div>
           <label for="an-filter-status">Status</label>
           <select id="an-filter-status">
@@ -655,6 +668,9 @@
             <option value="pending">Pending review</option>
           </select>
         </div>
+      </div>
+
+      <div class="filter-row">
         <div>
           <label for="an-filter-date-from">From date</label>
           <input type="date" id="an-filter-date-from">
@@ -663,7 +679,7 @@
           <label for="an-filter-date-to">To date</label>
           <input type="date" id="an-filter-date-to">
         </div>
-        <div>
+        <div style="display:flex;align-items:flex-end;">
           <button type="button" class="secondary" id="an-filter-date-clear">Clear dates</button>
         </div>
       </div>
@@ -877,11 +893,11 @@
     <div>
       <label for="am-priority">Priority</label>
       <select id="am-priority"></select>
-      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically sets the deadline and Important review.</p>
+      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically suggests the deadline and sets the Important review. Super Admin may adjust the deadline before assignment.</p>
     </div>
     <div>
       <label for="am-deadline">Deadline</label>
-      <input type="date" id="am-deadline" readonly>
+      <input type="date" id="am-deadline">
     </div>
     <div id="assign-modal-error" class="field-error"></div>
     <div class="modal-close-row">
@@ -1017,9 +1033,7 @@ const ROLES = ["superadmin","admin","user"];
 const ROLE_LABELS = { superadmin:"Super Admin", admin:"Admin", user:"User" };
 const SUPERADMIN_EMAILS = ["shauyuan.tan@saxonrenewables.com"];
 
-// Request Mail.Send during the main interactive sign-in as well. This avoids
-// browsers blocking a later consent popup when an assignment/comment tries to
-// send its notification asynchronously.
+// Mail.Send is used only for status-change emails and manually triggered high-alert emails.
 const GRAPH_SCOPES = ["Sites.ReadWrite.All", "User.Read", "Mail.Send"];
 const MAIL_SCOPES = ["Mail.Send"];
 
@@ -1427,6 +1441,9 @@ function applyRoleUi(){
     if(requestView) requestView.classList.add('active');
     if(workView) workView.classList.remove('active');
   }
+
+  const analyticsTaskListsCard = document.getElementById('analytics-task-lists-card');
+  if(analyticsTaskListsCard) analyticsTaskListsCard.style.display = isAdmin ? 'block' : 'none';
 
   const userMgmtTab = document.getElementById('user-mgmt-tab-btn');
   if(userMgmtTab) userMgmtTab.style.display = currentUserRole === 'superadmin' ? '' : 'none';
@@ -1880,27 +1897,20 @@ function renderImportantTasks(){
   const card = document.getElementById('important-tasks-card');
   const el = document.getElementById('important-tasks-list');
   if(!el) return;
-  const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
-  const tasks = importantTasks();
-  const pending = pendingImportantTasks();
-  // Admins/Super Admins always see this card (they're the ones who approve
-  // requests); a regular user only sees it when they have an approved or
-  // pending important task of their own.
-  if(card) card.style.display = (canSeeAll || tasks.length || pending.length) ? 'block' : 'none';
 
-  let html = '';
-  if(pending.length){
-    html += '<p class="card-note" style="margin:0 0 6px;color:#c98a2f;font-weight:600;">'+
-      (currentUserRole === 'superadmin' ? 'Awaiting your approval' : 'Awaiting Super Admin approval')+
-    '</p>';
-    html += pending.map(v => taskCardHtml(v, true)).join('');
+  // Important Tasks must contain APPROVED Important tasks only.
+  // Pending Important requests remain in the normal assignment/request views
+  // until Super Admin approves them during Review Important & Assign.
+  const tasks = importantTasks();
+
+  if(card) card.style.display = tasks.length ? 'block' : 'none';
+
+  if(!tasks.length){
+    el.innerHTML = '<p class="empty-note">No active approved Important tasks right now.</p>';
+    return;
   }
-  if(tasks.length){
-    if(pending.length) html += '<p class="card-note" style="margin:14px 0 6px;">Approved</p>';
-    html += tasks.map(v => taskCardHtml(v, true)).join('');
-  }
-  if(!html){ html = '<p class="empty-note">No active important tasks right now.</p>'; }
-  el.innerHTML = html;
+
+  el.innerHTML = tasks.map(v => taskCardHtml(v, true)).join('');
   el.querySelectorAll('[data-task-id]').forEach(card=>{
     card.addEventListener('click', ()=> openTaskModal(card.getAttribute('data-task-id')));
   });
@@ -2097,16 +2107,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     document.getElementById('nt-requested-deadline').value = '';
     await loadAllData();
     const createdTask = taskById(created.id);
-    try{
-      const taskForNotice = createdTask || {id:created.id, 'Task Number':newTaskNumber, Title:title, 'Important Status':importantOn?IMPORTANT_STATUS_PENDING:null, 'Important Reason':importantReason, 'Requested By':currentAccount.username};
-      if(importantOn) await notifyImportantReviewRequested(taskForNotice);
-      else await notifySuperadmins(taskForNotice);
-      setStatus(importantOn ? 'Request submitted. Super Admin notified to review your Important request.' : 'Request submitted. Super Admin notified by email.');
-    }catch(mailErr){
-      console.error('Notify superadmins failed', mailErr);
-      setStatus('Request submitted, but the Super Admin email notification could not be sent.');
-    }
-  }catch(err){
+    setStatus('Request submitted successfully.');
+}catch(err){
     errEl.textContent = 'Could not submit: ' + err.message;
     errEl.style.display = 'block';
   }finally{
@@ -2188,7 +2190,7 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
   const taskBeforeAssign = taskById(assignTargetTaskId);
   const assignee = document.getElementById('am-assignee').value;
   const priority = document.getElementById('am-priority').value;
-  const deadline = deadlineFromPriority(priority);
+  const deadline = document.getElementById('am-deadline').value || deadlineFromPriority(priority);
   const needsImportantReview = hasImportantRequest(taskBeforeAssign);
   let importantDecision = document.getElementById('am-important-decision').value || 'decline';
   if(/^critical\b/i.test(priority) || /^high\b/i.test(priority)) importantDecision = 'approve';
@@ -2231,24 +2233,14 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
     }
     await loadAllData();
     const assignedTask = taskById(assignTargetTaskId);
-    if(assignedTask && isImportantTask(assignedTask) && (needsImportantReview || /^critical\b/i.test(priority))){
-      notifyImportantTask(assignedTask).catch(e=>console.error('Notify important failed', e));
-    }
-    const v = assignedTask;
+const v = assignedTask;
     if(!v) throw new Error('The task could not be reloaded after assignment.');
     if((v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
       throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. The app now supports both Single line of text and Person or Group fields; verify the selected Admin has visited the Operations SharePoint site at least once.');
     }
     document.getElementById('assign-modal-overlay').style.display = 'none';
-    try{
-      await notifyTaskAssigned(v, assignee);
-      setStatus('Task assigned. Admin and requester notified by email.');
-    }catch(mailErr){
-      console.error('Notify assigned failed', mailErr);
-      setStatus('Task assigned, but the assignment email notification could not be sent.');
-      alert('The task was assigned successfully, but the email notification could not be sent. Details: ' + mailErr.message);
-    }
-  }catch(err){
+    setStatus('Task assigned successfully.');
+}catch(err){
     errEl.textContent = 'Could not assign: ' + err.message;
     errEl.style.display = 'block';
   }finally{
@@ -2440,7 +2432,7 @@ function renderTaskModal(taskId){
       });
       await loadAllData();
       const updated = taskById(taskId);
-      if(updated) notifyTaskCancelled(updated, reason.trim()).catch(e=>console.error('Notify cancelled failed', e));
+      if(updated) notifyStatusChanged(updated).catch(e=>console.error('Notify status change failed', e));
     }catch(err){
       alert('Could not cancel task: ' + err.message + '\n\nMake sure the SharePoint Status choice column includes a Cancelled option.');
     }finally{ cancelTaskBtn.disabled = false; }
@@ -2469,7 +2461,7 @@ function renderTaskModal(taskId){
       });
       await loadAllData();
       const updated = taskById(taskId);
-      if(updated) notifyTaskRejected(updated, reason.trim()).catch(e=>console.error('Notify rejected failed', e));
+      if(updated) notifyStatusChanged(updated).catch(e=>console.error('Notify status change failed', e));
     }catch(err){
       alert('Could not reject task: ' + err.message + '\n\nMake sure the SharePoint Status choice column includes a Rejected option.');
     }finally{ rejectBtn.disabled = false; }
@@ -2491,11 +2483,7 @@ function renderTaskModal(taskId){
       await loadAllData();
       const updated = taskById(taskId);
       if(updated){
-        if(newStatus === STATUS_COMPLETED){
-          notifyTaskCompleted(updated).catch(e=>console.error('Notify completed failed', e));
-        }else{
-          notifyStatusChanged(updated).catch(e=>console.error('Notify status change failed', e));
-        }
+        notifyStatusChanged(updated).catch(e=>console.error('Notify status change failed', e));
       }
     }catch(err){
       alert('Could not update status: ' + err.message);
@@ -2519,15 +2507,7 @@ function renderTaskModal(taskId){
       });
       textEl.value = '';
       await loadAllData();
-      const updatedTask = taskById(taskId) || v;
-      try{
-        const sentTo = await notifyOnComment(updatedTask, text);
-        setStatus(sentTo && sentTo.length ? 'Comment sent. Recipient notified by email.' : 'Comment sent.');
-      }catch(mailErr){
-        console.error('Notify comment failed', mailErr);
-        setStatus('Comment sent, but the email notification could not be sent.');
-        alert('Your comment was saved, but the email notification could not be sent. Details: ' + mailErr.message);
-      }
+      setStatus('Comment sent.');
     }catch(err){
       alert('Could not send comment: ' + err.message);
     }finally{
@@ -2638,18 +2618,13 @@ document.getElementById('user-mgmt-assign-btn').addEventListener('click', async 
 });
 
 /* ---- Email notifications ----
-   Sent via Graph "sendMail" as whoever just took the action. Requires the
-   Mail.Send delegated permission (admin consent) on the Azure app
-   registration; if it isn't granted yet, sending just throws and is
-   caught/logged so it never blocks the actual action itself.
-   Notification flow:
-   - New task request -> every Super Admin; if marked Important -> every Admin and Super Admin
-   - Assignment -> assigned Admin + requester
-   - New comment -> the other party; if still unassigned, requester comments go to Super Admin
-   - Completion/status changes -> requester
-   - High alert (Admin/Super Admin, with a required comment) -> requester,
-     assigned Admin, and every Super Admin
-   Mail failures are surfaced to the person taking the action instead of being silent. */
+   Only these email notifications remain:
+   1) Task status changed -> requester
+   2) High alert -> requester, assigned Admin, and Super Admins
+
+   The 1-week deadline reminder is handled separately by Power Automate.
+   All other email notifications (new request, assignment, Important approval/review,
+   comments, deletion, etc.) are intentionally disabled. */
 function taskDeepLink(v){
   const n = taskNumberValue(v);
   return location.origin + location.pathname + (n
@@ -2671,97 +2646,12 @@ async function sendMailGraph(toEmails, subject, htmlBody){
     })
   });
 }
-async function notifyImportantTask(v){
-  const recipients = new Set();
-  emailsForRole('superadmin').forEach(e=>{ if(e) recipients.add(e); });
-  emailsForRole('admin').forEach(e=>{ if(e) recipients.add(e); });
-  const toEmails = Array.from(recipients);
-  if(!toEmails.length) return [];
-  const label = taskNumberLabel(v);
-  const html = '<p style="color:#c1493a;font-weight:700;">IMPORTANT TASK — APPROVED</p>'+ 
-    '<p><strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>, requested by '+escapeHtml(v['Requested By']||'the requester')+', has been approved as Important by '+escapeHtml(v['Important Approved By']||currentAccount.username)+'.</p>'+ 
-    '<p><strong>Why important:</strong></p><p style="white-space:pre-wrap;border-left:3px solid #c1493a;padding-left:10px;">'+escapeHtml(v['Important Reason']||'')+'</p>'+ 
-    '<p><a href="'+taskDeepLink(v)+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
-  await sendMailGraph(toEmails, 'IMPORTANT TASK — ' + label + ' — ' + v.Title, html);
-  return toEmails;
-}
-async function notifyImportantReviewRequested(v){
-  // Sent when a requester ticks Important on a new task. Only Super Admin
-  // can approve/decline (they own task assignment too), so this goes to
-  // Super Admin only — it does not itself mark the task Important.
-  const toEmails = emailsForRole('superadmin').filter(Boolean);
-  if(!toEmails.length) return [];
-  const label = taskNumberLabel(v);
-  const html = '<p style="color:#c98a2f;font-weight:700;">IMPORTANT REVIEW REQUESTED</p>'+
-    '<p><strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong> was submitted by '+escapeHtml(v['Requested By']||'the requester')+' and marked as a request for Important status. It will not show as Important until a Super Admin approves it.</p>'+
-    '<p><strong>Why important (as stated by requester):</strong></p><p style="white-space:pre-wrap;border-left:3px solid #c98a2f;padding-left:10px;">'+escapeHtml(v['Important Reason']||'')+'</p>'+
-    '<p><a href="'+taskDeepLink(v)+'">Open '+escapeHtml(label)+' in the Task Management app to approve or decline</a></p>';
-  await sendMailGraph(toEmails, 'IMPORTANT REVIEW REQUESTED — ' + label + ' — ' + v.Title, html);
-  return toEmails;
-}
-async function notifySuperadmins(v){
-  const toEmails = emailsForRole('superadmin');
-  if(!toEmails.length) return;
-  const label = taskNumberLabel(v);
-  const html = '<p>A new task request needs assignment: <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>.</p>'+    '<p><a href="'+taskDeepLink(v)+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
-  await sendMailGraph(toEmails, 'New task request — ' + label + ' — ' + v.Title, html);
-}
-async function notifyTaskAssigned(v, selectedAssignee){
-  const assigneeEmail = (selectedAssignee || v['Assigned To'] || '').trim();
-  if(!assigneeEmail) throw new Error('Assigned Admin email is missing; assignment notification was not sent.');
-  const label = taskNumberLabel(v);
-  const link = taskDeepLink(v);
-  const toAssignee = '<p>You have been assigned <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>.</p>'+    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+    (v.Priority ? '<p><strong>Priority:</strong> '+escapeHtml(v.Priority)+'</p>' : '')+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
-  const toRequester = '<p>Your '+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been assigned to '+escapeHtml(assigneeEmail)+'.</p>'+    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
-  await sendMailGraph([assigneeEmail], 'Task assigned to you — ' + label + ' — ' + v.Title, toAssignee);
-  if(v['Requested By']) await sendMailGraph([v['Requested By']], 'Your task has been assigned — ' + label + ' — ' + v.Title, toRequester);
-}
-async function notifyTaskCompleted(v){
-  const label = taskNumberLabel(v);
-  const link = taskDeepLink(v);
-  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been marked Completed by '+escapeHtml(v['Last Updated By'])+'.</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
-  await sendMailGraph([v['Requested By']], 'Task completed — ' + label + ' — ' + v.Title, html);
-}
 async function notifyStatusChanged(v){
   if(!v['Requested By']) return;
   const label = taskNumberLabel(v);
   const link = taskDeepLink(v);
   const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was updated by '+escapeHtml(v['Last Updated By'])+'.</p>'+    '<p><strong>Status:</strong> '+escapeHtml(v.Status)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view details or reply with a comment</a></p>';
   await sendMailGraph([v['Requested By']], 'Task updated — ' + label + ' — ' + v.Title, html);
-}
-async function notifyTaskRejected(v, reason){
-  const recipients = new Set();
-  if(v['Requested By']) recipients.add(v['Requested By']);
-  if(v['Assigned To']) recipients.add(v['Assigned To']);
-  if(!recipients.size) return;
-  const label = taskNumberLabel(v);
-  const link = taskDeepLink(v);
-  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been rejected by '+escapeHtml(v['Last Updated By'] || 'an Admin')+'.</p>'+    (reason ? '<p><strong>Reason:</strong> '+escapeHtml(reason)+'</p>' : '')+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view the history and comments</a></p>';
-  await sendMailGraph(Array.from(recipients), 'Task rejected — ' + label + ' — ' + v.Title, html);
-}
-async function notifyTaskCancelled(v, reason){
-  const recipients = new Set();
-  if(v['Assigned To']) recipients.add(v['Assigned To']);
-  emailsForRole('superadmin').forEach(e=>{ if(e) recipients.add(e); });
-  emailsForRole('admin').forEach(e=>{ if(e) recipients.add(e); });
-  const requester=(v['Requested By']||'').toLowerCase();
-  Array.from(recipients).forEach(e=>{ if((e||'').toLowerCase()===requester) recipients.delete(e); });
-  if(!recipients.size) return;
-  const label = taskNumberLabel(v);
-  const link = taskDeepLink(v);
-  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was cancelled by the requester.</p>'+
-    '<p><strong>Reason:</strong> '+escapeHtml(reason)+'</p>'+
-    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view the history and comments</a></p>';
-  await sendMailGraph(Array.from(recipients), 'Task cancelled — ' + label + ' — ' + v.Title, html);
-}
-async function notifyTaskDeleted(v){
-  const recipients = new Set();
-  if(v['Requested By']) recipients.add(v['Requested By']);
-  if(v['Assigned To']) recipients.add(v['Assigned To']);
-  if(!recipients.size) return;
-  const label = taskNumberLabel(v);
-  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was permanently deleted by the Super Admin.</p>';
-  await sendMailGraph(Array.from(recipients), 'Task deleted — ' + label + ' — ' + v.Title, html);
 }
 async function notifyHighAlert(v, message){
   // Admin/Super Admin triggered urgent notice to the requester, cc'ing the
@@ -2781,33 +2671,6 @@ async function notifyHighAlert(v, message){
     '<p style="white-space:pre-wrap;border-left:3px solid #c1493a;padding-left:10px;">'+escapeHtml(message)+'</p>'+
     '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
   await sendMailGraph(toEmails, '🚨 HIGH ALERT — ' + label + ' — ' + v.Title, html);
-  return toEmails;
-}
-async function notifyOnComment(v, text){
-  const label = taskNumberLabel(v);
-  const link = taskDeepLink(v);
-  const commenter = (currentAccount.username||'').toLowerCase();
-  const recipients = new Set();
-
-  // Normal two-way thread: requester -> assigned Admin, and Admin -> requester.
-  if(v['Requested By'] && v['Requested By'].toLowerCase() !== commenter) recipients.add(v['Requested By']);
-  if(v['Assigned To'] && v['Assigned To'].toLowerCase() !== commenter) recipients.add(v['Assigned To']);
-
-  // Before assignment there is no Admin yet. If the requester comments on an
-  // unassigned task, notify every Super Admin so the message is not missed.
-  const requesterIsCommenter = (v['Requested By'] || '').toLowerCase() === commenter;
-  if(requesterIsCommenter && !v['Assigned To']){
-    emailsForRole('superadmin').forEach(e=>{
-      if(e && e.toLowerCase() !== commenter) recipients.add(e);
-    });
-  }
-
-  const toEmails = Array.from(recipients);
-  if(!toEmails.length) return [];
-  const html = '<p>New comment on <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong> from '+escapeHtml(currentAccount.username)+':</p>'+
-    '<p style="white-space:pre-wrap;">'+escapeHtml(text)+'</p>'+
-    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to read the thread and reply</a></p>';
-  await sendMailGraph(toEmails, 'New comment — ' + label + ' — ' + v.Title, html);
   return toEmails;
 }
 
@@ -3288,6 +3151,23 @@ document.querySelectorAll('.task-subtab-btn').forEach(btn=>{
     if(view) view.classList.add('active');
   });
 });
+const analyticsOpenTaskListsBtn = document.getElementById('analytics-open-task-lists');
+if(analyticsOpenTaskListsBtn){
+  analyticsOpenTaskListsBtn.addEventListener('click', ()=>{
+    document.querySelectorAll('.main-tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.main-view').forEach(v=>v.classList.remove('active'));
+
+    const taskMainBtn = document.querySelector('.main-tab-btn[data-main-view="task"]');
+    const taskMainView = document.getElementById('main-view-task');
+    if(taskMainBtn) taskMainBtn.classList.add('active');
+    if(taskMainView) taskMainView.classList.add('active');
+
+    document.querySelectorAll('.task-subview').forEach(v=>v.classList.remove('active'));
+    const workView = document.getElementById('task-subview-work');
+    if(workView) workView.classList.add('active');
+  });
+}
+
 
 document.querySelectorAll('.main-tab-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
@@ -3807,7 +3687,6 @@ async function ropsCreateReviewDocumentationTask(companyName, folderName, upload
   await loadAllData();
   if(newTaskId){
     const createdTask = taskById(newTaskId) || {id:newTaskId, 'Task Number':newTaskNumber, Title:'Review Documentation'};
-    notifySuperadmins(createdTask).catch(e=>console.error('Notify superadmins failed', e));
   }
   return newTaskId;
 }
