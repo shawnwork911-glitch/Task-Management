@@ -157,7 +157,8 @@
   #notification-panel.show{display:block;}
   .notification-head{position:sticky;top:0;background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);z-index:1;}
   .notification-title{font-size:13px;font-weight:700;color:var(--text);}
-  #notification-mark-read{padding:5px 9px;font-size:11px;}
+  #notification-mark-read,#notification-clear{padding:5px 9px;font-size:11px;}
+  .notification-actions{display:flex;gap:6px;align-items:center;}
   #notification-list{display:flex;flex-direction:column;}
   .notification-item{padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;background:var(--surface);}
   .notification-item:hover{background:var(--surface-2);}
@@ -456,7 +457,7 @@
       <div class="notification-wrap" id="notification-wrap">
         <button type="button" id="notification-bell-btn" title="Notifications" aria-label="Notifications" aria-expanded="false">🔔<span id="notification-count"></span></button>
         <div id="notification-panel" role="dialog" aria-label="Notifications">
-          <div class="notification-head"><span class="notification-title">Notifications</span><button type="button" class="secondary" id="notification-mark-read">Mark all read</button></div>
+          <div class="notification-head"><span class="notification-title">Notifications</span><div class="notification-actions"><button type="button" class="secondary" id="notification-mark-read">Mark all read</button><button type="button" class="secondary" id="notification-clear">Clear</button></div></div>
           <div id="notification-list"><div class="notification-empty">No new updates.</div></div>
         </div>
       </div>
@@ -1446,6 +1447,15 @@ function notificationLastRead(){
   if(!raw){ const now = new Date().toISOString(); localStorage.setItem(notificationStorageKey(), now); return new Date(now).getTime(); }
   const ms = new Date(raw).getTime(); return isNaN(ms) ? 0 : ms;
 }
+function notificationClearStorageKey(){
+  return 'taskNotificationsClearedBefore:' + ((currentAccount && currentAccount.username) || 'unknown').toLowerCase();
+}
+function notificationClearedBefore(){
+  const raw = localStorage.getItem(notificationClearStorageKey());
+  if(!raw) return 0;
+  const ms = new Date(raw).getTime();
+  return isNaN(ms) ? 0 : ms;
+}
 function notificationTimestamp(v){ const ms = new Date(v || 0).getTime(); return isNaN(ms) ? 0 : ms; }
 function buildNotificationEvents(){
   if(!currentAccount) return [];
@@ -1482,18 +1492,27 @@ function buildNotificationEvents(){
 function renderNotificationCenter(){
   const list=document.getElementById('notification-list'), count=document.getElementById('notification-count');
   if(!list||!count||!currentAccount) return;
-  notificationEventsCache=buildNotificationEvents(); const lastRead=notificationLastRead(); const unread=notificationEventsCache.filter(e=>e.ms>lastRead);
+  notificationEventsCache=buildNotificationEvents().filter(e=>e.ms>notificationClearedBefore()); const lastRead=notificationLastRead(); const unread=notificationEventsCache.filter(e=>e.ms>lastRead);
   if(unread.length){ count.textContent=unread.length>99?'99+':String(unread.length); count.style.display='block'; } else { count.textContent=''; count.style.display='none'; }
   if(!notificationEventsCache.length){ list.innerHTML='<div class="notification-empty">No updates yet.</div>'; return; }
   list.innerHTML=notificationEventsCache.map((e,i)=>'<div class="notification-item'+(e.ms>lastRead?' unread':'')+'" data-notification-index="'+i+'"><div class="n-main">'+escapeHtml(e.main)+'</div><div class="n-sub">'+escapeHtml(e.sub)+' · '+escapeHtml(fmtDateTime(e.when))+'</div></div>').join('');
   list.querySelectorAll('[data-notification-index]').forEach(el=>el.addEventListener('click',()=>{ const e=notificationEventsCache[Number(el.getAttribute('data-notification-index'))]; if(!e)return; const task=taskById(e.taskId); if(task){ document.getElementById('notification-panel').classList.remove('show'); document.getElementById('notification-bell-btn').setAttribute('aria-expanded','false'); openTaskModal(task.id); } }));
 }
 function markAllNotificationsRead(){ localStorage.setItem(notificationStorageKey(),new Date().toISOString()); renderNotificationCenter(); }
+function clearNotifications(){
+  if(!confirm('Clear all notification messages? New notifications will still appear normally.')) return;
+  const now = new Date().toISOString();
+  localStorage.setItem(notificationClearStorageKey(), now);
+  localStorage.setItem(notificationStorageKey(), now);
+  renderNotificationCenter();
+}
 (function wireNotificationBell(){
-  const bell=document.getElementById('notification-bell-btn'), panel=document.getElementById('notification-panel'), mark=document.getElementById('notification-mark-read');
-  if(!bell||!panel||!mark)return;
+  const bell=document.getElementById('notification-bell-btn'), panel=document.getElementById('notification-panel'), mark=document.getElementById('notification-mark-read'), clear=document.getElementById('notification-clear');
+  if(!bell||!panel||!mark||!clear)return;
   bell.addEventListener('click',e=>{e.stopPropagation();const show=!panel.classList.contains('show');panel.classList.toggle('show',show);bell.setAttribute('aria-expanded',show?'true':'false');});
-  mark.addEventListener('click',e=>{e.stopPropagation();markAllNotificationsRead();}); panel.addEventListener('click',e=>e.stopPropagation());
+  mark.addEventListener('click',e=>{e.stopPropagation();markAllNotificationsRead();});
+  clear.addEventListener('click',e=>{e.stopPropagation();clearNotifications();});
+  panel.addEventListener('click',e=>e.stopPropagation());
   document.addEventListener('click',()=>{panel.classList.remove('show');bell.setAttribute('aria-expanded','false');});
 })();
 
@@ -1791,7 +1810,14 @@ function renderAnalytics(){
   bodyEl.innerHTML = ranges.map(({t, r})=>{
     const leftPct = ((r.startTs - minTs) / totalSpan) * 100;
     const widthPct = Math.max(((r.endTs - r.startTs) / totalSpan) * 100, 0.6);
-    const color = ganttColorForStatus(t.Status);
+    const priority = String(t.Priority || '');
+    const color = priority.startsWith('Critical') || priority.startsWith('High')
+      ? '#d64545'
+      : priority.startsWith('Medium')
+        ? '#d6a800'
+        : priority.startsWith('Low')
+          ? '#3a9d5d'
+          : ganttColorForStatus(t.Status);
     const important = isImportantTask(t);
     const pending = isImportantPending(t);
     const tag = important ? ' · Important' : (pending ? ' · Pending review' : '');
