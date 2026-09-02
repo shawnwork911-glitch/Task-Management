@@ -949,10 +949,10 @@
                                     Clarification from Supplier, Clarification from Buyer,
                                     Others, New Agreement, Request to change delivery date
                             (required — must match TASK_OPTIONS below exactly)
-        Priority           Choice: Critical (Urgent & Important - Complete within 2 hours),
-                                    High (Urgent but not Important - Complete within same day),
-                                    Medium (Not Urgent but Important),
-                                    Low (Not Urgent and not Important)
+        Priority           Choice: Critical (Urgent- Complete within 2 hours),
+                                    High (Complete within same day),
+                                    Medium (1 week),
+                                    Low (2 week)
                             (required — must match PRIORITY_OPTIONS below exactly.
                              Set only by Super Admin, at assignment time or later from the
                              task detail view — never by the requester. The assigned Admin
@@ -1102,10 +1102,10 @@ const TASK_OPTIONS = [
    the column layout comment above). Requesters never set or see this; the
    assigned Admin sees it read-only. */
 const PRIORITY_OPTIONS = [
-  "Critical (Urgent & Important - Complete within 2 hours)",
-  "High (Urgent but not Important - Complete within same day)",
-  "Medium (Not Urgent but Important)",
-  "Low (Not Urgent and not Important)"
+  "Critical (Urgent- Complete within 2 hours)",
+  "High (Complete within same day)",
+  "Medium (1 week)",
+  "Low (2 week)"
 ];
 (function populatePriorityDropdowns(){
   const amSel = document.getElementById('am-priority');
@@ -1207,10 +1207,10 @@ function badgeClassForStatus(status){
   return '';
 }
 const PRIORITY_BADGE_CLASS = {
-  'Critical (Urgent & Important - Complete within 2 hours)': 'badge-priority-critical',
-  'High (Urgent but not Important - Complete within same day)': 'badge-priority-high',
-  'Medium (Not Urgent but Important)': 'badge-priority-medium',
-  'Low (Not Urgent and not Important)': 'badge-priority-low'
+  'Critical (Urgent- Complete within 2 hours)': 'badge-priority-critical',
+  'High (Complete within same day)': 'badge-priority-high',
+  'Medium (1 week)': 'badge-priority-medium',
+  'Low (2 week)': 'badge-priority-low'
 };
 function badgeClassForPriority(p){
   return PRIORITY_BADGE_CLASS[p] || 'badge-priority-unset';
