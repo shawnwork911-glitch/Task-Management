@@ -1492,14 +1492,21 @@ function populateAssigneeDropdowns(){
 }
 
 function importantTasks(){
+  const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
   return taskItemsCache
     .filter(t => isImportantTask(t) && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED && t.Status !== STATUS_CANCELLED)
+    .filter(t => canSeeAll || isTaskRequester(t))
     .sort(sortByPriorityThenDeadline);
 }
 function renderImportantTasks(){
+  const card = document.getElementById('important-tasks-card');
   const el = document.getElementById('important-tasks-list');
   if(!el) return;
+  const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
   const tasks = importantTasks();
+  // Admins/Super Admins always see this card; a regular user only sees it
+  // when they themselves have an active important task of their own.
+  if(card) card.style.display = (canSeeAll || tasks.length) ? 'block' : 'none';
   if(!tasks.length){ el.innerHTML = '<p class="empty-note">No active important tasks right now.</p>'; return; }
   el.innerHTML = tasks.map(v => taskCardHtml(v, true)).join('');
   el.querySelectorAll('[data-task-id]').forEach(card=>{
