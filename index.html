@@ -931,8 +931,8 @@
                             (required — must match TASK_OPTIONS below exactly)
         Priority           Choice: Critical (Urgent- Complete within 2 hours),
                                     High (Complete within same day),
-                                    Medium (1 week),
-                                    Low (2 week)
+                                    Medium (within 1 week),
+                                    Low (2 weeks or more)
                             (required — must match PRIORITY_OPTIONS below exactly.
                              Set only by Super Admin, at assignment time or later from the
                              task detail view — never by the requester. The assigned Admin
@@ -1084,8 +1084,8 @@ const TASK_OPTIONS = [
 const PRIORITY_OPTIONS = [
   "Critical (Urgent- Complete within 2 hours)",
   "High (Complete within same day)",
-  "Medium (1 week)",
-  "Low (2 week)"
+  "Medium (within 1 week)",
+  "Low (2 weeks or more)"
 ];
 (function populatePriorityDropdowns(){
   const amSel = document.getElementById('am-priority');
@@ -1174,8 +1174,8 @@ function badgeClassForStatus(status){
 const PRIORITY_BADGE_CLASS = {
   'Critical (Urgent- Complete within 2 hours)': 'badge-priority-critical',
   'High (Complete within same day)': 'badge-priority-high',
-  'Medium (1 week)': 'badge-priority-medium',
-  'Low (2 week)': 'badge-priority-low'
+  'Medium (within 1 week)': 'badge-priority-medium',
+  'Low (2 weeks or more)': 'badge-priority-low'
 };
 function badgeClassForPriority(p){
   return PRIORITY_BADGE_CLASS[p] || 'badge-priority-unset';
