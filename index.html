@@ -871,13 +871,13 @@
       <select id="am-important-decision">
         <option value="">Select approval decision…</option>
         <option value="approve">Approve as Important</option>
-        <option value="decline">Disapprove — continue as normal task</option>
+        <option value="decline">Not Important</option>
       </select>
     </div>
     <div>
       <label for="am-priority">Priority</label>
       <select id="am-priority"></select>
-      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically sets the deadline. Critical also marks the task Important.</p>
+      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically sets the deadline and Important review.</p>
     </div>
     <div>
       <label for="am-deadline">Deadline</label>
@@ -2135,18 +2135,27 @@ function applyAssignmentPriorityRules(){
   const deadlineEl = document.getElementById('am-deadline');
   const decisionEl = document.getElementById('am-important-decision');
   const noteEl = document.getElementById('am-priority-note');
+  const task = taskById(assignTargetTaskId);
+  const requesterAskedImportant = hasImportantRequest(task);
+
   deadlineEl.value = deadlineFromPriority(priority);
+  if(decisionEl) decisionEl.disabled = false;
+
   if(/^critical\b/i.test(priority)){
-    if(decisionEl){ decisionEl.disabled = false; decisionEl.value = 'approve'; }
-    if(noteEl) noteEl.textContent = 'Critical: deadline is today and the task is automatically marked Important.';
+    if(decisionEl) decisionEl.value = 'approve';
+    if(noteEl) noteEl.textContent = 'Critical: deadline is today and Important is automatically set to Approve as Important.';
   }else if(/^high\b/i.test(priority)){
-    if(noteEl) noteEl.textContent = 'High: deadline is automatically set to today.';
+    if(decisionEl) decisionEl.value = 'approve';
+    if(noteEl) noteEl.textContent = 'High: deadline is today and Important is automatically set to Approve as Important.';
   }else if(/^medium\b/i.test(priority)){
-    if(noteEl) noteEl.textContent = 'Medium: deadline is automatically set to 1 week from today.';
+    if(decisionEl) decisionEl.value = 'decline';
+    if(noteEl) noteEl.textContent = 'Medium: deadline is 1 week from today and Important defaults to Not Important.';
   }else if(/^low\b/i.test(priority)){
-    if(noteEl) noteEl.textContent = 'Low: deadline is automatically set to 2 weeks from today.';
-  }else if(noteEl){
-    noteEl.textContent = 'Selecting Priority automatically sets the deadline. Critical also marks the task Important.';
+    if(decisionEl) decisionEl.value = 'decline';
+    if(noteEl) noteEl.textContent = 'Low: deadline is 2 weeks from today and Important defaults to Not Important.';
+  }else{
+    if(decisionEl) decisionEl.value = requesterAskedImportant ? '' : 'decline';
+    if(noteEl) noteEl.textContent = 'Selecting Priority automatically sets both the deadline and the Important review decision.';
   }
 }
 function openAssignModal(taskId){
@@ -2161,11 +2170,11 @@ function openAssignModal(taskId){
   const reasonEl = document.getElementById('am-important-reason');
   const needsReview = hasImportantRequest(v);
   reviewBox.style.display = 'block';
-  decisionEl.value = '';
-  decisionEl.disabled = !needsReview;
+  decisionEl.disabled = false;
+  decisionEl.value = needsReview ? '' : 'decline';
   reasonEl.textContent = needsReview
-    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'This task was requested as Important.') + ' Super Admin must approve or disapprove before assignment.')
-    : (isImportantTask(v) ? 'Important has already been approved for this task.' : (isImportantDeclined(v) ? 'Important was disapproved. This task will be assigned as a normal task.' : 'No Important request was submitted for this task.'));
+    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'This task was requested as Important.') + ' Priority will automatically set the Important review decision, which Super Admin can review before assignment.')
+    : (isImportantTask(v) ? 'Important has already been approved for this task.' : (isImportantDeclined(v) ? 'Important was disapproved. This task will be assigned as a normal task.' : 'No Important request was submitted. Default: Not Important.'));
   applyAssignmentPriorityRules();
   document.getElementById('assign-modal-overlay').style.display = 'flex';
 }
@@ -2181,8 +2190,8 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
   const priority = document.getElementById('am-priority').value;
   const deadline = deadlineFromPriority(priority);
   const needsImportantReview = hasImportantRequest(taskBeforeAssign);
-  let importantDecision = needsImportantReview ? document.getElementById('am-important-decision').value : '';
-  if(/^critical\b/i.test(priority)) importantDecision = 'approve';
+  let importantDecision = document.getElementById('am-important-decision').value || 'decline';
+  if(/^critical\b/i.test(priority) || /^high\b/i.test(priority)) importantDecision = 'approve';
   if(!assignee){ errEl.textContent = 'Choose an Admin to assign this to.'; errEl.style.display = 'block'; return; }
   if(!priority){ errEl.textContent = 'Set a priority.'; errEl.style.display = 'block'; return; }
   if(needsImportantReview && !importantDecision){ errEl.textContent = 'Approve or disapprove the Important request before assigning this task.'; errEl.style.display = 'block'; return; }
@@ -2201,15 +2210,11 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
     };
-    if(/^critical\b/i.test(priority)){
+    if(importantDecision === 'approve'){
       updatePayload['Important'] = true;
       updatePayload['Important Status'] = IMPORTANT_STATUS_APPROVED;
       updatePayload['Important Approved By'] = currentAccount.username;
-    }else if(needsImportantReview && importantDecision === 'approve'){
-      updatePayload['Important'] = true;
-      updatePayload['Important Status'] = IMPORTANT_STATUS_APPROVED;
-      updatePayload['Important Approved By'] = currentAccount.username;
-    }else if(needsImportantReview && importantDecision === 'decline'){
+    }else{
       updatePayload['Important'] = false;
       updatePayload['Important Status'] = IMPORTANT_STATUS_DECLINED;
       updatePayload['Important Approved By'] = currentAccount.username;
