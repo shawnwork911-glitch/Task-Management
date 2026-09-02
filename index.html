@@ -485,6 +485,7 @@
 
   <div class="task-subtabs" id="task-subtabs" role="tablist" aria-label="Task management views">
     <button type="button" class="task-subtab-btn active" data-task-subview="request">New Task Request</button>
+      <button type="button" class="task-subtab-btn" data-task-subview="work">Task Lists</button>
     
   </div>
 
@@ -623,16 +624,6 @@
         <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
       </div>
 
-
-    <div class="card" id="analytics-task-lists-card" style="display:none;">
-      <div class="card-title-row">
-        <div>
-          <p class="card-title" style="margin:0;">Task Lists</p>
-          <p class="card-note" style="margin:4px 0 0;">Open the Assignment Queue, Assigned to Me, and All Tasks management views.</p>
-        </div>
-        <button type="button" id="analytics-open-task-lists">Open Task Lists</button>
-      </div>
-    </div>
 
     <div class="card">
       <div class="card-title-row">
@@ -1441,11 +1432,7 @@ function applyRoleUi(){
     if(requestView) requestView.classList.add('active');
     if(workView) workView.classList.remove('active');
   }
-
-  const analyticsTaskListsCard = document.getElementById('analytics-task-lists-card');
-  if(analyticsTaskListsCard) analyticsTaskListsCard.style.display = isAdmin ? 'block' : 'none';
-
-  const userMgmtTab = document.getElementById('user-mgmt-tab-btn');
+const userMgmtTab = document.getElementById('user-mgmt-tab-btn');
   if(userMgmtTab) userMgmtTab.style.display = currentUserRole === 'superadmin' ? '' : 'none';
   document.getElementById('page-subtitle').textContent = currentUserRole === 'user'
     ? 'Create a task request — Super Admin will assign it to an Admin with a deadline.'
@@ -3151,24 +3138,6 @@ document.querySelectorAll('.task-subtab-btn').forEach(btn=>{
     if(view) view.classList.add('active');
   });
 });
-const analyticsOpenTaskListsBtn = document.getElementById('analytics-open-task-lists');
-if(analyticsOpenTaskListsBtn){
-  analyticsOpenTaskListsBtn.addEventListener('click', ()=>{
-    document.querySelectorAll('.main-tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.main-view').forEach(v=>v.classList.remove('active'));
-
-    const taskMainBtn = document.querySelector('.main-tab-btn[data-main-view="task"]');
-    const taskMainView = document.getElementById('main-view-task');
-    if(taskMainBtn) taskMainBtn.classList.add('active');
-    if(taskMainView) taskMainView.classList.add('active');
-
-    document.querySelectorAll('.task-subview').forEach(v=>v.classList.remove('active'));
-    const workView = document.getElementById('task-subview-work');
-    if(workView) workView.classList.add('active');
-  });
-}
-
-
 document.querySelectorAll('.main-tab-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.main-tab-btn').forEach(b=>b.classList.remove('active'));
