@@ -654,6 +654,17 @@
             <option value="pending">Pending review</option>
           </select>
         </div>
+        <div>
+          <label for="an-filter-date-from">From date</label>
+          <input type="date" id="an-filter-date-from">
+        </div>
+        <div>
+          <label for="an-filter-date-to">To date</label>
+          <input type="date" id="an-filter-date-to">
+        </div>
+        <div>
+          <button type="button" class="secondary" id="an-filter-date-clear">Clear dates</button>
+        </div>
       </div>
 
       <div class="gantt-outer">
@@ -1654,6 +1665,30 @@ function analyticsScopeTasks(){
   const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
   return taskItemsCache.filter(t => canSeeAll || isTaskRequester(t));
 }
+function analyticsDateBounds(){
+  const fromEl = document.getElementById('an-filter-date-from');
+  const toEl = document.getElementById('an-filter-date-to');
+  const fromValue = fromEl ? fromEl.value : '';
+  const toValue = toEl ? toEl.value : '';
+  let fromTs = -Infinity;
+  let toTs = Infinity;
+  if(fromValue){
+    const d = new Date(fromValue + 'T00:00:00');
+    if(!isNaN(d.getTime())) fromTs = d.getTime();
+  }
+  if(toValue){
+    const d = new Date(toValue + 'T23:59:59.999');
+    if(!isNaN(d.getTime())) toTs = d.getTime();
+  }
+  return { fromTs, toTs, fromValue, toValue };
+}
+function taskOverlapsAnalyticsDateRange(t){
+  const bounds = analyticsDateBounds();
+  if(bounds.fromTs === -Infinity && bounds.toTs === Infinity) return true;
+  const r = ganttRange(t);
+  if(!r) return false;
+  return r.endTs >= bounds.fromTs && r.startTs <= bounds.toTs;
+}
 function analyticsFilteredTasks(){
   const statusFilter = document.getElementById('an-filter-status').value;
   const assigneeSel = document.getElementById('an-filter-assignee');
@@ -1663,6 +1698,7 @@ function analyticsFilteredTasks(){
     .filter(t => !statusFilter || t.Status === statusFilter)
     .filter(t => !assigneeFilter || (t['Assigned To']||'').toLowerCase() === assigneeFilter.toLowerCase())
     .filter(t => !importantFilter || (importantFilter === 'approved' ? isImportantTask(t) : isImportantPending(t)))
+    .filter(taskOverlapsAnalyticsDateRange)
     .sort((a,b)=>{
       const ra = ganttRange(a), rb = ganttRange(b);
       const as = ra ? ra.startTs : Infinity, bs = rb ? rb.startTs : Infinity;
@@ -1705,10 +1741,8 @@ function renderAnalytics(){
     : 'Showing every task you have submitted.';
   populateAnalyticsAssigneeFilter();
 
-  const allInScope = analyticsScopeTasks();
-  renderGanttSummary(allInScope);
-
   const tasks = analyticsFilteredTasks();
+  renderGanttSummary(tasks);
   const ticksEl = document.getElementById('gantt-axis-ticks');
   const bodyEl = document.getElementById('gantt-body');
   if(!bodyEl) return;
@@ -1727,12 +1761,20 @@ function renderAnalytics(){
   }
 
   const nowTs = Date.now();
-  let minTs = Math.min(...ranges.map(x=>x.r.startTs), nowTs);
-  let maxTs = Math.max(...ranges.map(x=>x.r.endTs), nowTs);
+  const dateBounds = analyticsDateBounds();
+  const hasFrom = Number.isFinite(dateBounds.fromTs);
+  const hasTo = Number.isFinite(dateBounds.toTs);
+  let minTs = hasFrom ? dateBounds.fromTs : Math.min(...ranges.map(x=>x.r.startTs), nowTs);
+  let maxTs = hasTo ? dateBounds.toTs : Math.max(...ranges.map(x=>x.r.endTs), nowTs);
   const dayMs = 24*60*60*1000;
-  const span = Math.max(maxTs - minTs, dayMs);
-  const pad = Math.max(span * 0.05, dayMs);
-  minTs -= pad; maxTs += pad;
+  if(maxTs < minTs){ const swap = minTs; minTs = maxTs; maxTs = swap; }
+  if(!hasFrom || !hasTo){
+    const span = Math.max(maxTs - minTs, dayMs);
+    const pad = Math.max(span * 0.05, dayMs);
+    if(!hasFrom) minTs -= pad;
+    if(!hasTo) maxTs += pad;
+  }
+  if(maxTs === minTs) maxTs = minTs + dayMs;
   const totalSpan = maxTs - minTs;
 
   const tickCount = 6;
@@ -1773,10 +1815,20 @@ function renderAnalytics(){
     el.addEventListener('click', ()=> openTaskModal(el.getAttribute('data-task-id')));
   });
 }
-['an-filter-status','an-filter-important','an-filter-assignee'].forEach(id=>{
+['an-filter-status','an-filter-important','an-filter-assignee','an-filter-date-from','an-filter-date-to'].forEach(id=>{
   const el = document.getElementById(id);
   if(el) el.addEventListener('change', renderAnalytics);
 });
+const analyticsDateClearBtn = document.getElementById('an-filter-date-clear');
+if(analyticsDateClearBtn){
+  analyticsDateClearBtn.addEventListener('click', ()=>{
+    const fromEl = document.getElementById('an-filter-date-from');
+    const toEl = document.getElementById('an-filter-date-to');
+    if(fromEl) fromEl.value = '';
+    if(toEl) toEl.value = '';
+    renderAnalytics();
+  });
+}
 
 function importantTasks(){
   // Approved-Important only. Requester ticks are Pending until a
@@ -2269,20 +2321,6 @@ function renderTaskModal(taskId){
     '</div>';
   }
 
-  // Important review: Super Admin only — Super Admin is the one who does
-  // task assignment, so approval of importance sits with them, not Admin.
-  // The requester's tick just requests importance — it only counts (badge,
-  // Important tasks card, notifications) once approved here.
-  if(currentUserRole === 'superadmin' && !v['Assigned To'] && hasImportantRequest(v)){
-    html += '<div style="display:flex;flex-direction:column;gap:8px;padding-top:8px;border-top:1px solid var(--border);">'+
-      '<p class="card-note" style="margin:0;">'+escapeHtml(v['Requested By']||'The requester')+' has requested this task be marked Important. Review the reason above, then approve or decline.</p>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
-        '<button type="button" class="danger-btn" id="tm-important-approve-btn">✔ Approve as Important</button>'+
-        '<button type="button" class="secondary" id="tm-important-decline-btn">Decline</button>'+
-      '</div>'+
-    '</div>';
-  }
-
   // Status controls: Admin and Super Admin only, and only once the task has
   // been assigned to an Admin. Requesters never get this control.
   if(canManageTask(v) && v['Assigned To'] && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED && v.Status !== STATUS_CANCELLED){
@@ -2406,107 +2444,6 @@ function renderTaskModal(taskId){
     }finally{ rejectBtn.disabled = false; }
   });
 
-  const importantApproveBtn = document.getElementById('tm-important-approve-btn');
-  if(importantApproveBtn) importantApproveBtn.addEventListener('click', async ()=>{
-    if(!confirm('Approve ' + taskNumberLabel(v) + ' as Important? Admin and Super Admin will be notified by email.')) return;
-    importantApproveBtn.disabled = true;
-    try{
-      const nowIso = new Date().toISOString();
-      await updateListItem(MAIN_LIST_NAME, taskId, {
-        'Important': true,
-        'Important Status': IMPORTANT_STATUS_APPROVED,
-        'Important Approved By': currentAccount.username,
-        'Last Updated By': currentAccount.username,
-        'Last Updated Date': nowIso
-      });
-      await createListItem(COMMENTS_LIST_NAME, {
-        'Task Item ID': String(taskId),
-        'Comment By': currentAccount.username,
-        'Comment Role': currentUserRole,
-        'Comment Text': 'Approved as Important.',
-        'Comment Date': nowIso
-      });
-      await loadAllData();
-      const updated = taskById(taskId) || v;
-      try{
-        await notifyImportantTask(updated);
-        setStatus('Marked Important. Admin and Super Admin notified by email.');
-      }catch(mailErr){
-        console.error('Notify important failed', mailErr);
-        setStatus('Marked Important, but the notification email could not be sent.');
-      }
-    }catch(err){
-      alert('Could not approve as Important: ' + err.message);
-    }finally{ importantApproveBtn.disabled = false; }
-  });
-
-  const importantDeclineBtn = document.getElementById('tm-important-decline-btn');
-  if(importantDeclineBtn) importantDeclineBtn.addEventListener('click', async ()=>{
-    if(!confirm('Decline the Important request for ' + taskNumberLabel(v) + '? The task will continue as a normal task.')) return;
-    importantDeclineBtn.disabled = true;
-    try{
-      const nowIso = new Date().toISOString();
-      await updateListItem(MAIN_LIST_NAME, taskId, {
-        'Important': false,
-        'Important Status': IMPORTANT_STATUS_DECLINED,
-        'Important Approved By': currentAccount.username,
-        'Last Updated By': currentAccount.username,
-        'Last Updated Date': nowIso
-      });
-      await createListItem(COMMENTS_LIST_NAME, {
-        'Task Item ID': String(taskId),
-        'Comment By': currentAccount.username,
-        'Comment Role': currentUserRole,
-        'Comment Text': 'Declined the Important request — task continues as normal priority.',
-        'Comment Date': nowIso
-      });
-      await loadAllData();
-      setStatus('Important request declined.');
-    }catch(err){
-      alert('Could not decline the Important request: ' + err.message);
-    }finally{ importantDeclineBtn.disabled = false; }
-  });
-
-  const highAlertBtn = document.getElementById('tm-high-alert-btn');
-  if(highAlertBtn) highAlertBtn.addEventListener('click', async ()=>{
-    const message = prompt('High alert message for ' + (v['Requested By'] || 'the requester') + ':', '');
-    if(message === null) return;
-    if(!message.trim()){ alert('A message is required to send a high alert.'); return; }
-    if(!confirm('Send a HIGH ALERT email for ' + taskNumberLabel(v) + ' to ' + (v['Requested By'] || 'the requester') + '?')) return;
-    highAlertBtn.disabled = true;
-    try{
-      const nowIso = new Date().toISOString();
-      await updateListItem(MAIN_LIST_NAME, taskId, {
-        'Important': true,
-        'Important Status': IMPORTANT_STATUS_APPROVED,
-        'Important Approved By': currentAccount.username,
-        'Important Reason': message.trim(),
-        'Last Updated By': currentAccount.username,
-        'Last Updated Date': nowIso
-      });
-      await createListItem(COMMENTS_LIST_NAME, {
-        'Task Item ID': String(taskId),
-        'Comment By': currentAccount.username,
-        'Comment Role': currentUserRole,
-        'Comment Text': '🚨 HIGH ALERT / IMPORTANT: ' + message.trim(),
-        'Comment Date': nowIso
-      });
-      await loadAllData();
-      const updated = taskById(taskId) || v;
-      try{
-        const sentTo = await notifyHighAlert(updated, message.trim());
-        setStatus(sentTo && sentTo.length ? 'High alert sent by email.' : 'High alert logged, but there was no recipient to email.');
-      }catch(mailErr){
-        console.error('Notify high alert failed', mailErr);
-        setStatus('High alert comment saved, but the email notification could not be sent.');
-        alert('The high alert was logged, but the email notification could not be sent. Details: ' + mailErr.message);
-      }
-    }catch(err){
-      alert('Could not send high alert: ' + err.message);
-    }finally{
-      highAlertBtn.disabled = false;
-    }
-  });
   const statusSave = document.getElementById('tm-status-save');
   if(statusSave) statusSave.addEventListener('click', async ()=>{
     const newStatus = document.getElementById('tm-status-select').value;
