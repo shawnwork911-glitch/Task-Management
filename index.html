@@ -938,7 +938,7 @@
     <div>
       <label for="am-priority">Priority</label>
       <select id="am-priority"></select>
-      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically suggests the deadline and sets the Important review. Super Admin may adjust the deadline before assignment.</p>
+      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically suggests the deadline. Super Admin may adjust the deadline, and Important is reviewed separately.</p>
     </div>
     <div>
       <label for="am-deadline">Deadline</label>
@@ -2175,29 +2175,22 @@ function deadlineFromPriority(priority){
 function applyAssignmentPriorityRules(){
   const priority = document.getElementById('am-priority').value;
   const deadlineEl = document.getElementById('am-deadline');
-  const decisionEl = document.getElementById('am-important-decision');
   const noteEl = document.getElementById('am-priority-note');
-  const task = taskById(assignTargetTaskId);
-  const requesterAskedImportant = hasImportantRequest(task);
 
+  // Priority and Important are independent.
+  // Priority only suggests a deadline; it never approves or removes Important.
   deadlineEl.value = deadlineFromPriority(priority);
-  if(decisionEl) decisionEl.disabled = false;
 
   if(/^critical\b/i.test(priority)){
-    if(decisionEl) decisionEl.value = 'approve';
-    if(noteEl) noteEl.textContent = 'Critical: deadline is today and Important is automatically set to Approve as Important.';
+    if(noteEl) noteEl.textContent = 'Critical: suggested deadline is today. Important status is reviewed separately.';
   }else if(/^high\b/i.test(priority)){
-    if(decisionEl) decisionEl.value = 'approve';
-    if(noteEl) noteEl.textContent = 'High: deadline is today and Important is automatically set to Approve as Important.';
+    if(noteEl) noteEl.textContent = 'High: suggested deadline is today. Important status is reviewed separately.';
   }else if(/^medium\b/i.test(priority)){
-    if(decisionEl) decisionEl.value = 'decline';
-    if(noteEl) noteEl.textContent = 'Medium: deadline is 1 week from today and Important defaults to Not Important.';
+    if(noteEl) noteEl.textContent = 'Medium: suggested deadline is 1 week from today. Important status is reviewed separately.';
   }else if(/^low\b/i.test(priority)){
-    if(decisionEl) decisionEl.value = 'decline';
-    if(noteEl) noteEl.textContent = 'Low: deadline is 2 weeks from today and Important defaults to Not Important.';
-  }else{
-    if(decisionEl) decisionEl.value = requesterAskedImportant ? '' : 'decline';
-    if(noteEl) noteEl.textContent = 'Selecting Priority automatically sets both the deadline and the Important review decision.';
+    if(noteEl) noteEl.textContent = 'Low: suggested deadline is 2 weeks from today. Important status is reviewed separately.';
+  }else if(noteEl){
+    noteEl.textContent = 'Selecting Priority suggests a deadline. Super Admin may adjust the deadline. Important is reviewed separately.';
   }
 }
 function openAssignModal(taskId){
@@ -2213,9 +2206,9 @@ function openAssignModal(taskId){
   const needsReview = hasImportantRequest(v);
   reviewBox.style.display = 'block';
   decisionEl.disabled = false;
-  decisionEl.value = needsReview ? '' : 'decline';
+  decisionEl.value = needsReview ? '' : (isImportantTask(v) ? 'approve' : 'decline');
   reasonEl.textContent = needsReview
-    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'This task was requested as Important.') + ' Priority will automatically set the Important review decision, which Super Admin can review before assignment.')
+    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'This task was requested as Important.') + ' Super Admin must review Important independently from Priority before assignment.')
     : (isImportantTask(v) ? 'Important has already been approved for this task.' : (isImportantDeclined(v) ? 'Important was disapproved. This task will be assigned as a normal task.' : 'No Important request was submitted. Default: Not Important.'));
   applyAssignmentPriorityRules();
   document.getElementById('assign-modal-overlay').style.display = 'flex';
@@ -2233,7 +2226,6 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
   const deadline = document.getElementById('am-deadline').value || deadlineFromPriority(priority);
   const needsImportantReview = hasImportantRequest(taskBeforeAssign);
   let importantDecision = document.getElementById('am-important-decision').value || 'decline';
-  if(/^critical\b/i.test(priority) || /^high\b/i.test(priority)) importantDecision = 'approve';
   if(!assignee){ errEl.textContent = 'Choose an Admin to assign this to.'; errEl.style.display = 'block'; return; }
   if(!priority){ errEl.textContent = 'Set a priority.'; errEl.style.display = 'block'; return; }
   if(needsImportantReview && !importantDecision){ errEl.textContent = 'Approve or disapprove the Important request before assigning this task.'; errEl.style.display = 'block'; return; }
