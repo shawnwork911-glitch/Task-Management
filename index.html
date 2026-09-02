@@ -853,13 +853,23 @@
       <label for="am-assignee">Assign to</label>
       <select id="am-assignee"></select>
     </div>
-    <div>
-      <label for="am-deadline">Deadline</label>
-      <input type="date" id="am-deadline">
+    <div id="am-important-review" style="display:none;padding:10px 12px;border:1px solid var(--warn);border-radius:8px;background:var(--surface-2);">
+      <label style="font-weight:700;color:var(--text);">Important approval required</label>
+      <p class="card-note" id="am-important-reason" style="margin:4px 0 8px;"></p>
+      <select id="am-important-decision">
+        <option value="">Select approval decision…</option>
+        <option value="approve">Approve as Important</option>
+        <option value="decline">Disapprove — continue as normal task</option>
+      </select>
     </div>
     <div>
       <label for="am-priority">Priority</label>
       <select id="am-priority"></select>
+      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically sets the deadline. Critical also marks the task Important.</p>
+    </div>
+    <div>
+      <label for="am-deadline">Deadline</label>
+      <input type="date" id="am-deadline" readonly>
     </div>
     <div id="assign-modal-error" class="field-error"></div>
     <div class="modal-close-row">
@@ -1860,11 +1870,12 @@ function renderAssignQueue(){
         (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
         '<span>Requested by: '+escapeHtml(v['Requested By'])+'</span>'+
         '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
+        (isImportantPending(v) ? '<span><strong style="color:var(--warn);">Important approval required before assignment</strong></span>' : '')+
         ((isImportantTask(v)||isImportantPending(v)) && v['Important Reason'] ? '<span><strong>Why important:</strong> '+escapeHtml(v['Important Reason'])+'</span>' : '')+
         (v['Requested Deadline'] ? '<span>Requested deadline: '+fmtDate(v['Requested Deadline'])+'</span>' : '')+
       '</div>'+
       '<div style="display:flex;gap:8px;">'+
-        '<button type="button" class="small-btn" data-assign="'+escapeHtml(v.id)+'">Assign</button>'+
+        '<button type="button" class="small-btn" data-assign="'+escapeHtml(v.id)+'">'+(isImportantPending(v)?'Review & Assign':'Assign')+'</button>'+
         '<button type="button" class="secondary small-btn" data-view="'+escapeHtml(v.id)+'">View</button>'+
       '</div>'+
     '</div>'
@@ -2015,34 +2026,82 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
 });
 
 /* ---- Assign modal (Super Admin) ---- */
+function localDateInputValue(date){
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  return y + '-' + m + '-' + d;
+}
+function deadlineFromPriority(priority){
+  if(!priority) return '';
+  const d = new Date();
+  d.setHours(12,0,0,0);
+  if(/^medium\b/i.test(priority)) d.setDate(d.getDate()+7);
+  else if(/^low\b/i.test(priority)) d.setDate(d.getDate()+14);
+  // Critical and High both use the current date.
+  return localDateInputValue(d);
+}
+function applyAssignmentPriorityRules(){
+  const priority = document.getElementById('am-priority').value;
+  const deadlineEl = document.getElementById('am-deadline');
+  const decisionEl = document.getElementById('am-important-decision');
+  const noteEl = document.getElementById('am-priority-note');
+  deadlineEl.value = deadlineFromPriority(priority);
+  if(/^critical\b/i.test(priority)){
+    if(decisionEl && document.getElementById('am-important-review').style.display !== 'none') decisionEl.value = 'approve';
+    if(noteEl) noteEl.textContent = 'Critical: deadline is today and the task is automatically marked Important.';
+  }else if(/^high\b/i.test(priority)){
+    if(noteEl) noteEl.textContent = 'High: deadline is automatically set to today.';
+  }else if(/^medium\b/i.test(priority)){
+    if(noteEl) noteEl.textContent = 'Medium: deadline is automatically set to 1 week from today.';
+  }else if(/^low\b/i.test(priority)){
+    if(noteEl) noteEl.textContent = 'Low: deadline is automatically set to 2 weeks from today.';
+  }else if(noteEl){
+    noteEl.textContent = 'Selecting Priority automatically sets the deadline. Critical also marks the task Important.';
+  }
+}
 function openAssignModal(taskId){
   assignTargetTaskId = taskId;
-  const assignTask = taskById(taskId);
-  document.getElementById('am-taskid').textContent = assignTask && taskNumberValue(assignTask) ? ('#' + taskNumberValue(assignTask)) : '';
-  document.getElementById('assign-modal-error').style.display = 'none';
-  document.getElementById('am-deadline').value = '';
-  populateAssigneeDropdowns();
   const v = taskById(taskId);
+  document.getElementById('am-taskid').textContent = v && taskNumberValue(v) ? ('#' + taskNumberValue(v)) : '';
+  document.getElementById('assign-modal-error').style.display = 'none';
+  populateAssigneeDropdowns();
   document.getElementById('am-priority').value = (v && v.Priority) ? v.Priority : '';
+  const reviewBox = document.getElementById('am-important-review');
+  const decisionEl = document.getElementById('am-important-decision');
+  const reasonEl = document.getElementById('am-important-reason');
+  const needsReview = !!v && isImportantPending(v);
+  reviewBox.style.display = needsReview ? 'block' : 'none';
+  decisionEl.value = '';
+  reasonEl.textContent = needsReview
+    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'The requester marked this task as Important.') + ' Approve or disapprove before assignment.')
+    : '';
+  applyAssignmentPriorityRules();
   document.getElementById('assign-modal-overlay').style.display = 'flex';
 }
+document.getElementById('am-priority').addEventListener('change', applyAssignmentPriorityRules);
 document.getElementById('assign-modal-cancel').addEventListener('click', ()=>{
   document.getElementById('assign-modal-overlay').style.display = 'none';
 });
 document.getElementById('assign-modal-submit').addEventListener('click', async ()=>{
   const errEl = document.getElementById('assign-modal-error');
   errEl.style.display = 'none';
+  const taskBeforeAssign = taskById(assignTargetTaskId);
   const assignee = document.getElementById('am-assignee').value;
-  const deadline = document.getElementById('am-deadline').value;
   const priority = document.getElementById('am-priority').value;
+  const deadline = deadlineFromPriority(priority);
+  const needsImportantReview = !!taskBeforeAssign && isImportantPending(taskBeforeAssign);
+  let importantDecision = needsImportantReview ? document.getElementById('am-important-decision').value : '';
+  if(/^critical\b/i.test(priority)) importantDecision = 'approve';
   if(!assignee){ errEl.textContent = 'Choose an Admin to assign this to.'; errEl.style.display = 'block'; return; }
-  if(!deadline){ errEl.textContent = 'Set a deadline.'; errEl.style.display = 'block'; return; }
   if(!priority){ errEl.textContent = 'Set a priority.'; errEl.style.display = 'block'; return; }
+  if(needsImportantReview && !importantDecision){ errEl.textContent = 'Approve or disapprove the Important request before assigning this task.'; errEl.style.display = 'block'; return; }
+  if(!deadline){ errEl.textContent = 'The deadline could not be calculated from Priority.'; errEl.style.display = 'block'; return; }
   const btn = document.getElementById('assign-modal-submit');
   btn.disabled = true;
   try{
     const nowIso = new Date().toISOString();
-    await updateListItem(MAIN_LIST_NAME, assignTargetTaskId, {
+    const updatePayload = {
       'Assigned To': assignee,
       'Assigned By': currentAccount.username,
       'Assigned Date': nowIso,
@@ -2051,9 +2110,36 @@ document.getElementById('assign-modal-submit').addEventListener('click', async (
       'Status': STATUS_IN_PROGRESS,
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
-    });
+    };
+    if(/^critical\b/i.test(priority)){
+      updatePayload['Important'] = true;
+      updatePayload['Important Status'] = IMPORTANT_STATUS_APPROVED;
+      updatePayload['Important Approved By'] = currentAccount.username;
+    }else if(needsImportantReview && importantDecision === 'approve'){
+      updatePayload['Important'] = true;
+      updatePayload['Important Status'] = IMPORTANT_STATUS_APPROVED;
+      updatePayload['Important Approved By'] = currentAccount.username;
+    }else if(needsImportantReview && importantDecision === 'decline'){
+      updatePayload['Important'] = false;
+      updatePayload['Important Status'] = IMPORTANT_STATUS_DECLINED;
+      updatePayload['Important Approved By'] = currentAccount.username;
+    }
+    await updateListItem(MAIN_LIST_NAME, assignTargetTaskId, updatePayload);
+    if(needsImportantReview){
+      await createListItem(COMMENTS_LIST_NAME, {
+        'Task Item ID': String(assignTargetTaskId),
+        'Comment By': currentAccount.username,
+        'Comment Role': currentUserRole,
+        'Comment Text': importantDecision === 'approve' ? 'Approved as Important before assignment.' : 'Disapproved Important request — task assigned as a normal task.',
+        'Comment Date': nowIso
+      });
+    }
     await loadAllData();
-    const v = taskById(assignTargetTaskId);
+    const assignedTask = taskById(assignTargetTaskId);
+    if(assignedTask && isImportantTask(assignedTask) && (needsImportantReview || /^critical\b/i.test(priority))){
+      notifyImportantTask(assignedTask).catch(e=>console.error('Notify important failed', e));
+    }
+    const v = assignedTask;
     if(!v) throw new Error('The task could not be reloaded after assignment.');
     if((v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
       throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. The app now supports both Single line of text and Person or Group fields; verify the selected Admin has visited the Operations SharePoint site at least once.');
