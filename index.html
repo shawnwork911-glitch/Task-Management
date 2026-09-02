@@ -212,32 +212,10 @@
   table.task-table{width:100%;border-collapse:collapse;font-size:13px;}
   table.task-table th{font-size:11px;text-transform:uppercase;letter-spacing:.02em;color:var(--text-secondary);text-align:left;border-bottom:1px solid var(--border);padding:6px 8px;}
   table.task-table td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top;}
-  #all-tasks-list{
-    width:100%;
-    max-width:100%;
-    overflow:hidden;
-  }
-  #all-tasks-list table.task-table{
-    width:100%;
-    max-width:100%;
-    table-layout:fixed;
-    font-size:11px;
-  }
-  #all-tasks-list table.task-table th{
-    font-size:9px;
-    line-height:1.15;
-    padding:6px 4px;
-    white-space:normal;
-    overflow-wrap:anywhere;
-    word-break:normal;
-  }
-  #all-tasks-list table.task-table td{
-    padding:7px 4px;
-    line-height:1.3;
-    white-space:normal;
-    overflow-wrap:anywhere;
-    word-break:normal;
-  }
+  #all-tasks-list{width:100%;max-width:100%;overflow:hidden;}
+  #all-tasks-list table.task-table{width:100%;max-width:100%;table-layout:fixed;font-size:11px;}
+  #all-tasks-list table.task-table th{font-size:9px;line-height:1.15;padding:6px 4px;white-space:normal;overflow-wrap:anywhere;}
+  #all-tasks-list table.task-table td{padding:7px 4px;line-height:1.3;white-space:normal;overflow-wrap:anywhere;}
   #all-tasks-list table.task-table th:nth-child(1){width:5%;}
   #all-tasks-list table.task-table th:nth-child(2){width:6%;}
   #all-tasks-list table.task-table th:nth-child(3){width:13%;}
@@ -248,26 +226,10 @@
   #all-tasks-list table.task-table th:nth-child(8){width:9%;}
   #all-tasks-list table.task-table th:nth-child(9){width:8%;}
   #all-tasks-list table.task-table th:nth-child(10){width:7%;}
-  #all-tasks-list .badge{
-    max-width:100%;
-    padding:2px 5px;
-    font-size:9px;
-    white-space:normal;
-    line-height:1.15;
-    text-align:center;
-  }
-  #all-tasks-card{
-    overflow:hidden;
-  }
-  #all-tasks-card #all-tasks-list{
-    margin-left:0;
-    margin-right:0;
-  }
-  @media(max-width:820px){
-    #all-tasks-list table.task-table{font-size:10px;}
-    #all-tasks-list table.task-table th{font-size:8px;padding:5px 3px;}
-    #all-tasks-list table.task-table td{padding:6px 3px;}
-  }
+  #all-tasks-list .badge{max-width:100%;padding:2px 5px;font-size:9px;white-space:normal;line-height:1.15;text-align:center;}
+  #all-tasks-card{overflow:hidden;}
+  #standalone-important-section{display:block;}
+  #standalone-important-section #important-tasks-card{margin:0;}
   table.task-table tr.clickable{cursor:pointer;}
   table.task-table tr.clickable:hover{background:var(--surface-2);}
 
@@ -347,13 +309,6 @@
 
 
   /* ---- Main app tabs: Task Management / Registry Ops ---- */
-  #standalone-important-section{
-    display:block;
-  }
-  #standalone-important-section #important-tasks-card{
-    margin:0;
-  }
-
   .main-tabs{
     display:flex;gap:6px;flex-wrap:wrap;padding:6px;background:var(--surface-2);
     border:1px solid var(--border);border-radius:10px;
@@ -515,19 +470,18 @@
     </div>
   </div>
 
-  
   <section id="standalone-important-section">
-    <div class="card" id="important-tasks-card">
-            <div class="card-title-row">
-              <p class="card-title" style="margin:0;">Important tasks</p>
-              <span class="badge badge-important">Important</span>
-            </div>
-            <p class="card-note">Approved Important tasks are pinned here above the system tabs for quick visibility.</p>
-            <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
-          </div>
+  <div class="card" id="important-tasks-card">
+    <div class="card-title-row">
+      <p class="card-title" style="margin:0;">Important tasks</p>
+      <span class="badge badge-important">Important</span>
+    </div>
+    <p class="card-note">Only Super Admin-approved Important tasks are pinned here. The section stays hidden when there are no applicable Important tasks.</p>
+    <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
+  </div>
   </section>
 
-<div class="main-tabs" id="main-tabs" role="tablist" aria-label="Operations tools">
+  <div class="main-tabs" id="main-tabs" role="tablist" aria-label="Operations tools">
     <button type="button" class="main-tab-btn active" data-main-view="task">Task Management</button>
     <button type="button" class="main-tab-btn" data-main-view="analytics">Analytics</button>
     <button type="button" class="main-tab-btn" data-main-view="rename">Rename &amp; File</button>
@@ -542,12 +496,11 @@
     <p class="subtitle" id="page-subtitle">Create a task request — Super Admin will assign it to an Admin with a deadline.</p>
   </div>
 
-  
+
 
   <div class="task-subtabs" id="task-subtabs" role="tablist" aria-label="Task management views">
     <button type="button" class="task-subtab-btn active" data-task-subview="request">New Task Request</button>
-      <button type="button" class="task-subtab-btn" data-task-subview="work">Task Lists</button>
-    
+    <button type="button" class="task-subtab-btn" data-task-subview="work">Task Lists</button>
   </div>
 
   <div id="task-subview-request" class="task-subview active">
@@ -676,9 +629,6 @@
       <p class="subtitle" id="analytics-subtitle">A Gantt-style timeline of every task and the stage it's at.</p>
     </div>
 
-    
-
-
     <div class="card">
       <div class="card-title-row">
         <p class="card-title" style="margin:0;">Task timeline</p>
@@ -688,45 +638,14 @@
       <div class="gantt-summary" id="gantt-summary"></div>
 
       <div class="filter-row" style="margin-bottom:10px;">
-        <div>
-          <label for="an-filter-status">Status</label>
-          <select id="an-filter-status">
-            <option value="">All</option>
-            <option value="Not Started">Not Started</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Blocked">Blocked</option>
-            <option value="Pending">Pending</option>
-            <option value="Completed">Completed</option>
-            <option value="Rejected">Rejected</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
-        </div>
-        <div id="an-filter-assignee-wrap" style="display:none;">
-          <label for="an-filter-assignee">Assigned to</label>
-          <select id="an-filter-assignee"><option value="">All</option></select>
-        </div>
-        <div>
-          <label for="an-filter-important">Important</label>
-          <select id="an-filter-important">
-            <option value="">All</option>
-            <option value="approved">Approved important</option>
-            <option value="pending">Pending review</option>
-          </select>
-        </div>
+        <div><label for="an-filter-status">Status</label><select id="an-filter-status"><option value="">All</option><option value="Not Started">Not Started</option><option value="In Progress">In Progress</option><option value="Blocked">Blocked</option><option value="Pending">Pending</option><option value="Completed">Completed</option><option value="Rejected">Rejected</option><option value="Cancelled">Cancelled</option></select></div>
+        <div id="an-filter-assignee-wrap" style="display:none;"><label for="an-filter-assignee">Assigned to</label><select id="an-filter-assignee"><option value="">All</option></select></div>
+        <div><label for="an-filter-important">Important</label><select id="an-filter-important"><option value="">All</option><option value="approved">Approved important</option><option value="pending">Pending review</option></select></div>
       </div>
-
       <div class="filter-row">
-        <div>
-          <label for="an-filter-date-from">From date</label>
-          <input type="date" id="an-filter-date-from">
-        </div>
-        <div>
-          <label for="an-filter-date-to">To date</label>
-          <input type="date" id="an-filter-date-to">
-        </div>
-        <div style="display:flex;align-items:flex-end;">
-          <button type="button" class="secondary" id="an-filter-date-clear">Clear dates</button>
-        </div>
+        <div><label for="an-filter-date-from">From date</label><input type="date" id="an-filter-date-from"></div>
+        <div><label for="an-filter-date-to">To date</label><input type="date" id="an-filter-date-to"></div>
+        <div><button type="button" class="secondary" id="an-filter-date-clear">Clear dates</button></div>
       </div>
 
       <div class="gantt-outer">
@@ -938,7 +857,7 @@
     <div>
       <label for="am-priority">Priority</label>
       <select id="am-priority"></select>
-      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority automatically suggests the deadline. Super Admin may adjust the deadline, and Important is reviewed separately.</p>
+      <p class="card-note" id="am-priority-note" style="margin:4px 0 0;">Selecting Priority suggests a deadline. Important is reviewed separately.</p>
     </div>
     <div>
       <label for="am-deadline">Deadline</label>
@@ -1078,7 +997,9 @@ const ROLES = ["superadmin","admin","user"];
 const ROLE_LABELS = { superadmin:"Super Admin", admin:"Admin", user:"User" };
 const SUPERADMIN_EMAILS = ["shauyuan.tan@saxonrenewables.com"];
 
-// Mail.Send is used only for status-change emails and manually triggered high-alert emails.
+// Request Mail.Send during the main interactive sign-in as well. This avoids
+// browsers blocking a later consent popup when an assignment/comment tries to
+// send its notification asynchronously.
 const GRAPH_SCOPES = ["Sites.ReadWrite.All", "User.Read", "Mail.Send"];
 const MAIL_SCOPES = ["Mail.Send"];
 
@@ -1204,32 +1125,18 @@ function effectiveDueDate(t){
   const parsed = d ? new Date(d).getTime() : NaN;
   return isNaN(parsed) ? Infinity : parsed;
 }
-const IMPORTANT_STATUS_PENDING = 'Pending Review';
-const IMPORTANT_STATUS_APPROVED = 'Approved';
-const IMPORTANT_STATUS_DECLINED = 'Declined';
-function isImportantTask(t){
-  // A task is Important ONLY after Super Admin approval.
-  // The requester's Important checkbox/flag alone must never make it appear
-  // in the Important Tasks section.
-  return !!t && t['Important Status'] === IMPORTANT_STATUS_APPROVED;
+// Important approval uses existing SharePoint columns only.
+function importantFlagValue(t){
+  const v=t&&t.Important;
+  return v===true||v===1||String(v||'').toLowerCase()==='true'||String(v||'').toLowerCase()==='yes';
 }
-function isImportantPending(t){
-  return !!t && t['Important Status'] === IMPORTANT_STATUS_PENDING;
-}
-function isImportantDeclined(t){
-  return !!t && t['Important Status'] === IMPORTANT_STATUS_DECLINED;
-}
-// Detect an Important request even on older SharePoint rows where the newer
-// Important Status column was not yet available. An unassigned row with
-// Important = Yes or an Important Reason is treated as awaiting Super Admin review.
+function isImportantTask(t){ return !!t&&importantFlagValue(t); }
 function hasImportantRequest(t){
-  if(!t) return false;
-  if(isImportantPending(t)) return true;
-  if(isImportantDeclined(t) || t['Important Status'] === IMPORTANT_STATUS_APPROVED) return false;
-  const flag = t.Important === true || t.Important === 1 || String(t.Important || '').toLowerCase() === 'true' || String(t.Important || '').toLowerCase() === 'yes';
-  const hasReason = !!String(t['Important Reason'] || '').trim();
-  return !t['Assigned To'] && (flag || hasReason);
+  if(!t||t['Assigned To']||isImportantTask(t))return false;
+  return !!String(t['Important Reason']||'').trim();
 }
+function isImportantPending(t){return hasImportantRequest(t);}
+function isImportantDeclined(t){return false;}
 function importantBadgeHtml(v){
   if(isImportantTask(v)) return '<span class="badge badge-important">Important</span>';
   if(isImportantPending(v)) return '<span class="badge badge-important-pending">Important — pending review</span>';
@@ -1485,7 +1392,8 @@ function applyRoleUi(){
     if(requestView) requestView.classList.add('active');
     if(workView) workView.classList.remove('active');
   }
-const userMgmtTab = document.getElementById('user-mgmt-tab-btn');
+
+  const userMgmtTab = document.getElementById('user-mgmt-tab-btn');
   if(userMgmtTab) userMgmtTab.style.display = currentUserRole === 'superadmin' ? '' : 'none';
   document.getElementById('page-subtitle').textContent = currentUserRole === 'user'
     ? 'Create a task request — Super Admin will assign it to an Admin with a deadline.'
@@ -1504,15 +1412,8 @@ function notificationLastRead(){
   if(!raw){ const now = new Date().toISOString(); localStorage.setItem(notificationStorageKey(), now); return new Date(now).getTime(); }
   const ms = new Date(raw).getTime(); return isNaN(ms) ? 0 : ms;
 }
-function notificationClearStorageKey(){
-  return 'taskNotificationsClearedBefore:' + ((currentAccount && currentAccount.username) || 'unknown').toLowerCase();
-}
-function notificationClearedBefore(){
-  const raw = localStorage.getItem(notificationClearStorageKey());
-  if(!raw) return 0;
-  const ms = new Date(raw).getTime();
-  return isNaN(ms) ? 0 : ms;
-}
+function notificationClearStorageKey(){return 'taskNotificationsClearedBefore:'+((currentAccount&&currentAccount.username)||'unknown').toLowerCase();}
+function notificationClearedBefore(){const raw=localStorage.getItem(notificationClearStorageKey());if(!raw)return 0;const ms=new Date(raw).getTime();return isNaN(ms)?0:ms;}
 function notificationTimestamp(v){ const ms = new Date(v || 0).getTime(); return isNaN(ms) ? 0 : ms; }
 function buildNotificationEvents(){
   if(!currentAccount) return [];
@@ -1556,20 +1457,12 @@ function renderNotificationCenter(){
   list.querySelectorAll('[data-notification-index]').forEach(el=>el.addEventListener('click',()=>{ const e=notificationEventsCache[Number(el.getAttribute('data-notification-index'))]; if(!e)return; const task=taskById(e.taskId); if(task){ document.getElementById('notification-panel').classList.remove('show'); document.getElementById('notification-bell-btn').setAttribute('aria-expanded','false'); openTaskModal(task.id); } }));
 }
 function markAllNotificationsRead(){ localStorage.setItem(notificationStorageKey(),new Date().toISOString()); renderNotificationCenter(); }
-function clearNotifications(){
-  if(!confirm('Clear all notification messages? New notifications will still appear normally.')) return;
-  const now = new Date().toISOString();
-  localStorage.setItem(notificationClearStorageKey(), now);
-  localStorage.setItem(notificationStorageKey(), now);
-  renderNotificationCenter();
-}
+function clearNotifications(){if(!confirm('Clear all notification messages? New notifications will still appear normally.'))return;const now=new Date().toISOString();localStorage.setItem(notificationClearStorageKey(),now);localStorage.setItem(notificationStorageKey(),now);renderNotificationCenter();}
 (function wireNotificationBell(){
   const bell=document.getElementById('notification-bell-btn'), panel=document.getElementById('notification-panel'), mark=document.getElementById('notification-mark-read'), clear=document.getElementById('notification-clear');
   if(!bell||!panel||!mark||!clear)return;
   bell.addEventListener('click',e=>{e.stopPropagation();const show=!panel.classList.contains('show');panel.classList.toggle('show',show);bell.setAttribute('aria-expanded',show?'true':'false');});
-  mark.addEventListener('click',e=>{e.stopPropagation();markAllNotificationsRead();});
-  clear.addEventListener('click',e=>{e.stopPropagation();clearNotifications();});
-  panel.addEventListener('click',e=>e.stopPropagation());
+  mark.addEventListener('click',e=>{e.stopPropagation();markAllNotificationsRead();}); clear.addEventListener('click',e=>{e.stopPropagation();clearNotifications();}); panel.addEventListener('click',e=>e.stopPropagation());
   document.addEventListener('click',()=>{panel.classList.remove('show');bell.setAttribute('aria-expanded','false');});
 })();
 
@@ -1741,30 +1634,8 @@ function analyticsScopeTasks(){
   const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
   return taskItemsCache.filter(t => canSeeAll || isTaskRequester(t));
 }
-function analyticsDateBounds(){
-  const fromEl = document.getElementById('an-filter-date-from');
-  const toEl = document.getElementById('an-filter-date-to');
-  const fromValue = fromEl ? fromEl.value : '';
-  const toValue = toEl ? toEl.value : '';
-  let fromTs = -Infinity;
-  let toTs = Infinity;
-  if(fromValue){
-    const d = new Date(fromValue + 'T00:00:00');
-    if(!isNaN(d.getTime())) fromTs = d.getTime();
-  }
-  if(toValue){
-    const d = new Date(toValue + 'T23:59:59.999');
-    if(!isNaN(d.getTime())) toTs = d.getTime();
-  }
-  return { fromTs, toTs, fromValue, toValue };
-}
-function taskOverlapsAnalyticsDateRange(t){
-  const bounds = analyticsDateBounds();
-  if(bounds.fromTs === -Infinity && bounds.toTs === Infinity) return true;
-  const r = ganttRange(t);
-  if(!r) return false;
-  return r.endTs >= bounds.fromTs && r.startTs <= bounds.toTs;
-}
+function analyticsDateBounds(){const from=document.getElementById('an-filter-date-from')?.value||'',to=document.getElementById('an-filter-date-to')?.value||'';let fromTs=-Infinity,toTs=Infinity;if(from){const d=new Date(from+'T00:00:00');if(!isNaN(d.getTime()))fromTs=d.getTime();}if(to){const d=new Date(to+'T23:59:59.999');if(!isNaN(d.getTime()))toTs=d.getTime();}return {fromTs,toTs};}
+function taskOverlapsAnalyticsDateRange(t){const b=analyticsDateBounds();if(b.fromTs===-Infinity&&b.toTs===Infinity)return true;const r=ganttRange(t);return !!r&&r.endTs>=b.fromTs&&r.startTs<=b.toTs;}
 function analyticsFilteredTasks(){
   const statusFilter = document.getElementById('an-filter-status').value;
   const assigneeSel = document.getElementById('an-filter-assignee');
@@ -1773,7 +1644,7 @@ function analyticsFilteredTasks(){
   return analyticsScopeTasks()
     .filter(t => !statusFilter || t.Status === statusFilter)
     .filter(t => !assigneeFilter || (t['Assigned To']||'').toLowerCase() === assigneeFilter.toLowerCase())
-    .filter(t => !importantFilter || (importantFilter === 'approved' ? isImportantTask(t) : isImportantPending(t)))
+    .filter(t => !importantFilter || (importantFilter === 'approved' ? isImportantTask(t) : hasImportantRequest(t)))
     .filter(taskOverlapsAnalyticsDateRange)
     .sort((a,b)=>{
       const ra = ganttRange(a), rb = ganttRange(b);
@@ -1837,20 +1708,12 @@ function renderAnalytics(){
   }
 
   const nowTs = Date.now();
-  const dateBounds = analyticsDateBounds();
-  const hasFrom = Number.isFinite(dateBounds.fromTs);
-  const hasTo = Number.isFinite(dateBounds.toTs);
-  let minTs = hasFrom ? dateBounds.fromTs : Math.min(...ranges.map(x=>x.r.startTs), nowTs);
-  let maxTs = hasTo ? dateBounds.toTs : Math.max(...ranges.map(x=>x.r.endTs), nowTs);
+  let minTs = Math.min(...ranges.map(x=>x.r.startTs), nowTs);
+  let maxTs = Math.max(...ranges.map(x=>x.r.endTs), nowTs);
   const dayMs = 24*60*60*1000;
-  if(maxTs < minTs){ const swap = minTs; minTs = maxTs; maxTs = swap; }
-  if(!hasFrom || !hasTo){
-    const span = Math.max(maxTs - minTs, dayMs);
-    const pad = Math.max(span * 0.05, dayMs);
-    if(!hasFrom) minTs -= pad;
-    if(!hasTo) maxTs += pad;
-  }
-  if(maxTs === minTs) maxTs = minTs + dayMs;
+  const span = Math.max(maxTs - minTs, dayMs);
+  const pad = Math.max(span * 0.05, dayMs);
+  minTs -= pad; maxTs += pad;
   const totalSpan = maxTs - minTs;
 
   const tickCount = 6;
@@ -1867,14 +1730,8 @@ function renderAnalytics(){
   bodyEl.innerHTML = ranges.map(({t, r})=>{
     const leftPct = ((r.startTs - minTs) / totalSpan) * 100;
     const widthPct = Math.max(((r.endTs - r.startTs) / totalSpan) * 100, 0.6);
-    const priority = String(t.Priority || '');
-    const color = priority.startsWith('Critical') || priority.startsWith('High')
-      ? '#d64545'
-      : priority.startsWith('Medium')
-        ? '#d6a800'
-        : priority.startsWith('Low')
-          ? '#3a9d5d'
-          : ganttColorForStatus(t.Status);
+    const p=String(t.Priority||'');
+    const color=/^(Critical|High)\b/i.test(p)?'#d64545':(/^Medium\b/i.test(p)?'#d6a800':(/^Low\b/i.test(p)?'#3a9d5d':ganttColorForStatus(t.Status)));
     const important = isImportantTask(t);
     const pending = isImportantPending(t);
     const tag = important ? ' · Important' : (pending ? ' · Pending review' : '');
@@ -1902,59 +1759,11 @@ function renderAnalytics(){
   const el = document.getElementById(id);
   if(el) el.addEventListener('change', renderAnalytics);
 });
-const analyticsDateClearBtn = document.getElementById('an-filter-date-clear');
-if(analyticsDateClearBtn){
-  analyticsDateClearBtn.addEventListener('click', ()=>{
-    const fromEl = document.getElementById('an-filter-date-from');
-    const toEl = document.getElementById('an-filter-date-to');
-    if(fromEl) fromEl.value = '';
-    if(toEl) toEl.value = '';
-    renderAnalytics();
-  });
-}
+const analyticsDateClearBtn=document.getElementById('an-filter-date-clear');if(analyticsDateClearBtn)analyticsDateClearBtn.addEventListener('click',()=>{document.getElementById('an-filter-date-from').value='';document.getElementById('an-filter-date-to').value='';renderAnalytics();});
 
-function importantTasks(){
-  // Approved-Important only. Requester ticks are Pending until a
-  // Super Admin approves them — see pendingImportantTasks().
-  const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
-  return taskItemsCache
-    .filter(t => t['Important Status'] === IMPORTANT_STATUS_APPROVED && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED && t.Status !== STATUS_CANCELLED)
-    .filter(t => canSeeAll || isTaskRequester(t))
-    .sort(sortByPriorityThenDeadline);
-}
-function pendingImportantTasks(){
-  const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
-  return taskItemsCache
-    .filter(t => isImportantPending(t) && t.Status !== STATUS_COMPLETED && t.Status !== STATUS_REJECTED && t.Status !== STATUS_CANCELLED)
-    .filter(t => canSeeAll || isTaskRequester(t))
-    .sort((a,b)=>{
-      const ad = a['Requested Date'] ? new Date(a['Requested Date']).getTime() : Infinity;
-      const bd = b['Requested Date'] ? new Date(b['Requested Date']).getTime() : Infinity;
-      return ad - bd;
-    });
-}
-function renderImportantTasks(){
-  const card = document.getElementById('important-tasks-card');
-  const el = document.getElementById('important-tasks-list');
-  if(!el) return;
-
-  // Important Tasks must contain APPROVED Important tasks only.
-  // Pending Important requests remain in the normal assignment/request views
-  // until Super Admin approves them during Review Important & Assign.
-  const tasks = importantTasks();
-
-  if(card) card.style.display = tasks.length ? 'block' : 'none';
-
-  if(!tasks.length){
-    el.innerHTML = '<p class="empty-note">No active approved Important tasks right now.</p>';
-    return;
-  }
-
-  el.innerHTML = tasks.map(v => taskCardHtml(v, true)).join('');
-  el.querySelectorAll('[data-task-id]').forEach(card=>{
-    card.addEventListener('click', ()=> openTaskModal(card.getAttribute('data-task-id')));
-  });
-}
+function importantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>isImportantTask(t)&&t.Status!==STATUS_COMPLETED&&t.Status!==STATUS_REJECTED&&t.Status!==STATUS_CANCELLED).filter(t=>canSeeAll||isTaskRequester(t)).sort(sortByPriorityThenDeadline);}
+function pendingImportantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>hasImportantRequest(t)).filter(t=>canSeeAll||isTaskRequester(t));}
+function renderImportantTasks(){const card=document.getElementById('important-tasks-card'),section=document.getElementById('standalone-important-section'),el=document.getElementById('important-tasks-list');if(!el)return;const tasks=importantTasks();if(card)card.style.display=tasks.length?'block':'none';if(section)section.style.display=tasks.length?'block':'none';if(!tasks.length){el.innerHTML='';return;}el.innerHTML=tasks.map(v=>taskCardHtml(v,true)).join('');el.querySelectorAll('[data-task-id]').forEach(card=>card.addEventListener('click',()=>openTaskModal(card.getAttribute('data-task-id'))));}
 
 /* ---- Rendering: My tasks (timeline) ---- */
 function renderMyTasks(){
@@ -2009,12 +1818,11 @@ function renderAssignQueue(){
         (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
         '<span>Requested by: '+escapeHtml(v['Requested By'])+'</span>'+
         '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
-        (isImportantPending(v) ? '<span><strong style="color:var(--warn);">Important approval required before assignment</strong></span>' : '')+
         ((isImportantTask(v)||isImportantPending(v)) && v['Important Reason'] ? '<span><strong>Why important:</strong> '+escapeHtml(v['Important Reason'])+'</span>' : '')+
         (v['Requested Deadline'] ? '<span>Requested deadline: '+fmtDate(v['Requested Deadline'])+'</span>' : '')+
       '</div>'+
       '<div style="display:flex;gap:8px;">'+
-        '<button type="button" class="small-btn" data-assign="'+escapeHtml(v.id)+'">'+(isImportantPending(v)?'Review & Assign':'Assign')+'</button>'+
+        '<button type="button" class="small-btn" data-assign="'+escapeHtml(v.id)+'">Assign</button>'+
         '<button type="button" class="secondary small-btn" data-view="'+escapeHtml(v.id)+'">View</button>'+
       '</div>'+
     '</div>'
@@ -2119,8 +1927,7 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
       'Agreement ID': agreementId || null,
       'Company Name': companyName || null,
       'Description': description,
-      'Important': importantOn,
-      'Important Status': importantOn ? IMPORTANT_STATUS_PENDING : null,
+      'Important': false,
       'Important Reason': importantReason || null,
       'Request Type': requestType,
       'Task': task,
@@ -2146,9 +1953,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     document.getElementById('nt-task').value = '';
     document.getElementById('nt-requested-deadline').value = '';
     await loadAllData();
-    const createdTask = taskById(created.id);
     setStatus('Request submitted successfully.');
-}catch(err){
+  }catch(err){
     errEl.textContent = 'Could not submit: ' + err.message;
     errEl.style.display = 'block';
   }finally{
@@ -2157,127 +1963,32 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
 });
 
 /* ---- Assign modal (Super Admin) ---- */
-function localDateInputValue(date){
-  const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,'0');
-  const d = String(date.getDate()).padStart(2,'0');
-  return y + '-' + m + '-' + d;
-}
-function deadlineFromPriority(priority){
-  if(!priority) return '';
-  const d = new Date();
-  d.setHours(12,0,0,0);
-  if(/^medium\b/i.test(priority)) d.setDate(d.getDate()+7);
-  else if(/^low\b/i.test(priority)) d.setDate(d.getDate()+14);
-  // Critical and High both use the current date.
-  return localDateInputValue(d);
-}
+function localDateInputValue(date){const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');return y+'-'+m+'-'+d;}
+function deadlineFromPriority(priority){if(!priority)return '';const d=new Date();d.setHours(12,0,0,0);if(/^medium\b/i.test(priority))d.setDate(d.getDate()+7);else if(/^low\b/i.test(priority))d.setDate(d.getDate()+14);return localDateInputValue(d);}
 function applyAssignmentPriorityRules(){
-  const priority = document.getElementById('am-priority').value;
-  const deadlineEl = document.getElementById('am-deadline');
-  const noteEl = document.getElementById('am-priority-note');
-
-  // Priority and Important are independent.
-  // Priority only suggests a deadline; it never approves or removes Important.
-  deadlineEl.value = deadlineFromPriority(priority);
-
-  if(/^critical\b/i.test(priority)){
-    if(noteEl) noteEl.textContent = 'Critical: suggested deadline is today. Important status is reviewed separately.';
-  }else if(/^high\b/i.test(priority)){
-    if(noteEl) noteEl.textContent = 'High: suggested deadline is today. Important status is reviewed separately.';
-  }else if(/^medium\b/i.test(priority)){
-    if(noteEl) noteEl.textContent = 'Medium: suggested deadline is 1 week from today. Important status is reviewed separately.';
-  }else if(/^low\b/i.test(priority)){
-    if(noteEl) noteEl.textContent = 'Low: suggested deadline is 2 weeks from today. Important status is reviewed separately.';
-  }else if(noteEl){
-    noteEl.textContent = 'Selecting Priority suggests a deadline. Super Admin may adjust the deadline. Important is reviewed separately.';
-  }
+  const priority=document.getElementById('am-priority').value,deadlineEl=document.getElementById('am-deadline'),noteEl=document.getElementById('am-priority-note');
+  deadlineEl.value=deadlineFromPriority(priority);
+  if(/^critical\b/i.test(priority))noteEl.textContent='Critical: suggested deadline is today. Important is reviewed separately.';
+  else if(/^high\b/i.test(priority))noteEl.textContent='High: suggested deadline is today. Important is reviewed separately.';
+  else if(/^medium\b/i.test(priority))noteEl.textContent='Medium: suggested deadline is 1 week from today. Important is reviewed separately.';
+  else if(/^low\b/i.test(priority))noteEl.textContent='Low: suggested deadline is 2 weeks from today. Important is reviewed separately.';
+  else noteEl.textContent='Selecting Priority suggests a deadline. Super Admin may adjust it. Important is reviewed separately.';
 }
 function openAssignModal(taskId){
-  assignTargetTaskId = taskId;
-  const v = taskById(taskId);
-  document.getElementById('am-taskid').textContent = v && taskNumberValue(v) ? ('#' + taskNumberValue(v)) : '';
-  document.getElementById('assign-modal-error').style.display = 'none';
-  populateAssigneeDropdowns();
-  document.getElementById('am-priority').value = (v && v.Priority) ? v.Priority : '';
-  const reviewBox = document.getElementById('am-important-review');
-  const decisionEl = document.getElementById('am-important-decision');
-  const reasonEl = document.getElementById('am-important-reason');
-  const needsReview = hasImportantRequest(v);
-  reviewBox.style.display = 'block';
-  decisionEl.disabled = false;
-  decisionEl.value = needsReview ? '' : (isImportantTask(v) ? 'approve' : 'decline');
-  reasonEl.textContent = needsReview
-    ? ((v['Important Reason'] ? 'Reason: ' + v['Important Reason'] : 'This task was requested as Important.') + ' Super Admin must review Important independently from Priority before assignment.')
-    : (isImportantTask(v) ? 'Important has already been approved for this task.' : (isImportantDeclined(v) ? 'Important was disapproved. This task will be assigned as a normal task.' : 'No Important request was submitted. Default: Not Important.'));
-  applyAssignmentPriorityRules();
-  document.getElementById('assign-modal-overlay').style.display = 'flex';
+  assignTargetTaskId=taskId;const v=taskById(taskId);
+  document.getElementById('am-taskid').textContent=v&&taskNumberValue(v)?('#'+taskNumberValue(v)):'';document.getElementById('assign-modal-error').style.display='none';populateAssigneeDropdowns();
+  document.getElementById('am-priority').value=(v&&v.Priority)?v.Priority:'';
+  const decisionEl=document.getElementById('am-important-decision'),reasonEl=document.getElementById('am-important-reason'),requested=hasImportantRequest(v);
+  decisionEl.disabled=false;decisionEl.value=requested?'':'decline';
+  reasonEl.textContent=requested?((v['Important Reason']?'Reason: '+v['Important Reason']:'This task was requested as Important.')+' Super Admin must approve or mark it Not Important before assignment.'):(isImportantTask(v)?'This task is already marked Important.':'No Important request was submitted. Default: Not Important.');
+  applyAssignmentPriorityRules();document.getElementById('assign-modal-overlay').style.display='flex';
 }
-document.getElementById('am-priority').addEventListener('change', applyAssignmentPriorityRules);
-document.getElementById('assign-modal-cancel').addEventListener('click', ()=>{
-  document.getElementById('assign-modal-overlay').style.display = 'none';
-});
-document.getElementById('assign-modal-submit').addEventListener('click', async ()=>{
-  const errEl = document.getElementById('assign-modal-error');
-  errEl.style.display = 'none';
-  const taskBeforeAssign = taskById(assignTargetTaskId);
-  const assignee = document.getElementById('am-assignee').value;
-  const priority = document.getElementById('am-priority').value;
-  const deadline = document.getElementById('am-deadline').value || deadlineFromPriority(priority);
-  const needsImportantReview = hasImportantRequest(taskBeforeAssign);
-  let importantDecision = document.getElementById('am-important-decision').value || 'decline';
-  if(!assignee){ errEl.textContent = 'Choose an Admin to assign this to.'; errEl.style.display = 'block'; return; }
-  if(!priority){ errEl.textContent = 'Set a priority.'; errEl.style.display = 'block'; return; }
-  if(needsImportantReview && !importantDecision){ errEl.textContent = 'Approve or disapprove the Important request before assigning this task.'; errEl.style.display = 'block'; return; }
-  if(!deadline){ errEl.textContent = 'The deadline could not be calculated from Priority.'; errEl.style.display = 'block'; return; }
-  const btn = document.getElementById('assign-modal-submit');
-  btn.disabled = true;
-  try{
-    const nowIso = new Date().toISOString();
-    const updatePayload = {
-      'Assigned To': assignee,
-      'Assigned By': currentAccount.username,
-      'Assigned Date': nowIso,
-      'Deadline': dateInputToIso(deadline),
-      'Priority': priority,
-      'Status': STATUS_IN_PROGRESS,
-      'Last Updated By': currentAccount.username,
-      'Last Updated Date': nowIso
-    };
-    if(importantDecision === 'approve'){
-      updatePayload['Important'] = true;
-      updatePayload['Important Status'] = IMPORTANT_STATUS_APPROVED;
-      updatePayload['Important Approved By'] = currentAccount.username;
-    }else{
-      updatePayload['Important'] = false;
-      updatePayload['Important Status'] = IMPORTANT_STATUS_DECLINED;
-      updatePayload['Important Approved By'] = currentAccount.username;
-    }
-    await updateListItem(MAIN_LIST_NAME, assignTargetTaskId, updatePayload);
-    if(needsImportantReview){
-      await createListItem(COMMENTS_LIST_NAME, {
-        'Task Item ID': String(assignTargetTaskId),
-        'Comment By': currentAccount.username,
-        'Comment Role': currentUserRole,
-        'Comment Text': importantDecision === 'approve' ? 'Approved as Important before assignment.' : 'Disapproved Important request — task assigned as a normal task.',
-        'Comment Date': nowIso
-      });
-    }
-    await loadAllData();
-    const assignedTask = taskById(assignTargetTaskId);
-const v = assignedTask;
-    if(!v) throw new Error('The task could not be reloaded after assignment.');
-    if((v['Assigned To'] || '').trim().toLowerCase() !== assignee.trim().toLowerCase()){
-      throw new Error('The Admin assignment was not saved to the SharePoint "Assigned To" column. The app now supports both Single line of text and Person or Group fields; verify the selected Admin has visited the Operations SharePoint site at least once.');
-    }
-    document.getElementById('assign-modal-overlay').style.display = 'none';
-    setStatus('Task assigned successfully.');
-}catch(err){
-    errEl.textContent = 'Could not assign: ' + err.message;
-    errEl.style.display = 'block';
-  }finally{
-    btn.disabled = false;
-  }
+document.getElementById('am-priority').addEventListener('change',applyAssignmentPriorityRules);
+document.getElementById('assign-modal-cancel').addEventListener('click',()=>{document.getElementById('assign-modal-overlay').style.display='none';});
+document.getElementById('assign-modal-submit').addEventListener('click',async()=>{
+  const errEl=document.getElementById('assign-modal-error');errEl.style.display='none';const taskBeforeAssign=taskById(assignTargetTaskId),assignee=document.getElementById('am-assignee').value,priority=document.getElementById('am-priority').value,deadline=document.getElementById('am-deadline').value||deadlineFromPriority(priority),requested=hasImportantRequest(taskBeforeAssign),decisionRaw=document.getElementById('am-important-decision').value,importantDecision=decisionRaw||'decline';
+  if(!assignee){errEl.textContent='Choose an Admin to assign this to.';errEl.style.display='block';return;}if(!priority){errEl.textContent='Set a priority.';errEl.style.display='block';return;}if(requested&&!decisionRaw){errEl.textContent='Approve the Important request or select Not Important before assigning.';errEl.style.display='block';return;}if(!deadline){errEl.textContent='Set a deadline.';errEl.style.display='block';return;}
+  const btn=document.getElementById('assign-modal-submit');btn.disabled=true;try{const nowIso=new Date().toISOString();await updateListItem(MAIN_LIST_NAME,assignTargetTaskId,{'Assigned To':assignee,'Assigned By':currentAccount.username,'Assigned Date':nowIso,'Deadline':dateInputToIso(deadline),'Priority':priority,'Important':importantDecision==='approve','Status':STATUS_IN_PROGRESS,'Last Updated By':currentAccount.username,'Last Updated Date':nowIso});if(requested){await createListItem(COMMENTS_LIST_NAME,{'Task Item ID':String(assignTargetTaskId),'Comment By':currentAccount.username,'Comment Role':currentUserRole,'Comment Text':importantDecision==='approve'?'Approved as Important before assignment.':'Important request marked Not Important before assignment.','Comment Date':nowIso});}await loadAllData();const v=taskById(assignTargetTaskId);if(!v)throw new Error('The task could not be reloaded after assignment.');document.getElementById('assign-modal-overlay').style.display='none';setStatus('Task assigned successfully.');}catch(err){errEl.textContent='Could not assign: '+err.message;errEl.style.display='block';}finally{btn.disabled=false;}
 });
 
 /* ---- Task detail modal ---- */
@@ -2332,10 +2043,10 @@ function renderTaskModal(taskId){
   html += '<div style="display:flex;flex-direction:column;gap:6px;">'+
     (v['Agreement ID'] ? '<div class="detail-row"><span class="k">Agreement ID</span><span class="v">'+escapeHtml(v['Agreement ID'])+'</span></div>' : '')+
     (v['Company Name'] ? '<div class="detail-row"><span class="k">Company Name</span><span class="v">'+escapeHtml(v['Company Name'])+'</span></div>' : '')+
-    ((isImportantTask(v) && !hasImportantRequest(v)) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Yes — approved by '+escapeHtml(v['Important Approved By']||'Super Admin')+'</span></div>' : '')+
-    (hasImportantRequest(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Requested — awaiting Super Admin approval</span></div>' : '')+
-    (isImportantDeclined(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Requested, but declined by '+escapeHtml(v['Important Approved By']||'Admin')+'</span></div>' : '')+
-    ((isImportantTask(v)||hasImportantRequest(v)||isImportantDeclined(v)) && v['Important Reason'] ? '<div class="detail-row"><span class="k">Why important</span><span class="v">'+escapeHtml(v['Important Reason'])+'</span></div>' : '')+
+    (isImportantTask(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Yes — approved</span></div>' : '')+
+    (isImportantPending(v) ? '<div class="detail-row"><span class="k">Important</span><span class="v">Requested — awaiting Super Admin approval</span></div>' : '')+
+    
+    ((isImportantTask(v)||isImportantPending(v)||isImportantDeclined(v)) && v['Important Reason'] ? '<div class="detail-row"><span class="k">Why important</span><span class="v">'+escapeHtml(v['Important Reason'])+'</span></div>' : '')+
     '<div class="detail-row"><span class="k">Request type</span><span class="v">'+escapeHtml(v['Request Type']||'—')+'</span></div>'+
     '<div class="detail-row"><span class="k">Task</span><span class="v">'+escapeHtml(v['Task']||'—')+'</span></div>'+
     '<div class="detail-row"><span class="k">Requested by</span><span class="v">'+escapeHtml(v['Requested By'])+'</span></div>'+
@@ -2352,16 +2063,7 @@ function renderTaskModal(taskId){
   // set as part of the assign flow itself (see the Assign modal), so there
   // is no separate standalone Priority editor here anymore.
   if(currentUserRole === 'superadmin' && !v['Assigned To']){
-    if(hasImportantRequest(v)){
-      html += '<div style="display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--danger);border-radius:8px;background:var(--surface-2);">'+
-        '<div><span class="badge badge-important-pending">Important approval required</span></div>'+
-        '<p style="margin:0;font-size:13px;font-weight:600;">This task was requested as Important. Super Admin must approve or disapprove the Important request before assignment.</p>'+
-        (v['Important Reason'] ? '<p style="margin:0;font-size:12px;"><strong>Reason:</strong> '+escapeHtml(v['Important Reason'])+'</p>' : '')+
-        '<button type="button" id="tm-assign-btn">Review Important &amp; Assign</button>'+
-      '</div>';
-    }else{
-      html += '<div><button type="button" id="tm-assign-btn">Assign this task</button></div>';
-    }
+    html += '<div><button type="button" id="tm-assign-btn">'+(hasImportantRequest(v)?'Review Important &amp; Assign':'Assign this task')+'</button></div>';
   }
 
   // Requester can cancel only their own task. Admin and Super Admin can reject.
@@ -2375,6 +2077,7 @@ function renderTaskModal(taskId){
       '<button type="button" class="secondary" id="tm-reject-btn">Reject task</button>'+
     '</div>';
   }
+
 
   // Status controls: Admin and Super Admin only, and only once the task has
   // been assigned to an Admin. Requesters never get this control.
@@ -2499,6 +2202,38 @@ function renderTaskModal(taskId){
     }finally{ rejectBtn.disabled = false; }
   });
 
+  const highAlertBtn = document.getElementById('tm-high-alert-btn');
+  if(highAlertBtn) highAlertBtn.addEventListener('click', async ()=>{
+    const message = prompt('High alert message for ' + (v['Requested By'] || 'the requester') + ':', '');
+    if(message === null) return;
+    if(!message.trim()){ alert('A message is required to send a high alert.'); return; }
+    if(!confirm('Send a HIGH ALERT email for ' + taskNumberLabel(v) + '?')) return;
+    highAlertBtn.disabled = true;
+    try{
+      const nowIso = new Date().toISOString();
+      await createListItem(COMMENTS_LIST_NAME, {
+        'Task Item ID': String(taskId),
+        'Comment By': currentAccount.username,
+        'Comment Role': currentUserRole,
+        'Comment Text': '🚨 HIGH ALERT: ' + message.trim(),
+        'Comment Date': nowIso
+      });
+      await updateListItem(MAIN_LIST_NAME, taskId, {
+        'Last Updated By': currentAccount.username,
+        'Last Updated Date': nowIso
+      });
+      await loadAllData();
+      const updated = taskById(taskId) || v;
+      try{
+        const sentTo = await notifyHighAlert(updated, message.trim());
+        setStatus(sentTo && sentTo.length ? 'High alert sent by email.' : 'High alert logged, but there was no recipient to email.');
+      }catch(mailErr){
+        console.error('Notify high alert failed', mailErr);
+        setStatus('High alert comment saved, but the email notification could not be sent.');
+      }
+    }catch(err){ alert('Could not send high alert: ' + err.message); }
+    finally{ highAlertBtn.disabled = false; }
+  });
   const statusSave = document.getElementById('tm-status-save');
   if(statusSave) statusSave.addEventListener('click', async ()=>{
     const newStatus = document.getElementById('tm-status-select').value;
@@ -2650,13 +2385,18 @@ document.getElementById('user-mgmt-assign-btn').addEventListener('click', async 
 });
 
 /* ---- Email notifications ----
-   Only these email notifications remain:
-   1) Task status changed -> requester
-   2) High alert -> requester, assigned Admin, and Super Admins
-
-   The 1-week deadline reminder is handled separately by Power Automate.
-   All other email notifications (new request, assignment, Important approval/review,
-   comments, deletion, etc.) are intentionally disabled. */
+   Sent via Graph "sendMail" as whoever just took the action. Requires the
+   Mail.Send delegated permission (admin consent) on the Azure app
+   registration; if it isn't granted yet, sending just throws and is
+   caught/logged so it never blocks the actual action itself.
+   Notification flow:
+   - New task request -> every Super Admin; if marked Important -> every Admin and Super Admin
+   - Assignment -> assigned Admin + requester
+   - New comment -> the other party; if still unassigned, requester comments go to Super Admin
+   - Completion/status changes -> requester
+   - High alert (Admin/Super Admin, with a required comment) -> requester,
+     assigned Admin, and every Super Admin
+   Mail failures are surfaced to the person taking the action instead of being silent. */
 function taskDeepLink(v){
   const n = taskNumberValue(v);
   return location.origin + location.pathname + (n
@@ -2678,12 +2418,88 @@ async function sendMailGraph(toEmails, subject, htmlBody){
     })
   });
 }
+async function notifyImportantTask(v){
+  const recipients = new Set();
+  emailsForRole('superadmin').forEach(e=>{ if(e) recipients.add(e); });
+  emailsForRole('admin').forEach(e=>{ if(e) recipients.add(e); });
+  const toEmails = Array.from(recipients);
+  if(!toEmails.length) return [];
+  const label = taskNumberLabel(v);
+  const html = '<p style="color:#c1493a;font-weight:700;">IMPORTANT TASK — APPROVED</p>'+ 
+    '<p><strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>, requested by '+escapeHtml(v['Requested By']||'the requester')+', has been approved as Important by '+escapeHtml(v['Important Approved By']||currentAccount.username)+'.</p>'+ 
+    '<p><strong>Why important:</strong></p><p style="white-space:pre-wrap;border-left:3px solid #c1493a;padding-left:10px;">'+escapeHtml(v['Important Reason']||'')+'</p>'+ 
+    '<p><a href="'+taskDeepLink(v)+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph(toEmails, 'IMPORTANT TASK — ' + label + ' — ' + v.Title, html);
+  return toEmails;
+}
+async function notifyImportantReviewRequested(v){
+  // Sent when a requester ticks Important on a new task. Only Super Admin
+  // can approve/decline (they own task assignment too), so this goes to
+  // Super Admin only — it does not itself mark the task Important.
+  const toEmails = emailsForRole('superadmin').filter(Boolean);
+  if(!toEmails.length) return [];
+  const label = taskNumberLabel(v);
+  const html = '<p style="color:#c98a2f;font-weight:700;">IMPORTANT REVIEW REQUESTED</p>'+
+    '<p><strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong> was submitted by '+escapeHtml(v['Requested By']||'the requester')+' and marked as a request for Important status. It will not show as Important until a Super Admin approves it.</p>'+
+    '<p><strong>Why important (as stated by requester):</strong></p><p style="white-space:pre-wrap;border-left:3px solid #c98a2f;padding-left:10px;">'+escapeHtml(v['Important Reason']||'')+'</p>'+
+    '<p><a href="'+taskDeepLink(v)+'">Open '+escapeHtml(label)+' in the Task Management app to approve or decline</a></p>';
+  await sendMailGraph(toEmails, 'IMPORTANT REVIEW REQUESTED — ' + label + ' — ' + v.Title, html);
+  return toEmails;
+}
+async function notifySuperadmins(v){
+  const toEmails = emailsForRole('superadmin');
+  if(!toEmails.length) return;
+  const label = taskNumberLabel(v);
+  const html = '<p>A new task request needs assignment: <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>.</p>'+    '<p><a href="'+taskDeepLink(v)+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph(toEmails, 'New task request — ' + label + ' — ' + v.Title, html);
+}
+async function notifyTaskAssigned(v, selectedAssignee){
+  const assigneeEmail = (selectedAssignee || v['Assigned To'] || '').trim();
+  if(!assigneeEmail) throw new Error('Assigned Admin email is missing; assignment notification was not sent.');
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const toAssignee = '<p>You have been assigned <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong>.</p>'+    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+    (v.Priority ? '<p><strong>Priority:</strong> '+escapeHtml(v.Priority)+'</p>' : '')+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  const toRequester = '<p>Your '+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been assigned to '+escapeHtml(assigneeEmail)+'.</p>'+    '<p><strong>Deadline:</strong> '+fmtDate(v.Deadline)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph([assigneeEmail], 'Task assigned to you — ' + label + ' — ' + v.Title, toAssignee);
+  if(v['Requested By']) await sendMailGraph([v['Requested By']], 'Your task has been assigned — ' + label + ' — ' + v.Title, toRequester);
+}
+async function notifyTaskCompleted(v){
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been marked Completed by '+escapeHtml(v['Last Updated By'])+'.</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
+  await sendMailGraph([v['Requested By']], 'Task completed — ' + label + ' — ' + v.Title, html);
+}
 async function notifyStatusChanged(v){
   if(!v['Requested By']) return;
   const label = taskNumberLabel(v);
   const link = taskDeepLink(v);
   const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was updated by '+escapeHtml(v['Last Updated By'])+'.</p>'+    '<p><strong>Status:</strong> '+escapeHtml(v.Status)+'</p>'+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view details or reply with a comment</a></p>';
   await sendMailGraph([v['Requested By']], 'Task updated — ' + label + ' — ' + v.Title, html);
+}
+async function notifyTaskRejected(v, reason){
+  const recipients = new Set();
+  if(v['Requested By']) recipients.add(v['Requested By']);
+  if(v['Assigned To']) recipients.add(v['Assigned To']);
+  if(!recipients.size) return;
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> has been rejected by '+escapeHtml(v['Last Updated By'] || 'an Admin')+'.</p>'+    (reason ? '<p><strong>Reason:</strong> '+escapeHtml(reason)+'</p>' : '')+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view the history and comments</a></p>';
+  await sendMailGraph(Array.from(recipients), 'Task rejected — ' + label + ' — ' + v.Title, html);
+}
+async function notifyTaskCancelled(v, reason){
+  const recipients = new Set();
+  if(v['Assigned To']) recipients.add(v['Assigned To']);
+  emailsForRole('superadmin').forEach(e=>{ if(e) recipients.add(e); });
+  emailsForRole('admin').forEach(e=>{ if(e) recipients.add(e); });
+  const requester=(v['Requested By']||'').toLowerCase();
+  Array.from(recipients).forEach(e=>{ if((e||'').toLowerCase()===requester) recipients.delete(e); });
+  if(!recipients.size) return;
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const html = '<p>'+escapeHtml(label)+' — <strong>'+escapeHtml(v.Title)+'</strong> was cancelled by the requester.</p>'+
+    '<p><strong>Reason:</strong> '+escapeHtml(reason)+'</p>'+
+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to view the history and comments</a></p>';
+  await sendMailGraph(Array.from(recipients), 'Task cancelled — ' + label + ' — ' + v.Title, html);
 }
 async function notifyHighAlert(v, message){
   // Admin/Super Admin triggered urgent notice to the requester, cc'ing the
@@ -2703,6 +2519,33 @@ async function notifyHighAlert(v, message){
     '<p style="white-space:pre-wrap;border-left:3px solid #c1493a;padding-left:10px;">'+escapeHtml(message)+'</p>'+
     '<p><a href="'+link+'">Open '+escapeHtml(label)+' in the Task Management app</a></p>';
   await sendMailGraph(toEmails, '🚨 HIGH ALERT — ' + label + ' — ' + v.Title, html);
+  return toEmails;
+}
+async function notifyOnComment(v, text){
+  const label = taskNumberLabel(v);
+  const link = taskDeepLink(v);
+  const commenter = (currentAccount.username||'').toLowerCase();
+  const recipients = new Set();
+
+  // Normal two-way thread: requester -> assigned Admin, and Admin -> requester.
+  if(v['Requested By'] && v['Requested By'].toLowerCase() !== commenter) recipients.add(v['Requested By']);
+  if(v['Assigned To'] && v['Assigned To'].toLowerCase() !== commenter) recipients.add(v['Assigned To']);
+
+  // Before assignment there is no Admin yet. If the requester comments on an
+  // unassigned task, notify every Super Admin so the message is not missed.
+  const requesterIsCommenter = (v['Requested By'] || '').toLowerCase() === commenter;
+  if(requesterIsCommenter && !v['Assigned To']){
+    emailsForRole('superadmin').forEach(e=>{
+      if(e && e.toLowerCase() !== commenter) recipients.add(e);
+    });
+  }
+
+  const toEmails = Array.from(recipients);
+  if(!toEmails.length) return [];
+  const html = '<p>New comment on <strong>'+escapeHtml(label)+' — '+escapeHtml(v.Title)+'</strong> from '+escapeHtml(currentAccount.username)+':</p>'+
+    '<p style="white-space:pre-wrap;">'+escapeHtml(text)+'</p>'+
+    '<p><a href="'+link+'">Open '+escapeHtml(label)+' to read the thread and reply</a></p>';
+  await sendMailGraph(toEmails, 'New comment — ' + label + ' — ' + v.Title, html);
   return toEmails;
 }
 
@@ -3183,6 +3026,7 @@ document.querySelectorAll('.task-subtab-btn').forEach(btn=>{
     if(view) view.classList.add('active');
   });
 });
+
 document.querySelectorAll('.main-tab-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
     document.querySelectorAll('.main-tab-btn').forEach(b=>b.classList.remove('active'));
