@@ -486,6 +486,7 @@
     <button type="button" class="main-tab-btn" data-main-view="analytics">Analytics</button>
     <button type="button" class="main-tab-btn" data-main-view="rename">Rename &amp; File</button>
     <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill DRP</button>
+    <button type="button" class="main-tab-btn" data-main-view="booking">Booking</button>
     <button type="button" class="main-tab-btn" id="user-mgmt-tab-btn" data-main-view="users" style="display:none;">User Management</button>
   </div>
 
@@ -823,6 +824,52 @@
     </div>
   </section>
 
+  <section id="main-view-booking" class="main-view">
+    <div class="rops-head">
+      <div>
+        <h1>Inventory Booking Form</h1>
+        <p class="rops-subtitle">Record inventory bookings straight into Booking Logs.xlsx (sheet "Booking Log", table "Booking") on SharePoint.</p>
+      </div>
+      <span class="rops-conn" id="booking-conn">Excel source: ready after sign-in</span>
+    </div>
+
+    <div class="card">
+      <p class="card-title">New Booking</p>
+      <div class="grid">
+        <div>
+          <label for="booking-deal-id">Deal ID</label>
+          <input type="text" id="booking-deal-id" placeholder="Enter Deal ID">
+        </div>
+        <div>
+          <label for="booking-name">Username</label>
+          <select id="booking-name">
+            <option value="">Select your name...</option>
+            <option>Addam</option>
+            <option>Aston U</option>
+            <option>Colwen Chan</option>
+            <option>Edmund Lam</option>
+            <option>Jordan Tan</option>
+            <option>Reik Ong</option>
+            <option>Roseanne Png</option>
+            <option>Sharon Lim</option>
+            <option>Thao</option>
+            <option>TM Lim</option>
+          </select>
+        </div>
+        <div>
+          <label for="booking-qty">Booked Quantity</label>
+          <input type="text" inputmode="decimal" id="booking-qty" placeholder="Enter a number">
+        </div>
+      </div>
+      <button type="button" id="booking-submit-btn" style="margin-top:14px;">Submit Booking</button>
+      <div class="rops-status" id="booking-status"></div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Recent bookings (this session)</p>
+      <div style="overflow:auto;" id="booking-recent-list"><p class="empty-note">No bookings submitted yet this session.</p></div>
+    </div>
+  </section>
 
 </div>
 
@@ -3095,6 +3142,116 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
   });
 }
 
+/* ---- Booking tab: writes rows into Booking Logs.xlsx / "Booking Log" / table "Booking" ---- */
+const BOOKING_SOURCE_FILENAME = "Booking Logs.xlsx";
+const BOOKING_SOURCE_UNIQUE_ID = "36B34F4D-A312-4169-97A6-65BF02B1D6EE"; // from the sourcedoc GUID in the supplied SharePoint link
+const BOOKING_TABLE_NAME = "Booking"; // Excel table name (sheet "Booking Log")
+let bookingWorkbookRef = null; // {driveId,itemId,webUrl}
+let bookingTableHeaders = null;
+let bookingSubmissions = [];
+
+async function bookingResolveWorkbook(){
+  if(bookingWorkbookRef) return bookingWorkbookRef;
+  if(!siteId) throw new Error('SharePoint site is not connected yet.');
+  const drivesData=await graphFetch('/sites/'+siteId+'/drives');
+  const drives=(drivesData&&drivesData.value)||[];
+  const exact=[];
+  for(const drive of drives){
+    try{
+      const q=encodeURIComponent(BOOKING_SOURCE_FILENAME);
+      const data=await graphFetch('/drives/'+drive.id+"/root/search(q='"+q+"')?$select=id,name,webUrl,sharepointIds,parentReference");
+      for(const item of ((data&&data.value)||[])){
+        if(ropsNorm(item.name)!==ropsNorm(BOOKING_SOURCE_FILENAME)) continue;
+        if(ropsGuid(item.sharepointIds&&item.sharepointIds.listItemUniqueId)===ropsGuid(BOOKING_SOURCE_UNIQUE_ID)){
+          bookingWorkbookRef={driveId:drive.id,itemId:item.id,webUrl:item.webUrl};
+          const conn=document.getElementById('booking-conn'); if(conn) conn.textContent='Excel source: Booking Logs connected';
+          return bookingWorkbookRef;
+        }
+        exact.push({driveId:drive.id,itemId:item.id,webUrl:item.webUrl,uid:item.sharepointIds&&item.sharepointIds.listItemUniqueId});
+      }
+    }catch(e){ console.warn('Booking workbook search skipped drive', drive.name, e); }
+  }
+  throw new Error('The exact "'+BOOKING_SOURCE_FILENAME+'" file from the supplied SharePoint link was not found. Found '+exact.length+' same-name candidate(s), but none matched document UniqueId '+BOOKING_SOURCE_UNIQUE_ID+'.');
+}
+
+async function bookingGetTableHeaders(ref){
+  if(bookingTableHeaders) return bookingTableHeaders;
+  const t=encodeURIComponent(BOOKING_TABLE_NAME);
+  const data=await graphFetch('/drives/'+ref.driveId+'/items/'+ref.itemId+'/workbook/tables/'+t+'/headerRowRange');
+  const headers=(data&&data.values&&data.values[0])||[];
+  bookingTableHeaders=headers.map(h=>String(h||'').trim());
+  return bookingTableHeaders;
+}
+
+function bookingBuildRowValues(headers, dealId, name, qty){
+  // Exact column layout confirmed in the live sheet: A=Deal ID, B=Username, C=Booked Quantity, D=Booking Date.
+  const row=headers.map(()=>'');
+  const norm=h=>ropsNorm(h).replace(/[^a-z0-9]+/g,' ').trim();
+  const pad=n=>String(n).padStart(2,'0');
+  const d=new Date();
+  const bookingDate=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  headers.forEach((h,i)=>{
+    const n=norm(h);
+    if(n==='deal id') row[i]=dealId;
+    else if(n==='username') row[i]=name;
+    else if(n==='booked quantity') row[i]=qty;
+    else if(n==='booking date') row[i]=bookingDate;
+  });
+  return row;
+}
+
+function bookingShowStatus(msg, ok){
+  const el=document.getElementById('booking-status'); if(!el) return;
+  el.className='rops-status show '+(ok?'ok':'err'); el.textContent=msg;
+}
+
+function bookingRenderRecent(){
+  const wrap=document.getElementById('booking-recent-list'); if(!wrap) return;
+  if(!bookingSubmissions.length){ wrap.innerHTML='<p class="empty-note">No bookings submitted yet this session.</p>'; return; }
+  let html='<table class="rops-activity"><thead><tr><th>Deal ID</th><th>Username</th><th>Booked Quantity</th><th>Booking Date</th><th>Submitted</th></tr></thead><tbody>';
+  bookingSubmissions.slice(0,10).forEach(s=>{
+    html+='<tr><td>'+ropsEsc(s.dealId)+'</td><td>'+ropsEsc(s.name)+'</td><td>'+ropsEsc(s.qty)+'</td><td>'+ropsEsc(s.bookingDate)+'</td><td>'+ropsEsc(s.time.toLocaleString())+'</td></tr>';
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+}
+
+async function bookingSubmit(){
+  const dealIdEl=document.getElementById('booking-deal-id');
+  const nameEl=document.getElementById('booking-name');
+  const qtyEl=document.getElementById('booking-qty');
+  const dealId=dealIdEl.value.trim();
+  const name=nameEl.value;
+  const qtyRaw=qtyEl.value.trim();
+  if(!dealId){ bookingShowStatus('Enter a Deal ID first.', false); return; }
+  if(!name){ bookingShowStatus('Select your name first.', false); return; }
+  if(!qtyRaw || isNaN(Number(qtyRaw))){ bookingShowStatus('Booked Quantity must be a number.', false); return; }
+  const qty=Number(qtyRaw);
+  const btn=document.getElementById('booking-submit-btn'); btn.disabled=true;
+  bookingShowStatus('Saving to SharePoint…', true);
+  try{
+    const ref=await bookingResolveWorkbook();
+    const headers=await bookingGetTableHeaders(ref);
+    const row=bookingBuildRowValues(headers, dealId, name, qty);
+    const t=encodeURIComponent(BOOKING_TABLE_NAME);
+    await graphFetch('/drives/'+ref.driveId+'/items/'+ref.itemId+'/workbook/tables/'+t+'/rows/add', {
+      method:'POST', body: JSON.stringify({ values:[row] })
+    });
+    bookingShowStatus('Booking recorded for Deal ID "'+dealId+'".', true);
+    const dateIdx=headers.findIndex(h=>ropsNorm(h).replace(/[^a-z0-9]+/g,' ').trim()==='booking date');
+    bookingSubmissions.unshift({ dealId, name, qty, bookingDate: dateIdx>=0 ? row[dateIdx] : '', time:new Date() });
+    bookingRenderRecent();
+    dealIdEl.value=''; nameEl.value=''; qtyEl.value='';
+  }catch(err){
+    console.error(err);
+    bookingShowStatus('Could not save booking: '+err.message, false);
+  }finally{
+    btn.disabled=false;
+  }
+}
+document.getElementById('booking-submit-btn').addEventListener('click', bookingSubmit);
+bookingRenderRecent();
+
 /* ---- Rename & File ---- */
 
 function ropsCurrentChecklistPdf(){
@@ -4121,6 +4278,7 @@ async function registryInit(){
   ropsLoadActivityLog();
   try{ await ropsResolveBdDrive(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
   try{ await ropsResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('rops-autofill-conn').textContent='Excel source: not resolved'; }
+  try{ await bookingResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('booking-conn').textContent='Excel source: not resolved'; }
 }
 </script>
 
