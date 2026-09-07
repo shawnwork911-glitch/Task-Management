@@ -376,6 +376,11 @@
   @media(max-width:980px){.rops-workspace{grid-template-columns:1fr;}}
   .rops-form-col{max-height:76vh;overflow:auto;}
   .rops-group-title{font-size:13px;font-weight:700;color:var(--text);margin:16px 0 10px;border-bottom:1px solid var(--border);padding-bottom:6px;}
+  .booking-deal-details{margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .booking-deal-details .kv-row{display:flex;gap:10px;padding:6px 12px;font-size:13px;border-bottom:1px solid var(--border);background:var(--surface);}
+  .booking-deal-details .kv-row:last-child{border-bottom:none;}
+  .booking-deal-details .kv-label{color:var(--text-secondary);min-width:220px;flex-shrink:0;}
+  .booking-deal-details .kv-value{color:var(--text);font-weight:600;word-break:break-word;}
   .rops-preview-wrap{min-height:620px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;}
   .rops-preview-wrap iframe{width:100%;height:76vh;border:0;}
   .rops-preview-placeholder{font-size:12px;color:var(--text-secondary);padding:28px;text-align:center;}
@@ -838,7 +843,7 @@
       <div class="grid">
         <div>
           <label for="booking-deal-id">Deal ID</label>
-          <input type="text" id="booking-deal-id" placeholder="Enter Deal ID">
+          <input type="text" id="booking-deal-id" placeholder="Enter Deal ID and press Tab/Enter to look it up">
         </div>
         <div>
           <label for="booking-name">Username</label>
@@ -861,6 +866,8 @@
           <input type="text" inputmode="decimal" id="booking-qty" placeholder="Enter a number">
         </div>
       </div>
+      <div class="rops-status" id="booking-deal-lookup-status"></div>
+      <div id="booking-deal-details"></div>
       <button type="button" id="booking-submit-btn" style="margin-top:14px;">Submit Booking</button>
       <div class="rops-status" id="booking-status"></div>
     </div>
@@ -3146,9 +3153,13 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
 const BOOKING_SOURCE_FILENAME = "Booking Logs.xlsx";
 const BOOKING_SOURCE_UNIQUE_ID = "36B34F4D-A312-4169-97A6-65BF02B1D6EE"; // from the sourcedoc GUID in the supplied SharePoint link
 const BOOKING_TABLE_NAME = "Booking"; // Excel table name (sheet "Booking Log")
+const BOOKING_DEAL_SHEET_NAME = "Single Trade"; // lives in the same Master Folder workbook used by the Autofill DRP lookup
+const BOOKING_DEAL_ID_HEADER = "Agreement ID (Assigned to BD)"; // column G in that sheet
 let bookingWorkbookRef = null; // {driveId,itemId,webUrl}
 let bookingTableHeaders = null;
 let bookingSubmissions = [];
+let bookingDealSheetCache = null; // {headers, rows, idIdx} — loaded once from the "Single Trade" sheet
+let bookingDealLookupSeq = 0;
 
 async function bookingResolveWorkbook(){
   if(bookingWorkbookRef) return bookingWorkbookRef;
@@ -3182,6 +3193,81 @@ async function bookingGetTableHeaders(ref){
   bookingTableHeaders=headers.map(h=>String(h||'').trim());
   return bookingTableHeaders;
 }
+
+async function bookingLoadDealSheet(){
+  if(bookingDealSheetCache) return bookingDealSheetCache;
+  // Same source workbook/location as the Autofill DRP "Agreement ID (Ops Internal)" lookup — just a different sheet/column.
+  const ref=await ropsResolveWorkbook();
+  const sheet=encodeURIComponent(BOOKING_DEAL_SHEET_NAME);
+  const data=await graphFetch('/drives/'+ref.driveId+'/items/'+ref.itemId+"/workbook/worksheets('"+sheet+"')/usedRange(valuesOnly=true)");
+  const matrix=(data&&data.values)||[];
+  if(!matrix.length) throw new Error('The "'+BOOKING_DEAL_SHEET_NAME+'" sheet returned no rows.');
+  const headers=matrix[0].map(x=>String(x||'').trim());
+  let idIdx=headers.findIndex(h=>ropsNorm(h)===ropsNorm(BOOKING_DEAL_ID_HEADER));
+  if(idIdx<0) idIdx=6; // fallback to column G per the confirmed sheet layout
+  bookingDealSheetCache={ headers, rows: matrix.slice(1), idIdx };
+  return bookingDealSheetCache;
+}
+
+async function bookingFindDeal(dealId){
+  const sheet=await bookingLoadDealSheet();
+  const wanted=ropsNorm(dealId);
+  for(const row of sheet.rows){
+    if(ropsNorm(row[sheet.idIdx])===wanted){
+      const obj={};
+      sheet.headers.forEach((h,j)=>{ if(h) obj[h]=row[j]; });
+      return obj;
+    }
+  }
+  return null;
+}
+
+function bookingShowDealLookupStatus(msg, ok){
+  const el=document.getElementById('booking-deal-lookup-status'); if(!el) return;
+  if(msg==null){ el.className='rops-status'; el.textContent=''; return; }
+  el.className='rops-status show '+(ok?'ok':'err'); el.textContent=msg;
+}
+
+function bookingRenderDealDetails(obj){
+  const wrap=document.getElementById('booking-deal-details'); if(!wrap) return;
+  if(!obj){ wrap.innerHTML=''; return; }
+  let html='<div class="booking-deal-details">';
+  Object.keys(obj).forEach(k=>{
+    const v=obj[k];
+    if(v===undefined||v===null||v==='') return;
+    html+='<div class="kv-row"><span class="kv-label">'+ropsEsc(k)+'</span><span class="kv-value">'+ropsEsc(v)+'</span></div>';
+  });
+  html+='</div>';
+  wrap.innerHTML=html;
+}
+
+async function bookingLookupDeal(){
+  const dealIdEl=document.getElementById('booking-deal-id');
+  const dealId=dealIdEl.value.trim();
+  if(!dealId){ bookingRenderDealDetails(null); bookingShowDealLookupStatus(null); return; }
+  const seq=++bookingDealLookupSeq;
+  bookingShowDealLookupStatus('Searching "'+BOOKING_DEAL_SHEET_NAME+'" for '+dealId+'…', true);
+  try{
+    const row=await bookingFindDeal(dealId);
+    if(seq!==bookingDealLookupSeq) return; // a newer lookup started meanwhile — drop this stale result
+    if(!row){
+      bookingRenderDealDetails(null);
+      bookingShowDealLookupStatus('No match found for "'+dealId+'" in '+BOOKING_DEAL_SHEET_NAME+' / '+BOOKING_DEAL_ID_HEADER+'.', false);
+      return;
+    }
+    bookingRenderDealDetails(row);
+    bookingShowDealLookupStatus('Match found in '+BOOKING_DEAL_SHEET_NAME+'.', true);
+  }catch(err){
+    if(seq!==bookingDealLookupSeq) return;
+    console.error(err);
+    bookingRenderDealDetails(null);
+    bookingShowDealLookupStatus('Lookup failed: '+err.message, false);
+  }
+}
+document.getElementById('booking-deal-id').addEventListener('blur', bookingLookupDeal);
+document.getElementById('booking-deal-id').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); bookingLookupDeal(); }
+});
 
 function bookingBuildRowValues(headers, dealId, name, qty){
   // Exact column layout confirmed in the live sheet: A=Deal ID, B=Username, C=Booked Quantity, D=Booking Date.
@@ -3242,6 +3328,7 @@ async function bookingSubmit(){
     bookingSubmissions.unshift({ dealId, name, qty, bookingDate: dateIdx>=0 ? row[dateIdx] : '', time:new Date() });
     bookingRenderRecent();
     dealIdEl.value=''; nameEl.value=''; qtyEl.value='';
+    bookingRenderDealDetails(null); bookingShowDealLookupStatus(null);
   }catch(err){
     console.error(err);
     bookingShowStatus('Could not save booking: '+err.message, false);
