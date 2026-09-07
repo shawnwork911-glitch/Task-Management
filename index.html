@@ -489,9 +489,9 @@
   <div class="main-tabs" id="main-tabs" role="tablist" aria-label="Operations tools">
     <button type="button" class="main-tab-btn active" data-main-view="task">Task Management</button>
     <button type="button" class="main-tab-btn" data-main-view="analytics">Analytics</button>
-    <button type="button" class="main-tab-btn" data-main-view="rename">Rename &amp; File</button>
-    <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill DRP</button>
-    <button type="button" class="main-tab-btn" data-main-view="booking">Booking</button>
+    <button type="button" class="main-tab-btn" data-main-view="rename">Asset Document Rename &amp; File</button>
+    <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill TIGR DRP</button>
+    <button type="button" class="main-tab-btn" data-main-view="booking">Booking Single Trade</button>
     <button type="button" class="main-tab-btn" id="user-mgmt-tab-btn" data-main-view="users" style="display:none;">User Management</button>
   </div>
 
@@ -707,7 +707,7 @@
   <section id="main-view-rename" class="main-view">
     <div class="rops-head">
       <div>
-        <h1>Rename &amp; File</h1>
+        <h1>Asset Document Rename &amp; File</h1>
         <p class="rops-subtitle">Rename registry documents and upload them to the BD Usage SharePoint library.</p>
       </div>
       <span class="rops-conn" id="rops-rename-conn">SharePoint: ready after sign-in</span>
@@ -751,8 +751,8 @@
   <section id="main-view-autofill" class="main-view">
     <div class="rops-head">
       <div>
-        <h1>Autofill DRP</h1>
-        <p class="rops-subtitle">Look up Agreement ID (Ops Internal) from the live Assets table in Master Folder_250923.xlsx, fill the embedded PDF template, save to SharePoint, or download.</p>
+        <h1>Autofill TIGR DRP</h1>
+        <p class="rops-subtitle">Find details from Asset or manual excel table copy paste to fill in TIGR DRP form.</p>
       </div>
       <span class="rops-conn" id="rops-autofill-conn">Excel source: ready after sign-in</span>
     </div>
@@ -833,7 +833,7 @@
     <div class="rops-head">
       <div>
         <h1>Inventory Booking Form</h1>
-        <p class="rops-subtitle">Record inventory bookings straight into Booking Logs.xlsx (sheet "Booking Log", table "Booking") on SharePoint.</p>
+        <p class="rops-subtitle">Record booking to the open position single trade deal</p>
       </div>
       <span class="rops-conn" id="booking-conn">Excel source: ready after sign-in</span>
     </div>
@@ -868,7 +868,7 @@
       </div>
       <div class="rops-status" id="booking-deal-lookup-status"></div>
       <div id="booking-deal-details"></div>
-      <button type="button" id="booking-submit-btn" style="margin-top:14px;">Submit Booking</button>
+      <button type="button" id="booking-submit-btn" style="margin-top:14px;" disabled>Submit Booking</button>
       <div class="rops-status" id="booking-status"></div>
     </div>
 
@@ -3282,6 +3282,22 @@ document.getElementById('booking-deal-id').addEventListener('keydown', e=>{
   if(e.key==='Enter'){ e.preventDefault(); bookingLookupDeal(); }
 });
 
+function bookingCheckFormValid(){
+  const dealId=document.getElementById('booking-deal-id').value.trim();
+  const name=document.getElementById('booking-name').value;
+  const qtyRaw=document.getElementById('booking-qty').value.trim();
+  const valid = !!dealId && !!name && !!qtyRaw && !isNaN(Number(qtyRaw));
+  const btn=document.getElementById('booking-submit-btn');
+  if(btn) btn.disabled=!valid;
+  return valid;
+}
+['booking-deal-id','booking-name','booking-qty'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener('input', bookingCheckFormValid);
+  el.addEventListener('change', bookingCheckFormValid);
+});
+bookingCheckFormValid();
+
 function bookingBuildRowValues(headers, dealId, name, qty){
   // Exact column layout confirmed in the live sheet: A=Deal ID, B=Username, C=Booked Quantity, D=Booking Date.
   const row=headers.map(()=>'');
@@ -3346,7 +3362,7 @@ async function bookingSubmit(){
     console.error(err);
     bookingShowStatus('Could not save booking: '+err.message, false);
   }finally{
-    btn.disabled=false;
+    bookingCheckFormValid();
   }
 }
 document.getElementById('booking-submit-btn').addEventListener('click', bookingSubmit);
