@@ -488,7 +488,6 @@
 
   <div class="main-tabs" id="main-tabs" role="tablist" aria-label="Operations tools">
     <button type="button" class="main-tab-btn active" data-main-view="task">Task Management</button>
-    <button type="button" class="main-tab-btn" data-main-view="analytics">Analytics</button>
     <button type="button" class="main-tab-btn" data-main-view="rename">Asset Document Rename &amp; File</button>
     <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill TIGR DRP</button>
     <button type="button" class="main-tab-btn" data-main-view="booking">Booking Single Trade</button>
@@ -507,6 +506,7 @@
   <div class="task-subtabs" id="task-subtabs" role="tablist" aria-label="Task management views">
     <button type="button" class="task-subtab-btn active" data-task-subview="request">New Task Request</button>
     <button type="button" class="task-subtab-btn" data-task-subview="work">Task Lists</button>
+    <button type="button" class="task-subtab-btn" data-task-subview="analytics">Analytics</button>
   </div>
 
   <div id="task-subview-request" class="task-subview active">
@@ -625,11 +625,7 @@
   </div>
   </div>
 
-  <footer>Task Management System · all data saved directly to the shared SharePoint list</footer>
-
-  </section>
-
-  <section id="main-view-analytics" class="main-view">
+  <div id="task-subview-analytics" class="task-subview">
     <div>
       <h1>Analytics</h1>
       <p class="subtitle" id="analytics-subtitle">A Gantt-style timeline of every task and the stage it's at.</p>
@@ -664,6 +660,9 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <footer>Task Management System · all data saved directly to the shared SharePoint list</footer>
 
   </section>
 
