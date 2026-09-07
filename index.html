@@ -3153,8 +3153,17 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
 const BOOKING_SOURCE_FILENAME = "Booking Logs.xlsx";
 const BOOKING_SOURCE_UNIQUE_ID = "36B34F4D-A312-4169-97A6-65BF02B1D6EE"; // from the sourcedoc GUID in the supplied SharePoint link
 const BOOKING_TABLE_NAME = "Booking"; // Excel table name (sheet "Booking Log")
-const BOOKING_DEAL_SHEET_NAME = "Single Trade"; // lives in the same Master Folder workbook used by the Autofill DRP lookup
-const BOOKING_DEAL_ID_HEADER = "Agreement ID (Assigned to BD)"; // column G in that sheet
+const BOOKING_DEAL_SHEET_NAME = "Single Trade (SO)"; // lives in the same Master Folder workbook used by the Autofill DRP lookup
+const BOOKING_DEAL_ID_HEADER = "Agreement ID (Assigned to BD)"; // column G in that sheet's header row (the header row itself is not row 1 — there's a reference/legend block above it, so it's located dynamically below)
+const BOOKING_DEAL_ID_COL_IDX = 6; // column G, 0-based
+// Only these columns are surfaced in the details panel, per the confirmed sheet layout.
+const BOOKING_DEAL_DETAIL_COLS = [
+  { idx: 9,  fallbackLabel: 'Company' },       // J
+  { idx: 11, fallbackLabel: 'Country' },       // L
+  { idx: 12, fallbackLabel: 'Registry' },      // M
+  { idx: 13, fallbackLabel: 'Tech' },          // N
+  { idx: 17, fallbackLabel: 'Volume (RECs)' }  // R
+];
 let bookingWorkbookRef = null; // {driveId,itemId,webUrl}
 let bookingTableHeaders = null;
 let bookingSubmissions = [];
@@ -3202,10 +3211,11 @@ async function bookingLoadDealSheet(){
   const data=await graphFetch('/drives/'+ref.driveId+'/items/'+ref.itemId+"/workbook/worksheets('"+sheet+"')/usedRange(valuesOnly=true)");
   const matrix=(data&&data.values)||[];
   if(!matrix.length) throw new Error('The "'+BOOKING_DEAL_SHEET_NAME+'" sheet returned no rows.');
-  const headers=matrix[0].map(x=>String(x||'').trim());
-  let idIdx=headers.findIndex(h=>ropsNorm(h)===ropsNorm(BOOKING_DEAL_ID_HEADER));
-  if(idIdx<0) idIdx=6; // fallback to column G per the confirmed sheet layout
-  bookingDealSheetCache={ headers, rows: matrix.slice(1), idIdx };
+  // The header row sits below a reference/legend block, so find it by matching the known header text in column G rather than assuming row 1.
+  const headerRowIdx=matrix.findIndex(r=>ropsNorm(r[BOOKING_DEAL_ID_COL_IDX])===ropsNorm(BOOKING_DEAL_ID_HEADER));
+  if(headerRowIdx<0) throw new Error('Could not find the header "'+BOOKING_DEAL_ID_HEADER+'" in column G of "'+BOOKING_DEAL_SHEET_NAME+'".');
+  const headers=matrix[headerRowIdx].map(x=>String(x||'').trim());
+  bookingDealSheetCache={ headers, rows: matrix.slice(headerRowIdx+1), idIdx: BOOKING_DEAL_ID_COL_IDX };
   return bookingDealSheetCache;
 }
 
@@ -3215,7 +3225,10 @@ async function bookingFindDeal(dealId){
   for(const row of sheet.rows){
     if(ropsNorm(row[sheet.idIdx])===wanted){
       const obj={};
-      sheet.headers.forEach((h,j)=>{ if(h) obj[h]=row[j]; });
+      BOOKING_DEAL_DETAIL_COLS.forEach(c=>{
+        const label=String(sheet.headers[c.idx]||'').trim() || c.fallbackLabel;
+        obj[label]=row[c.idx];
+      });
       return obj;
     }
   }
