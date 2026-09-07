@@ -843,7 +843,7 @@
       <div class="grid">
         <div>
           <label for="booking-deal-id">Deal ID</label>
-          <input type="text" id="booking-deal-id" placeholder="Enter Deal ID and press Tab/Enter to look it up">
+          <input type="text" id="booking-deal-id" placeholder="Enter Deal ID (auto-lookup optional — manual IDs are fine)">
         </div>
         <div>
           <label for="booking-name">Username</label>
@@ -3265,7 +3265,7 @@ async function bookingLookupDeal(){
     if(seq!==bookingDealLookupSeq) return; // a newer lookup started meanwhile — drop this stale result
     if(!row){
       bookingRenderDealDetails(null);
-      bookingShowDealLookupStatus('No match found for "'+dealId+'" in '+BOOKING_DEAL_SHEET_NAME+' / '+BOOKING_DEAL_ID_HEADER+'.', false);
+      bookingShowDealLookupStatus('No match found for "'+dealId+'" in '+BOOKING_DEAL_SHEET_NAME+' — you can still submit this Deal ID manually.', true);
       return;
     }
     bookingRenderDealDetails(row);
@@ -3274,7 +3274,7 @@ async function bookingLookupDeal(){
     if(seq!==bookingDealLookupSeq) return;
     console.error(err);
     bookingRenderDealDetails(null);
-    bookingShowDealLookupStatus('Lookup failed: '+err.message, false);
+    bookingShowDealLookupStatus('Could not look up details for this Deal ID, but you can still submit it manually. ('+err.message+')', true);
   }
 }
 document.getElementById('booking-deal-id').addEventListener('blur', bookingLookupDeal);
