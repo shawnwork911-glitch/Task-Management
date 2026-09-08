@@ -350,6 +350,10 @@
   .rops-rename-preview{margin-top:12px;padding:10px 12px;border:1px solid var(--border);background:var(--surface-2);border-radius:8px;font-size:12px;word-break:break-all;}
   .rops-old{text-decoration:line-through;color:var(--text-secondary);display:block;margin-bottom:3px;}
   .rops-status{display:none;margin-top:12px;padding:9px 11px;border-radius:7px;font-size:12px;white-space:pre-wrap;}
+  .rops-match-list{display:flex;flex-direction:column;gap:6px;}
+  .rops-match-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:rgba(255,255,255,.03);}
+  .rops-match-item .rops-match-name{font-size:13px;}
+  .rops-match-item button{white-space:nowrap;}
   .rops-status.show{display:block;}
   .rops-status.ok{background:#d9f0dd;color:#256b38;border:1px solid #9ac8a5;}
   .rops-status.err{background:#fdecea;color:#8a2d1f;border:1px solid #e2a49a;}
@@ -763,17 +767,18 @@
 
     <div class="card">
       <div class="rops-input-mode" role="tablist" aria-label="Autofill input method">
-        <button type="button" class="rops-mode-btn active" id="rops-mode-lookup-btn" data-rops-autofill-mode="lookup">Lookup Agreement ID</button>
+        <button type="button" class="rops-mode-btn active" id="rops-mode-lookup-btn" data-rops-autofill-mode="lookup">Lookup Device Owner</button>
         <button type="button" class="rops-mode-btn" id="rops-mode-manual-btn" data-rops-autofill-mode="manual">Paste preset table (multiple items)</button>
       </div>
 
       <div class="rops-manual-panel active" id="rops-lookup-panel">
         <div class="filter-row" style="margin-bottom:0;">
-          <div style="flex:1;min-width:240px;"><label for="rops-agreement-id-input">Agreement ID (Ops Internal)</label><input type="text" id="rops-agreement-id-input" placeholder="Enter exact Agreement ID"></div>
+          <div style="flex:1;min-width:240px;"><label for="rops-agreement-id-input">Device Owner</label><input type="text" id="rops-agreement-id-input" placeholder="Enter Device Owner name (e.g. Teo Seng Farming Sdn Bhd)"></div>
           <button type="button" id="rops-lookup-btn">Search &amp; auto-fill</button>
           <button type="button" class="secondary" id="rops-clear-btn">Clear</button>
         </div>
         <div class="rops-status" id="rops-lookup-status"></div>
+        <div class="rops-status" id="rops-lookup-matches" style="display:none;"></div>
       </div>
 
       <div class="rops-manual-panel" id="rops-manual-panel">
@@ -816,7 +821,7 @@
     <div class="rops-workspace" id="rops-workspace" style="display:none;">
       <div class="card rops-form-col" id="rops-form-col"></div>
       <div class="card">
-        <div class="rops-preview-wrap" id="rops-preview-wrap"><div class="rops-preview-placeholder">Search for an Agreement ID, review the fields, then generate the PDF preview.</div></div>
+        <div class="rops-preview-wrap" id="rops-preview-wrap"><div class="rops-preview-placeholder">Search for a Device Owner, review the fields, then generate the PDF preview.</div></div>
         <div class="rops-actions">
           <button type="button" class="secondary" id="rops-generate-preview-btn">Generate preview</button>
           <button type="button" id="rops-save-sp-btn" disabled>Save to SharePoint</button>
@@ -4248,31 +4253,45 @@ function ropsMapAssetToFields(obj){
   };
 }
 
-async function ropsFindAgreement(agreementId){
+async function ropsFindAgreementsByOwner(ownerName){
   const ref=await ropsResolveWorkbook();
   const t=encodeURIComponent(ROPS_ASSET_TABLE_NAME);
   const data=await graphFetch('/drives/'+ref.driveId+'/items/'+ref.itemId+'/workbook/tables/'+t+'/range');
   const matrix=(data&&data.text&&data.text.length) ? data.text : ((data&&data.values)||[]);
   if(!matrix.length) throw new Error('The Assets table returned no rows.');
   const headers=matrix[0].map(x=>String(x||'').trim());
+  // Device Owner lookup is sourced from workbook Column J (falls back to a header-name match
+  // in case the sheet layout shifts, since "Device Owner" is also used elsewhere as a header name).
+  let ownerIdx=headers.findIndex(h=>ropsNorm(h)===ropsNorm('Device Owner'));
+  if(ownerIdx<0) ownerIdx=9; // Column J, 0-indexed
   const agrIdx=headers.findIndex(h=>ropsNorm(h)===ropsNorm('Agreement ID (Ops Internal)'));
-  if(agrIdx<0) throw new Error('Column "Agreement ID (Ops Internal)" was not found in the Assets table.');
-  const wanted=ropsNorm(agreementId);
+  const wanted=ropsNorm(ownerName).replace(/\s+/g,' ');
+  const exact=[],prefix=[],contains=[];
   for(let i=1;i<matrix.length;i++){
-    if(ropsNorm(matrix[i][agrIdx])===wanted){
-      const obj=ropsRowObject(headers,matrix[i]);
-      // Fixed workbook positions requested for Autofill naming/data source:
-      // Fixed workbook columns for Autofill DRP:
-      // Column I (index 8) = Company (Granting Party) / Company Name.
-      // Column P (index 15) = Capacity (MWac) -> field 8 Nameplate Capacity.
-      // Column AT (index 45) = Asset City, State/Province -> field 4.
-      obj.__columnI = matrix[i][8];
-      obj.__columnP = matrix[i][15];
-      obj.__columnAT = matrix[i][45];
-      return obj;
-    }
+    const raw=matrix[i][ownerIdx];
+    if(raw===undefined||raw===null||String(raw).trim()==='') continue;
+    const norm=ropsNorm(raw).replace(/\s+/g,' ');
+    const obj=ropsRowObject(headers,matrix[i]);
+    // Fixed workbook positions requested for Autofill naming/data source:
+    // Fixed workbook columns for Autofill DRP:
+    // Column I (index 8) = Company (Granting Party) / Company Name.
+    // Column P (index 15) = Capacity (MWac) -> field 8 Nameplate Capacity.
+    // Column AT (index 45) = Asset City, State/Province -> field 4.
+    obj.__columnI = matrix[i][8];
+    obj.__columnP = matrix[i][15];
+    obj.__columnAT = matrix[i][45];
+    obj.__deviceOwner = String(raw).trim();
+    obj.__agreementId = agrIdx>=0 ? String(matrix[i][agrIdx]||'').trim() : '';
+    if(norm===wanted) exact.push(obj);
+    else if(norm.startsWith(wanted)) prefix.push(obj);
+    else if(norm.includes(wanted)) contains.push(obj);
   }
-  return null;
+  // Prefer the tightest match tier available: exact name, then names that start with the
+  // typed text (e.g. "Teo Seng Farming Sdn Bhd" -> "Teo Seng Farming Sdn Bhd- Layer 8"),
+  // then a broader contains match.
+  if(exact.length) return exact;
+  if(prefix.length) return prefix;
+  return contains;
 }
 
 function ropsRenderForm(){
@@ -4304,29 +4323,56 @@ function ropsRenderForm(){
   }));
 }
 
+let ropsPendingOwnerMatches=[];
+function ropsHideOwnerMatches(){
+  const el=document.getElementById('rops-lookup-matches'); if(el){ el.style.display='none'; el.innerHTML=''; }
+  ropsPendingOwnerMatches=[];
+}
+function ropsRenderOwnerMatches(rows){
+  ropsPendingOwnerMatches=rows;
+  const el=document.getElementById('rops-lookup-matches'); if(!el) return;
+  el.style.display='block';
+  el.innerHTML='<div style="margin-bottom:8px;">Several similarly-named Device Owners were found — choose the correct one:</div>'+
+    '<div class="rops-match-list">'+rows.map((r,i)=>
+      '<div class="rops-match-item"><span class="rops-match-name">'+ropsEsc(r.__deviceOwner)+(r.__agreementId?' <span style="opacity:.6">('+ropsEsc(r.__agreementId)+')</span>':'')+'</span>'+
+      '<button type="button" class="secondary small-btn" data-owner-match-idx="'+i+'">Use this</button></div>'
+    ).join('')+'</div>';
+  el.querySelectorAll('[data-owner-match-idx]').forEach(btn=>btn.addEventListener('click',()=>{
+    const row=ropsPendingOwnerMatches[Number(btn.dataset.ownerMatchIdx)];
+    ropsHideOwnerMatches();
+    ropsApplyOwnerMatch(row);
+  }));
+}
+function ropsApplyOwnerMatch(row){
+  ropsActiveManualItemId=null; ropsCurrentAgreementId=row.__agreementId||''; ropsLookupEntity=ropsEntityFromRow(row);
+  ropsCurrentExcelCompanyName=String(row.__columnI||'').trim();
+  ropsCurrentExcelCapacityMwac=String(row.__columnP||'').trim();
+  ropsCurrentFieldValues=ropsMapAssetToFields(row);
+  document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(b=>b.classList.toggle('active',b.dataset.entity===ropsLookupEntity));
+  ropsRenderForm(); document.getElementById('rops-workspace').style.display='grid';
+  document.getElementById('rops-preview-wrap').innerHTML='<div class="rops-preview-placeholder">Match found. Review the fields, then generate the PDF preview.</div>';
+  document.getElementById('rops-save-sp-btn').disabled=true; document.getElementById('rops-download-btn').disabled=true; ropsLastFilledBytes=null;
+  ropsShowStatus('rops-lookup-status','Loaded "'+row.__deviceOwner+'". Entity set to '+ropsLookupEntity+' from the Country column. Review any blank/non-direct fields before generating.',true);
+}
 async function ropsRunLookup(){
-  const id=document.getElementById('rops-agreement-id-input').value.trim();
-  if(!id){ropsShowStatus('rops-lookup-status','Enter an Agreement ID first.',false);return;}
+  const name=document.getElementById('rops-agreement-id-input').value.trim();
+  ropsHideOwnerMatches();
+  if(!name){ropsShowStatus('rops-lookup-status','Enter a Device Owner name first.',false);return;}
   const btn=document.getElementById('rops-lookup-btn');btn.disabled=true;ropsShowStatus('rops-lookup-status','Searching live Assets table…',true);
   try{
-    const row=await ropsFindAgreement(id);
-    if(!row){document.getElementById('rops-workspace').style.display='none';ropsShowStatus('rops-lookup-status','No exact match found for "'+id+'" in Agreement ID (Ops Internal).',false);return;}
-    ropsActiveManualItemId=null; ropsCurrentAgreementId=id; ropsLookupEntity=ropsEntityFromRow(row);
-    ropsCurrentExcelCompanyName=String(row.__columnI||'').trim();
-    ropsCurrentExcelCapacityMwac=String(row.__columnO||'').trim();
-    ropsCurrentFieldValues=ropsMapAssetToFields(row);
-    document.querySelectorAll('#rops-lookup-entity-switch .rops-stamp').forEach(b=>b.classList.toggle('active',b.dataset.entity===ropsLookupEntity));
-    ropsRenderForm(); document.getElementById('rops-workspace').style.display='grid';
-    document.getElementById('rops-preview-wrap').innerHTML='<div class="rops-preview-placeholder">Match found. Review the fields, then generate the PDF preview.</div>';
-    document.getElementById('rops-save-sp-btn').disabled=true; document.getElementById('rops-download-btn').disabled=true; ropsLastFilledBytes=null;
-    ropsShowStatus('rops-lookup-status','Match found in the live Assets table. Entity set to '+ropsLookupEntity+' from the Country column. Review any blank/non-direct fields before generating.',true);
+    const rows=await ropsFindAgreementsByOwner(name);
+    if(!rows.length){document.getElementById('rops-workspace').style.display='none';ropsShowStatus('rops-lookup-status','No match found for "'+name+'" in Device Owner.',false);return;}
+    if(rows.length===1){ ropsApplyOwnerMatch(rows[0]); return; }
+    document.getElementById('rops-workspace').style.display='none';
+    ropsShowStatus('rops-lookup-status',rows.length+' matches found for "'+name+'". Pick the correct Device Owner below.',true);
+    ropsRenderOwnerMatches(rows);
   }catch(err){console.error(err);document.getElementById('rops-workspace').style.display='none';ropsShowStatus('rops-lookup-status','Lookup failed: '+err.message,false);}
   finally{btn.disabled=false;}
 }
 document.getElementById('rops-lookup-btn').addEventListener('click',ropsRunLookup);
 document.getElementById('rops-agreement-id-input').addEventListener('keydown',e=>{if(e.key==='Enter') ropsRunLookup();});
 document.getElementById('rops-clear-btn').addEventListener('click',()=>{
-  document.getElementById('rops-agreement-id-input').value='';document.getElementById('rops-workspace').style.display='none';ropsHideStatus('rops-lookup-status');ropsHideStatus('rops-save-status');ropsLastFilledBytes=null;ropsCurrentAgreementId='';ropsCurrentExcelCompanyName='';ropsCurrentExcelCapacityMwac='';
+  document.getElementById('rops-agreement-id-input').value='';document.getElementById('rops-workspace').style.display='none';ropsHideStatus('rops-lookup-status');ropsHideStatus('rops-save-status');ropsHideOwnerMatches();ropsLastFilledBytes=null;ropsCurrentAgreementId='';ropsCurrentExcelCompanyName='';ropsCurrentExcelCapacityMwac='';
 });
 
 async function ropsGeneratePreview(){
