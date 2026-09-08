@@ -4235,16 +4235,19 @@ function ropsCapacity(obj){
 }
 function ropsMapAssetToFields(obj){
   // Only direct/close mappings are prefilled. Fields without a reliable source column are left blank for review.
+  // GEN ID = Tigr Asset ID / IREC Asset ID (workbook Column G). If it starts with "AGG" the asset
+  // is an aggregate asset, so field 7 (Aggregate Asset? Y/N) is auto-set from that prefix.
+  const genId=String(ropsFirst(obj,['Tigr Asset ID / IREC Asset ID'])||'').trim();
   return {
     '2':String(ropsFirst(obj,['Device Owner'])||''),
     '3':String(ropsFirst(obj,['Asset Address'])||''),
     '4':String((obj && obj.__columnAT!==undefined && obj.__columnAT!==null) ? obj.__columnAT : ''),
     '5':String(ropsFirst(obj,['Country'])||''),
     '6':String(ropsFirst(obj,['Coordinate'])||''),
-    '7':'',
+    '7': genId.toUpperCase().startsWith('AGG') ? 'Y' : 'N',
     '8':ropsCapacity(obj),
     '11':'',
-    '12':String(ropsFirst(obj,['Tigr Asset ID / IREC Asset ID'])||''),
+    '12':genId,
     '13':String((obj && obj.__columnI!==undefined && obj.__columnI!==null) ? obj.__columnI : ''),
     '14':String(ropsFirst(obj,['Office Address','Invoice Address','Asset Address'])||''),
     '15':'',
