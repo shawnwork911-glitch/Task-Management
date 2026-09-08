@@ -4280,6 +4280,8 @@ async function ropsFindAgreementsByOwner(ownerName){
     obj.__columnI = matrix[i][8];
     obj.__columnP = matrix[i][15];
     obj.__columnAT = matrix[i][45];
+    // Column G (index 6) = Tigr Asset ID / IREC Asset ID -> shown alongside the name in the owner-match picker.
+    obj.__columnG = matrix[i][6];
     obj.__deviceOwner = String(raw).trim();
     obj.__agreementId = agrIdx>=0 ? String(matrix[i][agrIdx]||'').trim() : '';
     if(norm===wanted) exact.push(obj);
@@ -4333,10 +4335,11 @@ function ropsRenderOwnerMatches(rows){
   const el=document.getElementById('rops-lookup-matches'); if(!el) return;
   el.style.display='block';
   el.innerHTML='<div style="margin-bottom:8px;">Several similarly-named Device Owners were found — choose the correct one:</div>'+
-    '<div class="rops-match-list">'+rows.map((r,i)=>
-      '<div class="rops-match-item"><span class="rops-match-name">'+ropsEsc(r.__deviceOwner)+(r.__agreementId?' <span style="opacity:.6">('+ropsEsc(r.__agreementId)+')</span>':'')+'</span>'+
-      '<button type="button" class="secondary small-btn" data-owner-match-idx="'+i+'">Use this</button></div>'
-    ).join('')+'</div>';
+    '<div class="rops-match-list">'+rows.map((r,i)=>{
+      const tigrId=String(r.__columnG||'').trim();
+      return '<div class="rops-match-item"><span class="rops-match-name">'+ropsEsc(r.__deviceOwner)+(tigrId?' <span style="opacity:.6">('+ropsEsc(tigrId)+')</span>':'')+'</span>'+
+      '<button type="button" class="secondary small-btn" data-owner-match-idx="'+i+'">Use this</button></div>';
+    }).join('')+'</div>';
   el.querySelectorAll('[data-owner-match-idx]').forEach(btn=>btn.addEventListener('click',()=>{
     const row=ropsPendingOwnerMatches[Number(btn.dataset.ownerMatchIdx)];
     ropsHideOwnerMatches();
