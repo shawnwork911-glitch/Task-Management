@@ -518,17 +518,20 @@
   <div class="card" id="new-task-card" style="display:none;">
     <p class="card-title">New task request</p>
     <div class="grid">
-      <div>
-        <label for="nt-request-type">Request type</label>
-        <select id="nt-request-type">
-          <option value="">Select…</option>
-        </select>
-      </div>
-      <div>
-        <label for="nt-task">Task</label>
-        <select id="nt-task">
-          <option value="">Select…</option>
-        </select>
+      <div id="nt-request-task-anchor" style="display:none;"></div>
+      <div id="nt-request-task-row" style="display:contents;">
+        <div>
+          <label for="nt-request-type">Request type</label>
+          <select id="nt-request-type">
+            <option value="">Select…</option>
+          </select>
+        </div>
+        <div>
+          <label for="nt-task">Task</label>
+          <select id="nt-task">
+            <option value="">Select…</option>
+          </select>
+        </div>
       </div>
       <div>
         <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
@@ -567,6 +570,7 @@
         Send this task directly to a user
       </label>
       <p class="card-note" style="margin:4px 0 12px;">Skips the Super Admin queue — this goes straight to the person you pick, with the deadline and priority you set here. You'll still control its status as it progresses. Only users added under <strong>User Management</strong> (Role: User) appear below — add someone there first if they're missing.</p>
+      <div class="grid" id="nt-direct-assign-request-task-slot" style="margin-bottom:14px;"></div>
       <div class="grid" id="nt-direct-assign-fields" style="display:none;">
         <div>
           <label for="nt-direct-assign-user">Send to</label>
@@ -1180,6 +1184,9 @@ const REQUEST_TYPE_TASK_MAP = {
   "Relevant docs needed": ["Others"]
 };
 const DIRECT_ASSIGN_REQUEST_TYPES = ["Stock-In (T)", "Self Manage", "Stock-Out (T)", "Stock-Out (R)", "Relevant docs needed"];
+// Normal Users never see these two as Request Type options in the regular
+// (non-direct-assign) flow — Admin/Super Admin still can.
+const REQUEST_TYPES_HIDDEN_FROM_USER = ["Request for E-Invoice information", "Relevant docs needed"];
 const DIRECT_ASSIGN_TASK_MAP = {
   "Stock-In (T)": ["Request E-Invoice Info"],
   "Self Manage": ["Request E-Invoice Info", "Invoice Issuances"],
@@ -1197,7 +1204,10 @@ function ntFilterSelectOptions(selectEl, allOptions, allowedList){
 function ntUpdateRequestTypeOptions(){
   const sel = document.getElementById('nt-request-type');
   const directOn = document.getElementById('nt-direct-assign-toggle').checked;
-  ntFilterSelectOptions(sel, REQUEST_TYPES, directOn ? DIRECT_ASSIGN_REQUEST_TYPES : null);
+  let allowed = null;
+  if(directOn) allowed = DIRECT_ASSIGN_REQUEST_TYPES;
+  else if(currentUserRole === 'user') allowed = REQUEST_TYPES.filter(t => !REQUEST_TYPES_HIDDEN_FROM_USER.includes(t));
+  ntFilterSelectOptions(sel, REQUEST_TYPES, allowed);
 }
 function ntUpdateTaskOptions(){
   const sel = document.getElementById('nt-task');
@@ -1511,6 +1521,10 @@ function applyRoleUi(){
   const canCreate = currentUserRole === 'user' || currentUserRole === 'admin' || currentUserRole === 'superadmin';
   document.getElementById('new-task-card').style.display = canCreate ? 'block' : 'none';
   document.getElementById('my-tasks-card').style.display = canCreate ? 'block' : 'none';
+  if(document.getElementById('nt-request-type')){
+    ntUpdateRequestTypeOptions();
+    ntUpdateTaskOptions();
+  }
   const directAssignWrap = document.getElementById('nt-direct-assign-wrap');
   if(directAssignWrap){
     directAssignWrap.style.display = isAdmin ? 'block' : 'none';
@@ -2085,6 +2099,13 @@ document.getElementById('nt-direct-assign-toggle').addEventListener('change', fu
   }
   ntUpdateRequestTypeOptions();
   ntUpdateTaskOptions();
+  const row = document.getElementById('nt-request-task-row');
+  const topAnchor = document.getElementById('nt-request-task-anchor');
+  const slot = document.getElementById('nt-direct-assign-request-task-slot');
+  if(row && topAnchor && slot){
+    if(this.checked) slot.appendChild(row);
+    else topAnchor.parentNode.insertBefore(row, topAnchor.nextSibling);
+  }
 });
 
 document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
@@ -2173,6 +2194,9 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     if(requestedDeadlineWrap) requestedDeadlineWrap.style.display = 'block';
     ntUpdateRequestTypeOptions();
     ntUpdateTaskOptions();
+    const resetRow = document.getElementById('nt-request-task-row');
+    const resetTopAnchor = document.getElementById('nt-request-task-anchor');
+    if(resetRow && resetTopAnchor) resetTopAnchor.parentNode.insertBefore(resetRow, resetTopAnchor.nextSibling);
     await loadAllData();
     setStatus(directAssignOn ? 'Task sent to ' + directAssignEmail + '.' : 'Request submitted successfully.');
     if(directAssignOn){
