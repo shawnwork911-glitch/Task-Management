@@ -3271,7 +3271,7 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
 /* ---- Booking tab: writes rows into Live inventory.xlsx / "Booking Log" / table "Booking" ---- */
 const BOOKING_SOURCE_FILENAME = "Live inventory.xlsx";
 const BOOKING_SOURCE_UNIQUE_ID = "BEA3C4C4-4E9D-49CE-B1B5-9F743F33591E"; // from the sourcedoc GUID in the supplied SharePoint link
-const BOOKING_TABLE_NAME = "Booking"; // Excel table name (sheet "Booking Log")
+const BOOKING_TABLE_NAME = "BookTable"; // Excel table name (sheet "Booking Log")
 const BOOKING_DEAL_SHEET_NAME = "Single Trade (SO)"; // lives in the same Master Folder workbook used by the Autofill DRP lookup
 const BOOKING_DEAL_ID_HEADER = "Agreement ID (Assigned to BD)"; // column G in that sheet's header row (the header row itself is not row 1 — there's a reference/legend block above it, so it's located dynamically below)
 const BOOKING_DEAL_ID_COL_IDX = 6; // column G, 0-based
