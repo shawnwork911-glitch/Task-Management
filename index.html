@@ -892,6 +892,7 @@
         </div>
       </div>
       <div class="rops-status" id="booking-deal-lookup-status"></div>
+      <div id="booking-deal-matches" style="display:none;"></div>
       <div id="booking-deal-details"></div>
       <button type="button" id="booking-submit-btn" style="margin-top:14px;" disabled>Submit Booking</button>
       <div class="rops-status" id="booking-status"></div>
@@ -3283,6 +3284,13 @@ const BOOKING_DEAL_DETAIL_COLS = [
   { idx: 13, fallbackLabel: 'Tech' },          // N
   { idx: 17, fallbackLabel: 'Volume (RECs)' }  // R
 ];
+// Same columns as above, named individually so the multi-match picker (when a
+// Deal ID has more than one line — different Country/Tech/Registry) can show
+// these four side by side without re-deriving indices.
+const BOOKING_DEAL_COUNTRY_COL_IDX = 11;  // L
+const BOOKING_DEAL_TECH_COL_IDX = 13;     // N
+const BOOKING_DEAL_REGISTRY_COL_IDX = 12; // M
+const BOOKING_DEAL_VOLUME_COL_IDX = 17;   // R — "Volume (RECs)"; stands in for "Available Volume" for picking between lines
 let bookingWorkbookRef = null; // {driveId,itemId,webUrl}
 let bookingTableHeaders = null;
 let bookingSubmissions = [];
@@ -3338,20 +3346,22 @@ async function bookingLoadDealSheet(){
   return bookingDealSheetCache;
 }
 
+function bookingRowToDetailObj(sheet, row){
+  const obj={};
+  BOOKING_DEAL_DETAIL_COLS.forEach(c=>{
+    const label=String(sheet.headers[c.idx]||'').trim() || c.fallbackLabel;
+    obj[label]=row[c.idx];
+  });
+  return obj;
+}
 async function bookingFindDeal(dealId){
   const sheet=await bookingLoadDealSheet();
   const wanted=ropsNorm(dealId);
+  const matches=[];
   for(const row of sheet.rows){
-    if(ropsNorm(row[sheet.idIdx])===wanted){
-      const obj={};
-      BOOKING_DEAL_DETAIL_COLS.forEach(c=>{
-        const label=String(sheet.headers[c.idx]||'').trim() || c.fallbackLabel;
-        obj[label]=row[c.idx];
-      });
-      return obj;
-    }
+    if(ropsNorm(row[sheet.idIdx])===wanted) matches.push(row);
   }
-  return null;
+  return { sheet, matches };
 }
 
 function bookingShowDealLookupStatus(msg, ok){
@@ -3373,22 +3383,57 @@ function bookingRenderDealDetails(obj){
   wrap.innerHTML=html;
 }
 
+let bookingPendingMatches=[];
+function bookingHideMatches(){
+  const el=document.getElementById('booking-deal-matches'); if(el){ el.style.display='none'; el.innerHTML=''; }
+  bookingPendingMatches=[];
+}
+function bookingRenderMatches(sheet, rows, dealId){
+  bookingPendingMatches=rows;
+  const el=document.getElementById('booking-deal-matches'); if(!el) return;
+  const label=(idx,fallback)=>String(sheet.headers[idx]||fallback).trim()||fallback;
+  el.style.display='block';
+  el.innerHTML='<div style="margin-bottom:8px;">'+rows.length+' matches found for "'+ropsEsc(dealId)+'" — Country / Tech / Registry / Available Volume differ, so pick the correct line:</div>'+
+    '<div class="rops-match-list">'+rows.map((row,i)=>{
+      const country=String(row[BOOKING_DEAL_COUNTRY_COL_IDX]||'').trim();
+      const tech=String(row[BOOKING_DEAL_TECH_COL_IDX]||'').trim();
+      const registry=String(row[BOOKING_DEAL_REGISTRY_COL_IDX]||'').trim();
+      const volume=String(row[BOOKING_DEAL_VOLUME_COL_IDX]||'').trim();
+      const summary=[country,tech,registry].filter(Boolean).join(' · ')||'(no Country/Tech/Registry on this line)';
+      return '<div class="rops-match-item"><span class="rops-match-name">'+ropsEsc(summary)+
+        (volume?' <span style="opacity:.6">(Available Volume: '+ropsEsc(volume)+')</span>':'')+'</span>'+
+        '<button type="button" class="secondary small-btn" data-deal-match-idx="'+i+'">Use this</button></div>';
+    }).join('')+'</div>';
+  el.querySelectorAll('[data-deal-match-idx]').forEach(btn=>btn.addEventListener('click',()=>{
+    const row=bookingPendingMatches[Number(btn.dataset.dealMatchIdx)];
+    bookingHideMatches();
+    bookingRenderDealDetails(bookingRowToDetailObj(sheet, row));
+    bookingShowDealLookupStatus('Using the '+([String(row[BOOKING_DEAL_COUNTRY_COL_IDX]||'').trim(),String(row[BOOKING_DEAL_TECH_COL_IDX]||'').trim(),String(row[BOOKING_DEAL_REGISTRY_COL_IDX]||'').trim()].filter(Boolean).join(' · ')||'selected')+' line for "'+dealId+'".', true);
+  }));
+}
 async function bookingLookupDeal(){
   const dealIdEl=document.getElementById('booking-deal-id');
   const dealId=dealIdEl.value.trim();
+  bookingHideMatches();
   if(!dealId){ bookingRenderDealDetails(null); bookingShowDealLookupStatus(null); return; }
   const seq=++bookingDealLookupSeq;
   bookingShowDealLookupStatus('Searching "'+BOOKING_DEAL_SHEET_NAME+'" for '+dealId+'…', true);
   try{
-    const row=await bookingFindDeal(dealId);
+    const {sheet, matches}=await bookingFindDeal(dealId);
     if(seq!==bookingDealLookupSeq) return; // a newer lookup started meanwhile — drop this stale result
-    if(!row){
+    if(!matches.length){
       bookingRenderDealDetails(null);
       bookingShowDealLookupStatus('No match found for "'+dealId+'" in '+BOOKING_DEAL_SHEET_NAME+' — you can still submit this Deal ID manually.', true);
       return;
     }
-    bookingRenderDealDetails(row);
-    bookingShowDealLookupStatus('Match found in '+BOOKING_DEAL_SHEET_NAME+'.', true);
+    if(matches.length===1){
+      bookingRenderDealDetails(bookingRowToDetailObj(sheet, matches[0]));
+      bookingShowDealLookupStatus('Match found in '+BOOKING_DEAL_SHEET_NAME+'.', true);
+      return;
+    }
+    bookingRenderDealDetails(null);
+    bookingShowDealLookupStatus(matches.length+' lines found for "'+dealId+'" — pick the correct one below.', true);
+    bookingRenderMatches(sheet, matches, dealId);
   }catch(err){
     if(seq!==bookingDealLookupSeq) return;
     console.error(err);
