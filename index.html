@@ -550,13 +550,13 @@
           Important
         </label>
         <p class="card-note" style="margin:2px 0 0;">Ticking this only submits a request — a Super Admin must approve it before the task is marked Important.</p>
-        <textarea id="nt-important-reason" placeholder="Why is this task important? This will be shown to Super Admin for approval." disabled style="margin-top:6px;min-height:64px;"></textarea>
+        <textarea id="nt-important-reason" placeholder="Why is this task important? This will be shown to Super Admin for approval." disabled style="margin-top:6px;min-height:64px;display:none;"></textarea>
       </div>
       <div style="grid-column:1/-1;">
         <label for="nt-description">Description</label>
         <textarea id="nt-description" placeholder="What needs to be done, and any relevant details"></textarea>
       </div>
-      <div>
+      <div id="nt-requested-deadline-wrap">
         <label for="nt-requested-deadline">Requested deadline (optional)</label>
         <input type="date" id="nt-requested-deadline">
       </div>
@@ -2013,9 +2013,17 @@ function wireOptionalFieldToggle(toggleId, inputId){
 wireOptionalFieldToggle('nt-agreement-id-toggle', 'nt-agreement-id');
 wireOptionalFieldToggle('nt-company-name-toggle', 'nt-company-name');
 wireOptionalFieldToggle('nt-important-toggle', 'nt-important-reason');
+document.getElementById('nt-important-toggle').addEventListener('change', function(){
+  document.getElementById('nt-important-reason').style.display = this.checked ? 'block' : 'none';
+});
 document.getElementById('nt-direct-assign-toggle').addEventListener('change', function(){
   const fields = document.getElementById('nt-direct-assign-fields');
   fields.style.display = this.checked ? 'grid' : 'none';
+  const requestedDeadlineWrap = document.getElementById('nt-requested-deadline-wrap');
+  if(requestedDeadlineWrap){
+    requestedDeadlineWrap.style.display = this.checked ? 'none' : 'block';
+    if(this.checked) document.getElementById('nt-requested-deadline').value = '';
+  }
   if(this.checked) populateDirectAssignUserDropdown();
   if(!this.checked){
     document.getElementById('nt-direct-assign-user').value = '';
@@ -2096,6 +2104,7 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     document.getElementById('nt-important-toggle').checked = false;
     document.getElementById('nt-important-reason').value = '';
     document.getElementById('nt-important-reason').disabled = true;
+    document.getElementById('nt-important-reason').style.display = 'none';
     document.getElementById('nt-description').value = '';
     document.getElementById('nt-request-type').value = '';
     document.getElementById('nt-task').value = '';
@@ -2105,6 +2114,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     document.getElementById('nt-direct-assign-user').value = '';
     document.getElementById('nt-direct-assign-priority').value = '';
     document.getElementById('nt-direct-assign-deadline').value = '';
+    const requestedDeadlineWrap = document.getElementById('nt-requested-deadline-wrap');
+    if(requestedDeadlineWrap) requestedDeadlineWrap.style.display = 'block';
     await loadAllData();
     setStatus(directAssignOn ? 'Task sent to ' + directAssignEmail + '.' : 'Request submitted successfully.');
     if(directAssignOn){
