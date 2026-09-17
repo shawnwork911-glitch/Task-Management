@@ -561,6 +561,27 @@
         <input type="date" id="nt-requested-deadline">
       </div>
     </div>
+    <div id="nt-direct-assign-wrap" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-top:14px;">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
+        <input type="checkbox" id="nt-direct-assign-toggle" style="width:auto;">
+        Send this task directly to a user
+      </label>
+      <p class="card-note" style="margin:4px 0 12px;">Skips the Super Admin queue — this goes straight to the person you pick, with the deadline and priority you set here. You'll still control its status as it progresses. Only users added under <strong>User Management</strong> (Role: User) appear below — add someone there first if they're missing.</p>
+      <div class="grid" id="nt-direct-assign-fields" style="display:none;">
+        <div>
+          <label for="nt-direct-assign-user">Send to</label>
+          <select id="nt-direct-assign-user"><option value="">Select a user…</option></select>
+        </div>
+        <div>
+          <label for="nt-direct-assign-priority">Priority</label>
+          <select id="nt-direct-assign-priority"><option value="">Select…</option></select>
+        </div>
+        <div>
+          <label for="nt-direct-assign-deadline">Deadline</label>
+          <input type="date" id="nt-direct-assign-deadline">
+        </div>
+      </div>
+    </div>
     <div id="new-task-error" class="field-error"></div>
     <div style="margin-top:14px;">
       <button type="button" id="submit-task-btn">Submit request</button>
@@ -674,7 +695,7 @@
     <div class="rops-head">
       <div>
         <h1>User Management</h1>
-        <p class="rops-subtitle">Super Admin only — manage Super Admin/Admin/User role assignments. Normal users default to User and do not need access to this role-management list.</p>
+        <p class="rops-subtitle">Super Admin only — manage Super Admin/Admin/User role assignments. Normal users work fine without being added here — but add a User's email here (Role: User) so they appear in the "Send this task directly to a user" dropdown Admins use to assign work to them.</p>
       </div>
       <span class="rops-conn">Role assignments: SharePoint</span>
     </div>
@@ -683,7 +704,7 @@
       <div class="card-title-row">
         <div>
           <p class="card-title" style="margin:0;">Known users &amp; role assignments</p>
-          <p class="card-note" style="margin:4px 0 0;">Normal users default to User automatically and are not written to this list. A Super Admin can promote another user to Super Admin or Admin here.</p>
+          <p class="card-note" style="margin:4px 0 0;">A Super Admin can promote a user to Super Admin or Admin here, or add a normal User's email (Role: User) so they show up in the direct-assignment dropdown on the New Task Request form.</p>
         </div>
         <button type="button" class="secondary small-btn" id="user-mgmt-refresh-btn">Refresh users</button>
       </div>
@@ -1154,6 +1175,11 @@ const PRIORITY_OPTIONS = [
     filterSel.innerHTML = '<option value="">All</option>' +
       PRIORITY_OPTIONS.map(p => '<option value="'+p.replace(/"/g,'&quot;')+'">'+p+'</option>').join('');
   }
+  const ntSel = document.getElementById('nt-direct-assign-priority');
+  if(ntSel){
+    ntSel.innerHTML = '<option value="">Select…</option>' +
+      PRIORITY_OPTIONS.map(p => '<option value="'+p.replace(/"/g,'&quot;')+'">'+p+'</option>').join('');
+  }
 })();
 function canSeePriority(){
   // Super Admin sets it; the assigned Admin can see it read-only; the
@@ -1432,6 +1458,15 @@ function applyRoleUi(){
   const canCreate = currentUserRole === 'user' || currentUserRole === 'admin' || currentUserRole === 'superadmin';
   document.getElementById('new-task-card').style.display = canCreate ? 'block' : 'none';
   document.getElementById('my-tasks-card').style.display = canCreate ? 'block' : 'none';
+  const directAssignWrap = document.getElementById('nt-direct-assign-wrap');
+  if(directAssignWrap){
+    directAssignWrap.style.display = isAdmin ? 'block' : 'none';
+    if(!isAdmin){
+      // Normal users never see or use this — make sure it's off if the role changes mid-session.
+      const toggle = document.getElementById('nt-direct-assign-toggle');
+      if(toggle && toggle.checked){ toggle.checked = false; toggle.dispatchEvent(new Event('change')); }
+    }
+  }
   document.getElementById('assign-queue-card').style.display = currentUserRole === 'superadmin' ? 'block' : 'none';
   document.getElementById('my-assigned-card').style.display = (currentUserRole === 'admin' || currentUserRole === 'superadmin') ? 'block' : 'none';
   document.getElementById('all-tasks-card').style.display = isAdmin ? 'block' : 'none';
@@ -1602,9 +1637,19 @@ function commentsForTask(taskId){
     .filter(c => String(c['Task Item ID']) === String(taskId))
     .sort((a,b) => new Date(a['Comment Date']) - new Date(b['Comment Date']));
 }
+function isTaskDirectlyAssignedToMe(t){
+  // A normal User never appears in the Admin/Super Admin "Assigned To" pool
+  // through the usual queue, so if a task is sitting in "Assigned To" for a
+  // User account, it can only be one an Admin/Super Admin sent them directly.
+  const email = (currentAccount.username||'').toLowerCase();
+  return currentUserRole === 'user' && !!email && (t['Assigned To']||'').toLowerCase() === email;
+}
+function isTaskMine(t){
+  return isTaskRequester(t) || isTaskDirectlyAssignedToMe(t);
+}
 function myTasks(){
   const email = (currentAccount.username||'').toLowerCase();
-  return taskItemsCache.filter(t => (t['Requested By']||'').toLowerCase() === email)
+  return taskItemsCache.filter(t => (t['Requested By']||'').toLowerCase() === email || isTaskDirectlyAssignedToMe(t))
     .sort(sortByPriorityThenDeadline);
 }
 function pendingTasks(){
@@ -1648,6 +1693,17 @@ function populateAssigneeDropdowns(){
   amSel.innerHTML = pool.length
     ? pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('')
     : '<option value="">No Admins assigned yet — add one under User management</option>';
+  populateDirectAssignUserDropdown();
+}
+function populateDirectAssignUserDropdown(){
+  const sel = document.getElementById('nt-direct-assign-user');
+  if(!sel) return;
+  const users = emailsForRole('user');
+  const current = sel.value;
+  sel.innerHTML = users.length
+    ? '<option value="">Select a user…</option>' + users.map(e=>'<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>').join('')
+    : '<option value="">No users added yet — add one under User Management</option>';
+  if(users.map(e=>e.toLowerCase()).includes(current.toLowerCase())) sel.value = current;
 }
 
 /* ---- Rendering: Analytics (Gantt-style timeline) ----
@@ -1690,7 +1746,7 @@ function ganttRange(v){
 }
 function analyticsScopeTasks(){
   const canSeeAll = currentUserRole === 'admin' || currentUserRole === 'superadmin';
-  return taskItemsCache.filter(t => canSeeAll || isTaskRequester(t));
+  return taskItemsCache.filter(t => canSeeAll || isTaskMine(t));
 }
 function analyticsDateBounds(){const from=document.getElementById('an-filter-date-from')?.value||'',to=document.getElementById('an-filter-date-to')?.value||'';let fromTs=-Infinity,toTs=Infinity;if(from){const d=new Date(from+'T00:00:00');if(!isNaN(d.getTime()))fromTs=d.getTime();}if(to){const d=new Date(to+'T23:59:59.999');if(!isNaN(d.getTime()))toTs=d.getTime();}return {fromTs,toTs};}
 function taskOverlapsAnalyticsDateRange(t){const b=analyticsDateBounds();if(b.fromTs===-Infinity&&b.toTs===Infinity)return true;const r=ganttRange(t);return !!r&&r.endTs>=b.fromTs&&r.startTs<=b.toTs;}
@@ -1819,8 +1875,8 @@ function renderAnalytics(){
 });
 const analyticsDateClearBtn=document.getElementById('an-filter-date-clear');if(analyticsDateClearBtn)analyticsDateClearBtn.addEventListener('click',()=>{document.getElementById('an-filter-date-from').value='';document.getElementById('an-filter-date-to').value='';renderAnalytics();});
 
-function importantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>isImportantTask(t)&&t.Status!==STATUS_COMPLETED&&t.Status!==STATUS_REJECTED&&t.Status!==STATUS_CANCELLED).filter(t=>canSeeAll||isTaskRequester(t)).sort(sortByPriorityThenDeadline);}
-function pendingImportantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>hasImportantRequest(t)).filter(t=>canSeeAll||isTaskRequester(t));}
+function importantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>isImportantTask(t)&&t.Status!==STATUS_COMPLETED&&t.Status!==STATUS_REJECTED&&t.Status!==STATUS_CANCELLED).filter(t=>canSeeAll||isTaskMine(t)).sort(sortByPriorityThenDeadline);}
+function pendingImportantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>hasImportantRequest(t)).filter(t=>canSeeAll||isTaskMine(t));}
 function renderImportantTasks(){const card=document.getElementById('important-tasks-card'),section=document.getElementById('standalone-important-section'),el=document.getElementById('important-tasks-list');if(!el)return;const tasks=importantTasks();if(card)card.style.display=tasks.length?'block':'none';if(section)section.style.display=tasks.length?'block':'none';if(!tasks.length){el.innerHTML='';return;}el.innerHTML=tasks.map(v=>taskCardHtml(v,true)).join('');el.querySelectorAll('[data-task-id]').forEach(card=>card.addEventListener('click',()=>openTaskModal(card.getAttribute('data-task-id'))));}
 
 /* ---- Rendering: My tasks (timeline) ---- */
@@ -1850,6 +1906,7 @@ function taskCardHtml(v, showAssignee){
       (v.Title ? '<span>Title: '+escapeHtml(v.Title)+'</span>' : '')+
       (v['Agreement ID'] ? '<span>Agreement: '+escapeHtml(v['Agreement ID'])+'</span>' : '')+
       (v['Company Name'] ? '<span>Company: '+escapeHtml(v['Company Name'])+'</span>' : '')+
+      ((v['Requested By']||'').toLowerCase() !== (currentAccount.username||'').toLowerCase() ? '<span>Requested by: '+escapeHtml(v['Requested By'])+'</span>' : '')+
       '<span>Requested '+fmtDate(v['Requested Date'])+'</span>'+
       ((isImportantTask(v)||isImportantPending(v)) && v['Important Reason'] ? '<span><strong>Why important:</strong> '+escapeHtml(v['Important Reason'])+'</span>' : '')+
       (showAssignee ? '<span>Assigned to: '+ (v['Assigned To'] ? escapeHtml(v['Assigned To']) : '—') +'</span>' : '')+
@@ -1956,6 +2013,16 @@ function wireOptionalFieldToggle(toggleId, inputId){
 wireOptionalFieldToggle('nt-agreement-id-toggle', 'nt-agreement-id');
 wireOptionalFieldToggle('nt-company-name-toggle', 'nt-company-name');
 wireOptionalFieldToggle('nt-important-toggle', 'nt-important-reason');
+document.getElementById('nt-direct-assign-toggle').addEventListener('change', function(){
+  const fields = document.getElementById('nt-direct-assign-fields');
+  fields.style.display = this.checked ? 'grid' : 'none';
+  if(this.checked) populateDirectAssignUserDropdown();
+  if(!this.checked){
+    document.getElementById('nt-direct-assign-user').value = '';
+    document.getElementById('nt-direct-assign-priority').value = '';
+    document.getElementById('nt-direct-assign-deadline').value = '';
+  }
+});
 
 document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('new-task-error');
@@ -1970,33 +2037,56 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
   const requestType = document.getElementById('nt-request-type').value;
   const task = document.getElementById('nt-task').value;
   const requestedDeadline = document.getElementById('nt-requested-deadline').value;
+
+  // Direct-to-user assignment: Admin/Super Admin only (the checkbox and its
+  // fields are hidden for normal users, but re-check the role here too since
+  // this only matters when the toggle is actually on).
+  const directAssignOn = isAdmin && document.getElementById('nt-direct-assign-toggle').checked;
+  const directAssignEmail = directAssignOn ? document.getElementById('nt-direct-assign-user').value.trim() : '';
+  const directAssignPriority = directAssignOn ? document.getElementById('nt-direct-assign-priority').value : '';
+  const directAssignDeadline = directAssignOn ? document.getElementById('nt-direct-assign-deadline').value : '';
+
   if(!requestType){ errEl.textContent = 'Request type is required.'; errEl.style.display = 'block'; return; }
   if(!task){ errEl.textContent = 'Task is required.'; errEl.style.display = 'block'; return; }
   if(agreementIdOn && !agreementId){ errEl.textContent = 'Agreement ID is ticked — please enter a value, or untick it.'; errEl.style.display = 'block'; return; }
   if(companyNameOn && !companyName){ errEl.textContent = 'Company Name is ticked — please enter a value, or untick it.'; errEl.style.display = 'block'; return; }
   if(importantOn && !importantReason){ errEl.textContent = 'Important is ticked — please specify why this task is important.'; errEl.style.display = 'block'; return; }
+  if(directAssignOn){
+    if(!directAssignEmail){ errEl.textContent = 'Choose which user to send this task to.'; errEl.style.display = 'block'; return; }
+    if(!directAssignPriority){ errEl.textContent = 'Choose a priority for this task.'; errEl.style.display = 'block'; return; }
+    if(!directAssignDeadline){ errEl.textContent = 'Set a deadline for this task.'; errEl.style.display = 'block'; return; }
+  }
+
   const title = requestType + ' - ' + task;
   const btn = document.getElementById('submit-task-btn');
   btn.disabled = true;
   try{
     const nowIso = new Date().toISOString();
-    const created = await createListItem(MAIN_LIST_NAME, {
+    const payload = {
       'Title': title,
       'Agreement ID': agreementId || null,
       'Company Name': companyName || null,
       'Description': description,
-      'Important': false,
+      'Important': directAssignOn ? importantOn : false,
       'Important Reason': importantReason || null,
       'Request Type': requestType,
       'Task': task,
       'Requested By': currentAccount.username,
       'Requested Date': nowIso,
       'Requested Deadline': dateInputToIso(requestedDeadline),
-      'Status': STATUS_NOT_STARTED,
+      'Status': directAssignOn ? STATUS_IN_PROGRESS : STATUS_NOT_STARTED,
       'Last Updated By': currentAccount.username,
       'Last Updated Date': nowIso
-    });
-    const newTaskNumber = await assignTaskNumberToItem(created.id);
+    };
+    if(directAssignOn){
+      payload['Assigned To'] = directAssignEmail;
+      payload['Assigned By'] = currentAccount.username;
+      payload['Assigned Date'] = nowIso;
+      payload['Priority'] = directAssignPriority;
+      payload['Deadline'] = dateInputToIso(directAssignDeadline);
+    }
+    const created = await createListItem(MAIN_LIST_NAME, payload);
+    await assignTaskNumberToItem(created.id);
     document.getElementById('nt-agreement-id-toggle').checked = false;
     document.getElementById('nt-agreement-id').value = '';
     document.getElementById('nt-agreement-id').disabled = true;
@@ -2010,8 +2100,22 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     document.getElementById('nt-request-type').value = '';
     document.getElementById('nt-task').value = '';
     document.getElementById('nt-requested-deadline').value = '';
+    document.getElementById('nt-direct-assign-toggle').checked = false;
+    document.getElementById('nt-direct-assign-fields').style.display = 'none';
+    document.getElementById('nt-direct-assign-user').value = '';
+    document.getElementById('nt-direct-assign-priority').value = '';
+    document.getElementById('nt-direct-assign-deadline').value = '';
     await loadAllData();
-    setStatus('Request submitted successfully.');
+    setStatus(directAssignOn ? 'Task sent to ' + directAssignEmail + '.' : 'Request submitted successfully.');
+    if(directAssignOn){
+      const v = taskById(created.id);
+      if(v){
+        notifyTaskAssigned(v, directAssignEmail).catch(e=>{
+          console.error('Notify task assigned failed', e);
+          setStatus('Task sent, but the email notification could not be sent.');
+        });
+      }
+    }
   }catch(err){
     errEl.textContent = 'Could not submit: ' + err.message;
     errEl.style.display = 'block';
@@ -2075,7 +2179,7 @@ function canCancelOwnTask(v){
     && v.Status !== STATUS_COMPLETED && v.Status !== STATUS_REJECTED && v.Status !== STATUS_CANCELLED;
 }
 function canComment(v){
-  return currentUserRole === 'superadmin' || currentUserRole === 'admin' || isTaskRequester(v);
+  return currentUserRole === 'superadmin' || currentUserRole === 'admin' || isTaskMine(v);
 }
 function renderTaskModal(taskId){
   const v = taskById(taskId);
@@ -3153,9 +3257,9 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
   });
 }
 
-/* ---- Booking tab: writes rows into Booking Logs.xlsx / "Booking Log" / table "Booking" ---- */
-const BOOKING_SOURCE_FILENAME = "Booking Logs.xlsx";
-const BOOKING_SOURCE_UNIQUE_ID = "36B34F4D-A312-4169-97A6-65BF02B1D6EE"; // from the sourcedoc GUID in the supplied SharePoint link
+/* ---- Booking tab: writes rows into Live inventory.xlsx / "Booking Log" / table "Booking" ---- */
+const BOOKING_SOURCE_FILENAME = "Live inventory.xlsx";
+const BOOKING_SOURCE_UNIQUE_ID = "BEA3C4C4-4E9D-49CE-B1B5-9F743F33591E"; // from the sourcedoc GUID in the supplied SharePoint link
 const BOOKING_TABLE_NAME = "Booking"; // Excel table name (sheet "Booking Log")
 const BOOKING_DEAL_SHEET_NAME = "Single Trade (SO)"; // lives in the same Master Folder workbook used by the Autofill DRP lookup
 const BOOKING_DEAL_ID_HEADER = "Agreement ID (Assigned to BD)"; // column G in that sheet's header row (the header row itself is not row 1 — there's a reference/legend block above it, so it's located dynamically below)
@@ -3188,7 +3292,7 @@ async function bookingResolveWorkbook(){
         if(ropsNorm(item.name)!==ropsNorm(BOOKING_SOURCE_FILENAME)) continue;
         if(ropsGuid(item.sharepointIds&&item.sharepointIds.listItemUniqueId)===ropsGuid(BOOKING_SOURCE_UNIQUE_ID)){
           bookingWorkbookRef={driveId:drive.id,itemId:item.id,webUrl:item.webUrl};
-          const conn=document.getElementById('booking-conn'); if(conn) conn.textContent='Excel source: Booking Logs connected';
+          const conn=document.getElementById('booking-conn'); if(conn) conn.textContent='Excel source: Live inventory connected';
           return bookingWorkbookRef;
         }
         exact.push({driveId:drive.id,itemId:item.id,webUrl:item.webUrl,uid:item.sharepointIds&&item.sharepointIds.listItemUniqueId});
