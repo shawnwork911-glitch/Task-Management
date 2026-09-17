@@ -532,32 +532,32 @@
             <option value="">Select…</option>
           </select>
         </div>
-      </div>
-      <div>
-        <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
-          <input type="checkbox" id="nt-agreement-id-toggle" style="width:auto;">
-          Agreement ID
-        </label>
-        <input type="text" id="nt-agreement-id" placeholder="Enter value here" disabled style="margin-top:6px;">
-      </div>
-      <div>
-        <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
-          <input type="checkbox" id="nt-company-name-toggle" style="width:auto;">
-          Company Name
-        </label>
-        <input type="text" id="nt-company-name" placeholder="Enter value here" disabled style="margin-top:6px;">
-      </div>
-      <div style="grid-column:1/-1;">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
-          <input type="checkbox" id="nt-important-toggle" style="width:auto;">
-          Important
-        </label>
-        <p class="card-note" style="margin:2px 0 0;">Ticking this only submits a request — a Super Admin must approve it before the task is marked Important.</p>
-        <textarea id="nt-important-reason" placeholder="Why is this task important? This will be shown to Super Admin for approval." disabled style="margin-top:6px;min-height:64px;display:none;"></textarea>
-      </div>
-      <div style="grid-column:1/-1;">
-        <label for="nt-description">Description</label>
-        <textarea id="nt-description" placeholder="What needs to be done, and any relevant details"></textarea>
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+            <input type="checkbox" id="nt-agreement-id-toggle" style="width:auto;">
+            Agreement ID
+          </label>
+          <input type="text" id="nt-agreement-id" placeholder="Enter value here" disabled style="margin-top:6px;">
+        </div>
+        <div>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+            <input type="checkbox" id="nt-company-name-toggle" style="width:auto;">
+            Company Name
+          </label>
+          <input type="text" id="nt-company-name" placeholder="Enter value here" disabled style="margin-top:6px;">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
+            <input type="checkbox" id="nt-important-toggle" style="width:auto;">
+            Important
+          </label>
+          <p class="card-note" style="margin:2px 0 0;">Ticking this only submits a request — a Super Admin must approve it before the task is marked Important.</p>
+          <textarea id="nt-important-reason" placeholder="Why is this task important? This will be shown to Super Admin for approval." disabled style="margin-top:6px;min-height:64px;display:none;"></textarea>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label for="nt-description">Description</label>
+          <textarea id="nt-description" placeholder="What needs to be done, and any relevant details"></textarea>
+        </div>
       </div>
       <div id="nt-requested-deadline-wrap">
         <label for="nt-requested-deadline">Requested deadline (optional)</label>
@@ -996,7 +996,7 @@
         Description        Multiple lines of text
         Important          Yes/No                (requester can tick; high alert also sets this to Yes)
         Important Reason   Multiple lines of text (required when Important is Yes; shown to everyone in important task views)
-        Request Type       Choice: Out Right Purchase, Self Manage, Proceeds Share,
+        Request Type       Choice: Outright Purchase, Self Manage, Proceeds Share,
                                     Inventory, Stock-In (T), Stock-Out (T), Stock-Out (R),
                                     Epicor Part No Creation,
                                     Request for E-Invoice information, Relevant docs needed,
@@ -1127,7 +1127,7 @@ const STATUS_MANAGE_OPTIONS = [
    Must match the "Request Type" Choice column's options exactly (see the
    column layout comment above). Required on every new task request. */
 const REQUEST_TYPES = [
-  "Out Right Purchase", "Self Manage", "Proceeds Share", "Inventory",
+  "Outright Purchase", "Self Manage", "Proceeds Share", "Inventory",
   "Stock-In (T)", "Stock-Out (T)", "Stock-Out (R)",
   "Request for E-Invoice information",
   "Relevant docs needed", "BD Adhoc Request", "LHDN Stamping", 
@@ -1172,7 +1172,7 @@ const TASK_OPTIONS = [
    "Request for E-Invoice information" has no defined tie (left unrestricted)
    since none was specified for the normal flow. */
 const REQUEST_TYPE_TASK_MAP = {
-  "Out Right Purchase": ["I-REC Registration","TIGR Registration","Generation Data","RECs Issuances","PO Issuances","Received AP Invoice","Clarification from Supplier","Review Documentation"],
+  "Outright Purchase": ["I-REC Registration","TIGR Registration","Generation Data","RECs Issuances","PO Issuances","Received AP Invoice","Clarification from Supplier","Review Documentation"],
   "Self Manage": ["I-REC Registration","TIGR Registration","Generation Data","RECs Issuances","Request Redemption Information","Ready to delivery","Clarification from Supplier","Review Documentation"],
   "Proceeds Share": ["I-REC Registration","TIGR Registration","Generation Data","RECs Issuances","PO Issuances","Received AP Invoice","Clarification from Supplier","Review Documentation"],
   "Inventory": ["Generation Data","Matching"],
