@@ -6,6 +6,7 @@
 <title>Operations Tools — Task Management & Registry Ops</title>
 <script src="https://unpkg.com/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --bg:#f5f5f4;
@@ -376,6 +377,17 @@
   .rops-doc-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;}
   .rops-hidden-file{display:none;}
   @media(max-width:720px){.rops-required-row{grid-template-columns:1fr;}.rops-doc-actions{justify-content:flex-start;}}
+
+  /* ---- Bulk zip upload ---- */
+  .rops-bulk-master-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px;}
+  .rops-bulk-master-row > div{flex:1;min-width:220px;}
+  .rops-bulk-company-card{border:1px solid var(--border);border-radius:10px;margin-top:14px;overflow:hidden;}
+  .rops-bulk-company-head{background:var(--surface-2);padding:12px 14px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid var(--border);}
+  .rops-bulk-company-head .grid{flex:1;min-width:220px;}
+  .rops-bulk-unassigned{padding:10px 14px;font-size:11px;color:var(--text-secondary);border-top:1px solid var(--border);}
+  .rops-bulk-checkbox-row{display:flex;flex-direction:column;gap:4px;}
+  .rops-bulk-checkbox-row label{display:flex;gap:6px;align-items:flex-start;font-size:11px;color:var(--text);margin:0;font-weight:400;}
+  .rops-bulk-checkbox-row input{margin-top:2px;}
   .rops-workspace{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:18px;}
   @media(max-width:980px){.rops-workspace{grid-template-columns:1fr;}}
   .rops-form-col{max-height:76vh;overflow:auto;}
@@ -736,30 +748,56 @@
       <span class="rops-conn" id="rops-rename-conn">SharePoint: ready after sign-in</span>
     </div>
 
-    <div class="rops-grid-2">
-      <div class="card">
-        <p class="card-title">File details</p><p class="card-note">Complete in order: Registry → Country → Type → Company Name. File selection becomes available only after all four are completed.</p>
-        <div class="grid">
-          <div><label for="rops-registry">Registry</label><select id="rops-registry"><option value="">Select registry...</option><option value="I-REC">I-REC</option><option value="TIGR">TIGR</option></select></div>
-          <div><label for="rops-country">Country</label><select id="rops-country" disabled><option value="">Select country...</option></select></div>
-          <div><label for="rops-type">Type</label><select id="rops-type" disabled><option value="">Select type...</option></select></div>
-          <div><label for="rops-company-name">Company Name</label><input type="text" id="rops-company-name" placeholder="Select Type first" disabled></div>
-          <div><label for="rops-master-company">Master Company <span style="opacity:.65">(optional, e.g. parent/group company)</span></label><input type="text" id="rops-master-company" placeholder="Complete Company Name first" disabled></div>
-        </div>
-        <div class="rops-required-wrap" id="rops-required-wrap">
-          <div class="rops-required-head">
-            <div><strong style="font-size:13px;">Required documents</strong><div class="rops-note">Upload any available items now. Missing items can be completed later; existing files in the same Company Name folder (and Master Company folder, if set) will be detected automatically.</div></div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="rops-progress" id="rops-required-progress">Select Registry, Country and Type</span><button type="button" class="secondary small-btn" id="rops-download-checklist" style="display:none;">Download checklist PDF</button><button type="button" class="secondary small-btn" id="rops-check-folder" disabled>Check SharePoint folder</button></div>
+    <div class="rops-input-mode" role="tablist" aria-label="Rename &amp; File input method">
+      <button type="button" class="rops-mode-btn active" id="rops-rename-mode-single-btn" data-rops-rename-mode="single">Single upload</button>
+      <button type="button" class="rops-mode-btn" id="rops-rename-mode-bulk-btn" data-rops-rename-mode="bulk">Bulk zip upload</button>
+    </div>
+
+    <div class="rops-manual-panel active" id="rops-rename-single-panel">
+      <div class="rops-grid-2">
+        <div class="card">
+          <p class="card-title">File details</p><p class="card-note">Complete in order: Registry → Country → Type → Company Name. File selection becomes available only after all four are completed.</p>
+          <div class="grid">
+            <div><label for="rops-registry">Registry</label><select id="rops-registry"><option value="">Select registry...</option><option value="I-REC">I-REC</option><option value="TIGR">TIGR</option></select></div>
+            <div><label for="rops-country">Country</label><select id="rops-country" disabled><option value="">Select country...</option></select></div>
+            <div><label for="rops-type">Type</label><select id="rops-type" disabled><option value="">Select type...</option></select></div>
+            <div><label for="rops-company-name">Company Name</label><input type="text" id="rops-company-name" placeholder="Select Type first" disabled></div>
+            <div><label for="rops-master-company">Master Company <span style="opacity:.65">(optional, e.g. parent/group company)</span></label><input type="text" id="rops-master-company" placeholder="Complete Company Name first" disabled></div>
           </div>
-          <div id="rops-required-list"><p class="empty-note" style="padding:12px;">Select Registry, Country and Type to load the required document checklist.</p></div>
+          <div class="rops-required-wrap" id="rops-required-wrap">
+            <div class="rops-required-head">
+              <div><strong style="font-size:13px;">Required documents</strong><div class="rops-note">Upload any available items now. Missing items can be completed later; existing files in the same Company Name folder (and Master Company folder, if set) will be detected automatically.</div></div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="rops-progress" id="rops-required-progress">Select Registry, Country and Type</span><button type="button" class="secondary small-btn" id="rops-download-checklist" style="display:none;">Download checklist PDF</button><button type="button" class="secondary small-btn" id="rops-check-folder" disabled>Check SharePoint folder</button></div>
+            </div>
+            <div id="rops-required-list"><p class="empty-note" style="padding:12px;">Select Registry, Country and Type to load the required document checklist.</p></div>
+          </div>
+          <div class="rops-status" id="rops-folder-status"></div>
         </div>
-        <div class="rops-status" id="rops-folder-status"></div>
+        <div class="card">
+          <p class="card-title">Upload queue</p>
+          <div id="rops-queue-list"><p class="empty-note">Queue is empty.</p></div>
+          <button type="button" id="rops-upload-all" style="margin-top:12px;width:100%;" disabled>Upload selected files to SharePoint</button>
+          <div class="rops-status" id="rops-upload-status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rops-manual-panel" id="rops-rename-bulk-panel">
+      <div class="card">
+        <p class="card-title">Bulk zip upload</p>
+        <p class="card-note" style="margin-top:0;">Upload a .zip file where each top-level folder is one Company, containing that company's document files — the zip's file name is then used as the suggested Master Company (edit if needed). If the zip has no subfolders at all (just loose files), it's treated as a single Company named after the zip instead, with no Master Company. Pick Registry, Country and Type for each company to load its checklist — files are then matched to a document category by name as a best guess; review and correct every match before adding it to the queue.</p>
+        <div class="rops-bulk-master-row">
+          <div><label for="rops-bulk-master">Master Company <span style="opacity:.65">(optional, applies to the whole zip)</span></label><input type="text" id="rops-bulk-master" placeholder="Detected from zip file name"></div>
+          <div><label for="rops-bulk-zip-input">Zip file</label><input type="file" id="rops-bulk-zip-input" accept=".zip,application/zip"></div>
+        </div>
+        <div class="rops-status" id="rops-bulk-parse-status"></div>
+        <div id="rops-bulk-companies"><p class="empty-note" style="padding:12px 0;">Select a .zip file to detect company folders.</p></div>
       </div>
       <div class="card">
-        <p class="card-title">Upload queue</p>
-        <div id="rops-queue-list"><p class="empty-note">Queue is empty.</p></div>
-        <button type="button" id="rops-upload-all" style="margin-top:12px;width:100%;" disabled>Upload selected files to SharePoint</button>
-        <div class="rops-status" id="rops-upload-status"></div>
+        <p class="card-title">Bulk upload queue</p>
+        <div id="rops-bulk-queue-list"><p class="empty-note">Queue is empty.</p></div>
+        <button type="button" id="rops-bulk-upload-all" style="margin-top:12px;width:100%;" disabled>Upload all queued files to SharePoint</button>
+        <div class="rops-status" id="rops-bulk-upload-status"></div>
       </div>
     </div>
 
@@ -4315,6 +4353,396 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
     ropsRenderQueue();
   }finally{
     btn.disabled=ropsUploadQueue.length===0;
+  }
+});
+
+/* ---- Bulk zip upload ----
+   Zip name -> suggested Master Company. Each top-level folder in the zip ->
+   one Company. Files inside each folder are auto-matched to that company's
+   required-document checklist by keyword, then reviewed/corrected by hand
+   before being added to a self-contained bulk queue and uploaded. Kept
+   separate from ropsUploadQueue/ropsCurrentContext (the single-upload flow)
+   because each company here can have a different Registry/Country/Type,
+   which the single flow's shared form fields can't represent. */
+document.querySelectorAll('[data-rops-rename-mode]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-rops-rename-mode]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode=btn.getAttribute('data-rops-rename-mode');
+    document.getElementById('rops-rename-single-panel').classList.toggle('active', mode==='single');
+    document.getElementById('rops-rename-bulk-panel').classList.toggle('active', mode==='bulk');
+  });
+});
+
+let ropsBulkCompanies=[];
+let ropsBulkQueue=[];
+let ropsBulkUidCounter=0;
+
+function ropsBulkCategoryKeywords(category){
+  return String(category||'')
+    .toLowerCase()
+    .replace(/\(min\s*\d+\)/g,' ')
+    .replace(/\(if available\)/g,' ')
+    .replace(/[^a-z0-9]+/g,' ')
+    .split(' ')
+    .map(w=>w.trim())
+    .filter(w=>w && !['if','available','min','the','of','for','a','an'].includes(w));
+}
+function ropsBulkFileTokenText(filename){
+  return ' '+String(filename||'').toLowerCase().replace(/\.[a-z0-9]+$/,'').replace(/[^a-z0-9]+/g,' ')+' ';
+}
+function ropsBulkMatchScore(category,filename){
+  const keywords=ropsBulkCategoryKeywords(category);
+  if(!keywords.length) return 0;
+  const text=ropsBulkFileTokenText(filename);
+  let hits=0;
+  keywords.forEach(k=>{ if(text.indexOf(' '+k)>=0 || text.indexOf(k+' ')>=0) hits++; });
+  return hits/keywords.length;
+}
+function ropsBulkAutoMatch(docs,files){
+  const mapping={};
+  docs.forEach(cat=>{ mapping[cat]=[]; });
+  const used=new Set();
+  const candidates=[];
+  docs.forEach(cat=>{
+    files.forEach(f=>{
+      const score=ropsBulkMatchScore(cat,f.name);
+      if(score>0) candidates.push({cat,f,score});
+    });
+  });
+  candidates.sort((a,b)=>b.score-a.score);
+  candidates.forEach(c=>{
+    const need=ropsCategoryMinFiles(c.cat);
+    if(used.has(c.f.key)) return;
+    if((mapping[c.cat]||[]).length>=need) return;
+    mapping[c.cat].push(c.f.key);
+    used.add(c.f.key);
+  });
+  return mapping;
+}
+
+async function ropsBulkParseZip(file){
+  const statusEl='rops-bulk-parse-status';
+  ropsShowStatus(statusEl,'Reading '+file.name+'…',true);
+  try{
+    if(typeof JSZip==='undefined') throw new Error('Zip support failed to load. Check your internet connection and reload the page.');
+    const zip=await JSZip.loadAsync(file);
+    let entries=[];
+    zip.forEach((relPath,entry)=>{
+      if(!entry.dir) entries.push({path:relPath.replace(/\\/g,'/').replace(/^\/+/,'')});
+      else entries.push({path:relPath.replace(/\\/g,'/').replace(/^\/+/,''),dir:true});
+    });
+    const fileEntries=entries.filter(e=>!e.dir).map(e=>({path:e.path,entry:zip.file(e.path)}));
+    if(!fileEntries.length) throw new Error('No files found inside the zip.');
+    // Some zip tools wrap everything in one extra top-level folder (often
+    // matching the zip's own name). Strip that wrapper, if present, so
+    // company detection lines up with the folders the user actually made.
+    let working=fileEntries;
+    for(let pass=0; pass<3; pass++){
+      const topSegs=new Set(working.map(e=>{
+        const i=e.path.indexOf('/');
+        return i>=0 ? e.path.slice(0,i) : null;
+      }));
+      if(topSegs.size===1 && !topSegs.has(null)){
+        const only=[...topSegs][0];
+        const stripped=working.map(e=>({path:e.path.slice(only.length+1),entry:e.entry}));
+        if(!stripped.some(e=>e.path.indexOf('/')>=0)) break;
+        working=stripped;
+      }else break;
+    }
+    const byCompany={};
+    const rootFiles=[];
+    working.forEach(e=>{
+      const i=e.path.indexOf('/');
+      if(i<0){ rootFiles.push(e); return; }
+      const company=e.path.slice(0,i);
+      const rest=e.path.slice(i+1);
+      if(!rest) return;
+      (byCompany[company]=byCompany[company]||[]).push({path:rest,entry:e.entry});
+    });
+    const companyNames=Object.keys(byCompany);
+    const baseName=file.name.replace(/\.zip$/i,'');
+    const masterInput=document.getElementById('rops-bulk-master');
+    if(!companyNames.length){
+      // No subfolders at all — just loose files. Treat the whole zip as ONE
+      // company named after the zip itself, not a Master Company with
+      // subfolders underneath it. Master Company is left blank; the user can
+      // still set it by hand if this single company belongs to a group.
+      ropsBulkCompanies=[{
+        idx:0, name:baseName, registry:'', country:'', type:'', mapping:{},
+        files:rootFiles.map((f,fi)=>({key:'f0_'+fi,name:f.path.split('/').pop(),relPath:f.path,entry:f.entry}))
+      }];
+      ropsShowStatus(statusEl,'No subfolders found in '+file.name+' — treating it as a single company ("'+baseName+'") with '+rootFiles.length+' file(s). Master Company was left blank; fill it in only if this company belongs to a group.',true);
+    }else{
+      if(!masterInput.value.trim()) masterInput.value=baseName;
+      ropsBulkCompanies=companyNames.map((name,idx)=>({
+        idx, name, registry:'', country:'', type:'', mapping:{},
+        files:byCompany[name].map((f,fi)=>({key:'f'+idx+'_'+fi,name:f.path.split('/').pop(),relPath:f.path,entry:f.entry}))
+      }));
+      const note=rootFiles.length ? ' '+rootFiles.length+' file(s) sat directly at the top level (not inside a company folder) and were ignored: '+rootFiles.map(e=>e.path).join(', ')+'.' : '';
+      ropsShowStatus(statusEl,'Found '+companyNames.length+' company folder(s) in '+file.name+'.'+note,true);
+    }
+  }catch(err){
+    console.error(err);
+    ropsShowStatus(statusEl,'Could not read zip: '+err.message,false);
+    ropsBulkCompanies=[];
+  }
+  ropsBulkRenderCompanies();
+}
+
+function ropsBulkPopulateCountrySelect(sel,registry){
+  const countries=registry ? ['MY','SG','VN','OTHER'] : [];
+  sel.innerHTML='<option value="">Select country...</option>'+countries.map(c=>'<option value="'+ropsEsc(c)+'">'+ropsEsc(ROPS_COUNTRY_NAMES[c]||c)+'</option>').join('');
+  sel.disabled=!registry;
+}
+function ropsBulkPopulateTypeSelect(sel,registry,country){
+  const types=(registry && country && ROPS_RENAME_CHECKLISTS[registry] && ROPS_RENAME_CHECKLISTS[registry][country]) ? Object.keys(ROPS_RENAME_CHECKLISTS[registry][country]) : [];
+  sel.innerHTML='<option value="">Select type...</option>'+types.map(t=>'<option value="'+ropsEsc(t)+'">'+ropsEsc(ROPS_TYPE_LABELS[t]||t)+'</option>').join('');
+  sel.disabled=!(registry&&country);
+}
+function ropsBulkCompanyDocs(c){
+  return (c.registry && c.country && c.type && ROPS_RENAME_CHECKLISTS[c.registry] && ROPS_RENAME_CHECKLISTS[c.registry][c.country] && ROPS_RENAME_CHECKLISTS[c.registry][c.country][c.type]) || [];
+}
+
+function ropsBulkRenderCompanies(){
+  const wrap=document.getElementById('rops-bulk-companies');
+  if(!ropsBulkCompanies.length){
+    wrap.innerHTML='<p class="empty-note" style="padding:12px 0;">Select a .zip file to detect company folders.</p>';
+    return;
+  }
+  wrap.innerHTML=ropsBulkCompanies.map(c=>(
+    '<div class="rops-bulk-company-card" data-bulk-card="'+c.idx+'">'+
+      '<div class="rops-bulk-company-head">'+
+        '<div class="grid">'+
+          '<div><label>Company Name</label><input type="text" data-bulk-field="name" data-bulk-idx="'+c.idx+'" value="'+ropsEsc(c.name)+'"></div>'+
+          '<div><label>Registry</label><select data-bulk-field="registry" data-bulk-idx="'+c.idx+'"><option value="">Select registry...</option><option value="I-REC"'+(c.registry==='I-REC'?' selected':'')+'>I-REC</option><option value="TIGR"'+(c.registry==='TIGR'?' selected':'')+'>TIGR</option></select></div>'+
+          '<div><label>Country</label><select data-bulk-field="country" data-bulk-idx="'+c.idx+'" disabled><option value="">Select country...</option></select></div>'+
+          '<div><label>Type</label><select data-bulk-field="type" data-bulk-idx="'+c.idx+'" disabled><option value="">Select type...</option></select></div>'+
+        '</div>'+
+        '<button type="button" class="secondary small-btn" data-bulk-remove="'+c.idx+'">Remove company</button>'+
+      '</div>'+
+      '<div class="rops-bulk-company-body">'+
+        '<p class="rops-note" style="padding:10px 14px 0;">'+c.files.length+' file(s) found in this folder.</p>'+
+        '<div id="rops-bulk-mapping-'+c.idx+'"></div>'+
+        '<div class="rops-bulk-unassigned" id="rops-bulk-unassigned-'+c.idx+'"></div>'+
+        '<div class="rops-actions" style="padding:0 14px 12px;">'+
+          '<button type="button" data-bulk-add="'+c.idx+'" disabled>Add this company\'s mapped files to queue</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'
+  )).join('');
+
+  wrap.querySelectorAll('[data-bulk-remove]').forEach(btn=>btn.addEventListener('click',()=>{
+    const idx=Number(btn.getAttribute('data-bulk-remove'));
+    ropsBulkCompanies=ropsBulkCompanies.filter(c=>c.idx!==idx);
+    ropsBulkRenderCompanies();
+  }));
+  wrap.querySelectorAll('[data-bulk-field="name"]').forEach(inp=>inp.addEventListener('input',()=>{
+    const c=ropsBulkCompanies.find(x=>x.idx===Number(inp.getAttribute('data-bulk-idx')));
+    if(c) c.name=inp.value;
+  }));
+  wrap.querySelectorAll('[data-bulk-field="registry"]').forEach(sel=>sel.addEventListener('change',()=>{
+    const idx=Number(sel.getAttribute('data-bulk-idx'));
+    const c=ropsBulkCompanies.find(x=>x.idx===idx); if(!c) return;
+    c.registry=sel.value; c.country=''; c.type=''; c.mapping={};
+    const card=wrap.querySelector('[data-bulk-card="'+idx+'"]');
+    ropsBulkPopulateCountrySelect(card.querySelector('[data-bulk-field="country"]'),c.registry);
+    const typeSel=card.querySelector('[data-bulk-field="type"]');
+    typeSel.innerHTML='<option value="">Select type...</option>'; typeSel.disabled=true;
+    ropsBulkRenderMapping(idx);
+  }));
+  wrap.querySelectorAll('[data-bulk-field="country"]').forEach(sel=>sel.addEventListener('change',()=>{
+    const idx=Number(sel.getAttribute('data-bulk-idx'));
+    const c=ropsBulkCompanies.find(x=>x.idx===idx); if(!c) return;
+    c.country=sel.value; c.type=''; c.mapping={};
+    const card=wrap.querySelector('[data-bulk-card="'+idx+'"]');
+    ropsBulkPopulateTypeSelect(card.querySelector('[data-bulk-field="type"]'),c.registry,c.country);
+    ropsBulkRenderMapping(idx);
+  }));
+  wrap.querySelectorAll('[data-bulk-field="type"]').forEach(sel=>sel.addEventListener('change',()=>{
+    const idx=Number(sel.getAttribute('data-bulk-idx'));
+    const c=ropsBulkCompanies.find(x=>x.idx===idx); if(!c) return;
+    c.type=sel.value;
+    c.mapping=ropsBulkAutoMatch(ropsBulkCompanyDocs(c), c.files);
+    ropsBulkRenderMapping(idx);
+  }));
+  wrap.querySelectorAll('[data-bulk-add]').forEach(btn=>btn.addEventListener('click',()=>{
+    ropsBulkAddCompanyToQueue(Number(btn.getAttribute('data-bulk-add')));
+  }));
+
+  ropsBulkCompanies.forEach(c=>ropsBulkRenderMapping(c.idx));
+}
+
+function ropsBulkRenderMapping(idx){
+  const c=ropsBulkCompanies.find(x=>x.idx===idx); if(!c) return;
+  const mapEl=document.getElementById('rops-bulk-mapping-'+idx);
+  const unassignedEl=document.getElementById('rops-bulk-unassigned-'+idx);
+  const addBtn=document.querySelector('[data-bulk-add="'+idx+'"]');
+  if(!mapEl) return;
+  const docs=ropsBulkCompanyDocs(c);
+  if(!docs.length){
+    mapEl.innerHTML='<p class="empty-note" style="padding:12px 0;">Select Registry, Country and Type for this company to load its checklist.</p>';
+    if(unassignedEl) unassignedEl.innerHTML='';
+    if(addBtn) addBtn.disabled=true;
+    return;
+  }
+  c.mapping=c.mapping||{};
+  mapEl.innerHTML=docs.map(cat=>{
+    const need=ropsCategoryMinFiles(cat);
+    const selected=c.mapping[cat]||[];
+    const complete=selected.length>=need;
+    const status=complete
+      ? '<span class="rops-doc-status saved">'+selected.length+' file'+(selected.length===1?'':'s')+'</span>'
+      : '<span class="rops-doc-status missing">'+(need>1 ? (selected.length+' / '+need+' files') : 'Not mapped')+'</span>';
+    let control;
+    if(need>1){
+      control='<div class="rops-bulk-checkbox-row">'+c.files.map(f=>(
+        '<label><input type="checkbox" data-bulk-map-cat="'+ropsEsc(cat)+'" data-bulk-map-idx="'+idx+'" value="'+f.key+'"'+(selected.includes(f.key)?' checked':'')+'> '+ropsEsc(f.relPath)+'</label>'
+      )).join('')+'</div>';
+    }else{
+      control='<select data-bulk-map-cat="'+ropsEsc(cat)+'" data-bulk-map-idx="'+idx+'" data-bulk-single="1">'+
+        '<option value="">— none —</option>'+
+        c.files.map(f=>'<option value="'+f.key+'"'+(selected[0]===f.key?' selected':'')+'>'+ropsEsc(f.relPath)+'</option>').join('')+
+        '</select>';
+    }
+    return '<div class="rops-required-row" style="grid-template-columns:minmax(160px,1fr) 100px minmax(200px,280px);">'+
+      '<div><div class="rops-doc-name">'+ropsEsc(cat)+'</div></div>'+
+      '<div>'+status+'</div>'+
+      '<div>'+control+'</div>'+
+    '</div>';
+  }).join('');
+
+  mapEl.querySelectorAll('select[data-bulk-single]').forEach(sel=>sel.addEventListener('change',()=>{
+    const cat=sel.getAttribute('data-bulk-map-cat');
+    const comp=ropsBulkCompanies.find(x=>x.idx===Number(sel.getAttribute('data-bulk-map-idx'))); if(!comp) return;
+    comp.mapping[cat]=sel.value ? [sel.value] : [];
+    ropsBulkRenderMapping(comp.idx);
+  }));
+  mapEl.querySelectorAll('input[type="checkbox"][data-bulk-map-cat]').forEach(cb=>cb.addEventListener('change',()=>{
+    const cat=cb.getAttribute('data-bulk-map-cat');
+    const comp=ropsBulkCompanies.find(x=>x.idx===Number(cb.getAttribute('data-bulk-map-idx'))); if(!comp) return;
+    const cur=new Set(comp.mapping[cat]||[]);
+    if(cb.checked) cur.add(cb.value); else cur.delete(cb.value);
+    comp.mapping[cat]=[...cur];
+    ropsBulkRenderMapping(comp.idx);
+  }));
+
+  const usedNow=new Set();
+  Object.values(c.mapping).forEach(arr=>(arr||[]).forEach(k=>usedNow.add(k)));
+  const unassigned=c.files.filter(f=>!usedNow.has(f.key));
+  if(unassignedEl){
+    unassignedEl.textContent=unassigned.length
+      ? 'Not mapped to any category: '+unassigned.map(f=>f.relPath).join(', ')
+      : 'All files in this folder are mapped.';
+  }
+  if(addBtn) addBtn.disabled=!Object.values(c.mapping).some(arr=>(arr||[]).length>0);
+}
+
+async function ropsBulkAddCompanyToQueue(idx){
+  const c=ropsBulkCompanies.find(x=>x.idx===idx); if(!c) return;
+  const master=document.getElementById('rops-bulk-master').value.trim();
+  const company=c.name.trim();
+  if(!(company && c.registry && c.country && c.type)){
+    ropsShowStatus('rops-bulk-parse-status','Complete Company Name, Registry, Country and Type for "'+(company||'this company')+'" first.',false);
+    return;
+  }
+  const folder=ropsFolderName({company,master,registry:c.registry,country:c.country,type:c.type});
+  const entries=[];
+  Object.keys(c.mapping).forEach(cat=>{
+    const storageCat=ropsCategoryStorageName(cat);
+    const alreadyInQueue=ropsBulkQueue.filter(x=>x.folder===folder && ropsCategoryStorageName(x.category)===storageCat).length;
+    (c.mapping[cat]||[]).forEach((key,i)=>{
+      const f=c.files.find(x=>x.key===key);
+      if(f) entries.push({fileMeta:f,category:cat,offset:alreadyInQueue+i});
+    });
+  });
+  if(!entries.length){
+    ropsShowStatus('rops-bulk-parse-status','No files are mapped for "'+company+'" yet.',false);
+    return;
+  }
+  ropsShowStatus('rops-bulk-parse-status','Preparing '+entries.length+' file(s) for '+company+'…',true);
+  try{
+    for(const e of entries){
+      const blob=await e.fileMeta.entry.async('blob');
+      const renamed=ropsBuildFilename({name:e.fileMeta.name},ropsCategoryStorageName(e.category),e.offset);
+      const fileObj=new File([blob], e.fileMeta.name, {type:blob.type||''});
+      ropsBulkQueue.push({
+        file:fileObj, renamed, company, master, registry:c.registry, country:c.country, type:c.type,
+        category:e.category, folder, uid:'b'+(++ropsBulkUidCounter)
+      });
+    }
+    ropsRenderBulkQueue();
+    ropsShowStatus('rops-bulk-parse-status','Added '+entries.length+' file(s) for '+company+' to the bulk upload queue.',true);
+  }catch(err){
+    console.error(err);
+    ropsShowStatus('rops-bulk-parse-status','Could not prepare files for '+company+'. '+err.message,false);
+  }
+}
+
+function ropsRenderBulkQueue(){
+  const list=document.getElementById('rops-bulk-queue-list');
+  if(!ropsBulkQueue.length){
+    list.innerHTML='<p class="empty-note">Queue is empty.</p>';
+    document.getElementById('rops-bulk-upload-all').disabled=true;
+    return;
+  }
+  list.innerHTML=ropsBulkQueue.map(x=>(
+    '<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.company)+' · '+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.folder)+'</span></span>'+
+    '<button type="button" class="secondary small-btn" data-bulk-queue-remove="'+x.uid+'">Remove</button></div>'
+  )).join('');
+  list.querySelectorAll('[data-bulk-queue-remove]').forEach(btn=>btn.addEventListener('click',()=>{
+    const uid=btn.getAttribute('data-bulk-queue-remove');
+    ropsBulkQueue=ropsBulkQueue.filter(x=>x.uid!==uid);
+    ropsRenderBulkQueue();
+  }));
+  document.getElementById('rops-bulk-upload-all').disabled=false;
+}
+
+document.getElementById('rops-bulk-zip-input').addEventListener('change',()=>{
+  const input=document.getElementById('rops-bulk-zip-input');
+  if(input.files && input.files.length) ropsBulkParseZip(input.files[0]);
+});
+
+document.getElementById('rops-bulk-upload-all').addEventListener('click',async()=>{
+  if(!ropsBulkQueue.length){ ropsShowStatus('rops-bulk-upload-status','Queue is empty.',false); return; }
+  const btn=document.getElementById('rops-bulk-upload-all'); btn.disabled=true; ropsHideStatus('rops-bulk-upload-status');
+  const batchItems=[...ropsBulkQueue];
+  const total=batchItems.length;
+  const uploadedItems=[];
+  let done=0, uploadError=null;
+  try{
+    for(const item of batchItems){
+      ropsShowStatus('rops-bulk-upload-status','Uploading '+(done+1)+' of '+total+': '+item.company+' / '+item.renamed,true);
+      try{
+        const uploadRes=await ropsUploadBlob(item.folder,item.renamed,item.file,item.file.type||'application/octet-stream');
+        uploadedItems.push(item);
+        ropsAppendLog(item, uploadRes && uploadRes.webUrl);
+        done++;
+      }catch(err){ uploadError=err; break; }
+    }
+    const uploadedSet=new Set(uploadedItems);
+    ropsBulkQueue=ropsBulkQueue.filter(item=>!uploadedSet.has(item));
+    ropsRenderBulkQueue();
+
+    if(done>0){
+      // One Review Documentation task per company folder that had files
+      // uploaded this run (mirrors the single-upload flow's one-task-per-batch
+      // behaviour, just grouped across the several companies/folders involved).
+      const byFolder={};
+      uploadedItems.forEach(item=>{ (byFolder[item.folder]=byFolder[item.folder]||{company:item.company,items:[]}).items.push(item); });
+      let taskErrors=0;
+      for(const folder of Object.keys(byFolder)){
+        try{ await ropsCreateReviewDocumentationTask(byFolder[folder].company, folder, byFolder[folder].items); }
+        catch(taskErr){ console.error('Bulk upload succeeded, but the Review Documentation task failed for '+folder,taskErr); taskErrors++; }
+      }
+      const retryMessage=uploadError ? ' '+(total-done)+' file(s) remain queued for retry.' : '';
+      const taskMessage=taskErrors ? ' '+taskErrors+' review task(s) could not be created — check those companies manually.' : ' Review Documentation task(s) were created and sent to Super Admin.';
+      ropsShowStatus('rops-bulk-upload-status','Uploaded '+done+' document(s) across '+Object.keys(byFolder).length+' company folder(s).'+taskMessage+retryMessage,!taskErrors && !uploadError);
+    }else if(uploadError){
+      ropsShowStatus('rops-bulk-upload-status','Upload failed: '+uploadError.message,false);
+    }
+  }finally{
+    btn.disabled=ropsBulkQueue.length===0;
   }
 });
 
