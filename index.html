@@ -894,7 +894,81 @@
           <label for="booking-qty">Booked Quantity</label>
           <input type="text" inputmode="decimal" id="booking-qty" placeholder="Enter a number">
         </div>
+        <div>
+          <label for="booking-tech">Tech</label>
+          <select id="booking-tech">
+            <option value="">Select tech...</option>
+            <option>ANY</option>
+            <option>HYD</option>
+            <option>HYD/SLR</option>
+            <option>LHY</option>
+            <option>SHY</option>
+            <option>SLR</option>
+            <option>SLR/BIO</option>
+            <option>SLR/WND</option>
+            <option>WND</option>
+          </select>
+        </div>
+        <div>
+          <label for="booking-country">Country</label>
+          <select id="booking-country">
+            <option value="">Select country...</option>
+            <option>AU</option>
+            <option>BD</option>
+            <option>BN</option>
+            <option>CH</option>
+            <option>CN</option>
+            <option>Carribean</option>
+            <option>DE</option>
+            <option>ES</option>
+            <option>FR</option>
+            <option>GG</option>
+            <option>ID</option>
+            <option>IE</option>
+            <option>IN</option>
+            <option>IT</option>
+            <option>JE</option>
+            <option>LU</option>
+            <option>MY</option>
+            <option>NL</option>
+            <option>PH</option>
+            <option>SA</option>
+            <option>SE</option>
+            <option>SG</option>
+            <option>TH</option>
+            <option>UK</option>
+            <option>VN</option>
+          </select>
+        </div>
+        <div>
+          <label for="booking-registry">Registry</label>
+          <select id="booking-registry">
+            <option value="">Select registry...</option>
+            <option>AIB GO</option>
+            <option>GEC</option>
+            <option>IREC</option>
+            <option>IREC / TIGR</option>
+            <option>IREC/TIGR</option>
+            <option>LGC</option>
+            <option>REGO</option>
+            <option>TIGR</option>
+          </select>
+        </div>
+        <div>
+          <label for="booking-year">Prod. Start Year</label>
+          <select id="booking-year">
+            <option value="">Select year...</option>
+            <option>20</option>
+            <option>24</option>
+            <option>25</option>
+            <option>26</option>
+            <option>27</option>
+            <option>28</option>
+            <option>29</option>
+          </select>
+        </div>
       </div>
+      <p class="card-note" style="margin:6px 0 0;">Tech / Country / Registry / Prod. Start Year identify the exact Open Position row this booking applies to (a Deal ID can span several rows). They're auto-filled when the Deal ID lookup finds a single match — check and correct them if not.</p>
       <div class="rops-status" id="booking-deal-lookup-status"></div>
       <div id="booking-deal-matches" style="display:none;"></div>
       <div id="booking-deal-details"></div>
@@ -3349,7 +3423,8 @@ const BOOKING_DEAL_DETAIL_COLS = [
   { idx: 11, fallbackLabel: 'Country' },       // L
   { idx: 12, fallbackLabel: 'Registry' },      // M
   { idx: 13, fallbackLabel: 'Tech' },          // N
-  { idx: 17, fallbackLabel: 'Volume (RECs)' }  // R
+  { idx: 17, fallbackLabel: 'Volume (RECs)' }, // R
+  { idx: 29, fallbackLabel: 'Prod. Start Year' } // AD
 ];
 // Same columns as above, named individually so the multi-match picker (when a
 // Deal ID has more than one line — different Country/Tech/Registry) can show
@@ -3358,6 +3433,7 @@ const BOOKING_DEAL_COUNTRY_COL_IDX = 11;  // L
 const BOOKING_DEAL_TECH_COL_IDX = 13;     // N
 const BOOKING_DEAL_REGISTRY_COL_IDX = 12; // M
 const BOOKING_DEAL_VOLUME_COL_IDX = 17;   // R — "Volume (RECs)"; stands in for "Available Volume" for picking between lines
+const BOOKING_DEAL_PROD_START_YEAR_COL_IDX = 29; // AD
 let bookingWorkbookRef = null; // {driveId,itemId,webUrl}
 let bookingTableHeaders = null;
 let bookingSubmissions = [];
@@ -3460,13 +3536,14 @@ function bookingRenderMatches(sheet, rows, dealId){
   const el=document.getElementById('booking-deal-matches'); if(!el) return;
   const label=(idx,fallback)=>String(sheet.headers[idx]||fallback).trim()||fallback;
   el.style.display='block';
-  el.innerHTML='<div style="margin-bottom:8px;">'+rows.length+' matches found for "'+ropsEsc(dealId)+'" — Country / Tech / Registry / Available Volume differ, so pick the correct line:</div>'+
+  el.innerHTML='<div style="margin-bottom:8px;">'+rows.length+' matches found for "'+ropsEsc(dealId)+'" — Country / Tech / Registry / Prod. Start Year / Available Volume differ, so pick the correct line:</div>'+
     '<div class="rops-match-list">'+rows.map((row,i)=>{
       const country=String(row[BOOKING_DEAL_COUNTRY_COL_IDX]||'').trim();
       const tech=String(row[BOOKING_DEAL_TECH_COL_IDX]||'').trim();
       const registry=String(row[BOOKING_DEAL_REGISTRY_COL_IDX]||'').trim();
+      const year=String(row[BOOKING_DEAL_PROD_START_YEAR_COL_IDX]||'').trim();
       const volume=String(row[BOOKING_DEAL_VOLUME_COL_IDX]||'').trim();
-      const summary=[country,tech,registry].filter(Boolean).join(' · ')||'(no Country/Tech/Registry on this line)';
+      const summary=[country,tech,registry,year?('Yr '+year):''].filter(Boolean).join(' · ')||'(no Country/Tech/Registry/Year on this line)';
       return '<div class="rops-match-item"><span class="rops-match-name">'+ropsEsc(summary)+
         (volume?' <span style="opacity:.6">(Available Volume: '+ropsEsc(volume)+')</span>':'')+'</span>'+
         '<button type="button" class="secondary small-btn" data-deal-match-idx="'+i+'">Use this</button></div>';
@@ -3475,9 +3552,28 @@ function bookingRenderMatches(sheet, rows, dealId){
     const row=bookingPendingMatches[Number(btn.dataset.dealMatchIdx)];
     bookingHideMatches();
     bookingRenderDealDetails(bookingRowToDetailObj(sheet, row));
-    bookingShowDealLookupStatus('Using the '+([String(row[BOOKING_DEAL_COUNTRY_COL_IDX]||'').trim(),String(row[BOOKING_DEAL_TECH_COL_IDX]||'').trim(),String(row[BOOKING_DEAL_REGISTRY_COL_IDX]||'').trim()].filter(Boolean).join(' · ')||'selected')+' line for "'+dealId+'".', true);
+    bookingAutofillKeyFields(row);
+    bookingShowDealLookupStatus('Using the '+([String(row[BOOKING_DEAL_COUNTRY_COL_IDX]||'').trim(),String(row[BOOKING_DEAL_TECH_COL_IDX]||'').trim(),String(row[BOOKING_DEAL_REGISTRY_COL_IDX]||'').trim(),row[BOOKING_DEAL_PROD_START_YEAR_COL_IDX]?('Yr '+String(row[BOOKING_DEAL_PROD_START_YEAR_COL_IDX]).trim()):''].filter(Boolean).join(' · ')||'selected')+' line for "'+dealId+'".', true);
   }));
 }
+// Fills the Tech/Country/Registry selects from a "Single Trade (SO)" row, if
+// that value exists as an option in the select (leaves it untouched, and lets
+// the user pick manually, otherwise — e.g. Prod. Start Year isn't a column we
+// know the index of on that sheet, so it's always left for manual entry).
+function bookingSetSelectIfOption(id, value){
+  const el=document.getElementById(id); if(!el || !value) return;
+  const v=String(value).trim();
+  const hasOption=Array.from(el.options).some(o=>o.value===v);
+  if(hasOption) el.value=v;
+}
+function bookingAutofillKeyFields(row){
+  bookingSetSelectIfOption('booking-tech', row[BOOKING_DEAL_TECH_COL_IDX]);
+  bookingSetSelectIfOption('booking-country', row[BOOKING_DEAL_COUNTRY_COL_IDX]);
+  bookingSetSelectIfOption('booking-registry', row[BOOKING_DEAL_REGISTRY_COL_IDX]);
+  bookingSetSelectIfOption('booking-year', row[BOOKING_DEAL_PROD_START_YEAR_COL_IDX]);
+  bookingCheckFormValid();
+}
+
 async function bookingLookupDeal(){
   const dealIdEl=document.getElementById('booking-deal-id');
   const dealId=dealIdEl.value.trim();
@@ -3490,12 +3586,13 @@ async function bookingLookupDeal(){
     if(seq!==bookingDealLookupSeq) return; // a newer lookup started meanwhile — drop this stale result
     if(!matches.length){
       bookingRenderDealDetails(null);
-      bookingShowDealLookupStatus('No match found for "'+dealId+'" in '+BOOKING_DEAL_SHEET_NAME+' — you can still submit this Deal ID manually.', true);
+      bookingShowDealLookupStatus('No match found for "'+dealId+'" in '+BOOKING_DEAL_SHEET_NAME+' — you can still submit this Deal ID manually. Fill in Tech / Country / Registry / Prod. Start Year yourself.', true);
       return;
     }
     if(matches.length===1){
       bookingRenderDealDetails(bookingRowToDetailObj(sheet, matches[0]));
-      bookingShowDealLookupStatus('Match found in '+BOOKING_DEAL_SHEET_NAME+'.', true);
+      bookingAutofillKeyFields(matches[0]);
+      bookingShowDealLookupStatus('Match found in '+BOOKING_DEAL_SHEET_NAME+'. Tech/Country/Registry/Prod. Start Year filled in — please double-check before submitting.', true);
       return;
     }
     bookingRenderDealDetails(null);
@@ -3517,20 +3614,28 @@ function bookingCheckFormValid(){
   const dealId=document.getElementById('booking-deal-id').value.trim();
   const name=document.getElementById('booking-name').value;
   const qtyRaw=document.getElementById('booking-qty').value.trim();
-  const valid = !!dealId && !!name && !!qtyRaw && !isNaN(Number(qtyRaw));
+  const tech=document.getElementById('booking-tech').value;
+  const country=document.getElementById('booking-country').value;
+  const registry=document.getElementById('booking-registry').value;
+  const year=document.getElementById('booking-year').value;
+  const valid = !!dealId && !!name && !!qtyRaw && !isNaN(Number(qtyRaw))
+    && !!tech && !!country && !!registry && !!year;
   const btn=document.getElementById('booking-submit-btn');
   if(btn) btn.disabled=!valid;
   return valid;
 }
-['booking-deal-id','booking-name','booking-qty'].forEach(id=>{
+['booking-deal-id','booking-name','booking-qty','booking-tech','booking-country','booking-registry','booking-year'].forEach(id=>{
   const el=document.getElementById(id);
   el.addEventListener('input', bookingCheckFormValid);
   el.addEventListener('change', bookingCheckFormValid);
 });
 bookingCheckFormValid();
 
-function bookingBuildRowValues(headers, dealId, name, qty){
-  // Exact column layout confirmed in the live sheet: A=Deal ID, B=Username, C=Booked Quantity, D=Booking Date.
+function bookingBuildRowValues(headers, dealId, name, qty, tech, country, registry, year){
+  // Column layout in the live "Booking Log" sheet: A=Deal ID, B=Tech,
+  // C=Country, D=Registry, E=Prod Start Year, F=Username, G=Booked Quantity,
+  // H=Booking Date. Matched by header name (not position) so this keeps
+  // working if columns are ever reordered.
   const row=headers.map(()=>'');
   const norm=h=>ropsNorm(h).replace(/[^a-z0-9]+/g,' ').trim();
   const pad=n=>String(n).padStart(2,'0');
@@ -3539,6 +3644,10 @@ function bookingBuildRowValues(headers, dealId, name, qty){
   headers.forEach((h,i)=>{
     const n=norm(h);
     if(n==='deal id') row[i]=dealId;
+    else if(n==='tech') row[i]=tech;
+    else if(n==='country') row[i]=country;
+    else if(n==='registry') row[i]=registry;
+    else if(n==='prod start year' || n==='production start year' || n==='prod. start year') row[i]=year;
     else if(n==='username') row[i]=name;
     else if(n==='booked quantity') row[i]=qty;
     else if(n==='booking date') row[i]=bookingDate;
@@ -3554,9 +3663,9 @@ function bookingShowStatus(msg, ok){
 function bookingRenderRecent(){
   const wrap=document.getElementById('booking-recent-list'); if(!wrap) return;
   if(!bookingSubmissions.length){ wrap.innerHTML='<p class="empty-note">No bookings submitted yet this session.</p>'; return; }
-  let html='<table class="rops-activity"><thead><tr><th>Deal ID</th><th>Username</th><th>Booked Quantity</th><th>Booking Date</th><th>Submitted</th></tr></thead><tbody>';
+  let html='<table class="rops-activity"><thead><tr><th>Deal ID</th><th>Tech</th><th>Country</th><th>Registry</th><th>Prod. Start Year</th><th>Username</th><th>Booked Quantity</th><th>Booking Date</th><th>Submitted</th></tr></thead><tbody>';
   bookingSubmissions.slice(0,10).forEach(s=>{
-    html+='<tr><td>'+ropsEsc(s.dealId)+'</td><td>'+ropsEsc(s.name)+'</td><td>'+ropsEsc(s.qty)+'</td><td>'+ropsEsc(s.bookingDate)+'</td><td>'+ropsEsc(s.time.toLocaleString())+'</td></tr>';
+    html+='<tr><td>'+ropsEsc(s.dealId)+'</td><td>'+ropsEsc(s.tech)+'</td><td>'+ropsEsc(s.country)+'</td><td>'+ropsEsc(s.registry)+'</td><td>'+ropsEsc(s.year)+'</td><td>'+ropsEsc(s.name)+'</td><td>'+ropsEsc(s.qty)+'</td><td>'+ropsEsc(s.bookingDate)+'</td><td>'+ropsEsc(s.time.toLocaleString())+'</td></tr>';
   });
   html+='</tbody></table>';
   wrap.innerHTML=html;
@@ -3566,28 +3675,40 @@ async function bookingSubmit(){
   const dealIdEl=document.getElementById('booking-deal-id');
   const nameEl=document.getElementById('booking-name');
   const qtyEl=document.getElementById('booking-qty');
+  const techEl=document.getElementById('booking-tech');
+  const countryEl=document.getElementById('booking-country');
+  const registryEl=document.getElementById('booking-registry');
+  const yearEl=document.getElementById('booking-year');
   const dealId=dealIdEl.value.trim();
   const name=nameEl.value;
   const qtyRaw=qtyEl.value.trim();
+  const tech=techEl.value;
+  const country=countryEl.value;
+  const registry=registryEl.value;
+  const year=yearEl.value;
   if(!dealId){ bookingShowStatus('Enter a Deal ID first.', false); return; }
   if(!name){ bookingShowStatus('Select your name first.', false); return; }
   if(!qtyRaw || isNaN(Number(qtyRaw))){ bookingShowStatus('Booked Quantity must be a number.', false); return; }
+  if(!tech){ bookingShowStatus('Select Tech first.', false); return; }
+  if(!country){ bookingShowStatus('Select Country first.', false); return; }
+  if(!registry){ bookingShowStatus('Select Registry first.', false); return; }
+  if(!year){ bookingShowStatus('Select Prod. Start Year first.', false); return; }
   const qty=Number(qtyRaw);
   const btn=document.getElementById('booking-submit-btn'); btn.disabled=true;
   bookingShowStatus('Saving to SharePoint…', true);
   try{
     const ref=await bookingResolveWorkbook();
     const headers=await bookingGetTableHeaders(ref);
-    const row=bookingBuildRowValues(headers, dealId, name, qty);
+    const row=bookingBuildRowValues(headers, dealId, name, qty, tech, country, registry, year);
     const t=encodeURIComponent(BOOKING_TABLE_NAME);
     await graphFetch('/drives/'+ref.driveId+'/items/'+ref.itemId+'/workbook/tables/'+t+'/rows/add', {
       method:'POST', body: JSON.stringify({ values:[row] })
     });
     bookingShowStatus('Booking recorded for Deal ID "'+dealId+'".', true);
     const dateIdx=headers.findIndex(h=>ropsNorm(h).replace(/[^a-z0-9]+/g,' ').trim()==='booking date');
-    bookingSubmissions.unshift({ dealId, name, qty, bookingDate: dateIdx>=0 ? row[dateIdx] : '', time:new Date() });
+    bookingSubmissions.unshift({ dealId, tech, country, registry, year, name, qty, bookingDate: dateIdx>=0 ? row[dateIdx] : '', time:new Date() });
     bookingRenderRecent();
-    dealIdEl.value=''; nameEl.value=''; qtyEl.value='';
+    dealIdEl.value=''; nameEl.value=''; qtyEl.value=''; techEl.value=''; countryEl.value=''; registryEl.value=''; yearEl.value='';
     bookingRenderDealDetails(null); bookingShowDealLookupStatus(null);
   }catch(err){
     console.error(err);
