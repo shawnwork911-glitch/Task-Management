@@ -299,6 +299,31 @@
   .comment-bubble .c-head{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--text-secondary);margin-bottom:4px;}
   .comment-bubble .c-body{font-size:13px;white-space:pre-wrap;}
   .comment-bubble.mine{border-color:var(--accent);}
+  .comment-attachments{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
+  .comment-attachments.no-text{margin-top:0;}
+  .attachment-chip{
+    display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
+    padding:5px 9px;border-radius:6px;background:var(--surface);
+    border:1px solid var(--border);color:var(--accent);text-decoration:none;
+    max-width:100%;overflow:hidden;
+  }
+  .attachment-chip:hover{background:var(--surface-2);text-decoration:underline;}
+  .attachment-chip .a-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .attachment-chip .a-size{color:var(--text-secondary);flex-shrink:0;}
+
+  /* ---- File attach (new task / comments) ---- */
+  .attach-picker{display:flex;flex-direction:column;gap:6px;}
+  .attach-picker-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .attach-picker-row input[type=file]{display:none;}
+  .attach-pending-list{display:flex;flex-direction:column;gap:4px;}
+  .attach-pending-item{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    font-size:12.5px;padding:5px 9px;border-radius:6px;
+    background:var(--surface-2);border:1px solid var(--border);
+  }
+  .attach-pending-item .a-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .attach-pending-item button{padding:2px 8px;font-size:11px;border-radius:5px;}
+  .attach-upload-note{font-size:11.5px;color:var(--text-secondary);margin:0;}
 
   #user-mgmt-list table{width:100%;border-collapse:collapse;}
   #user-mgmt-list th{font-size:12px;color:var(--text-secondary);border-bottom:1px solid var(--border);text-align:left;padding:6px;}
@@ -565,6 +590,17 @@
         <div style="grid-column:1/-1;">
           <label for="nt-description">Description</label>
           <textarea id="nt-description" placeholder="What needs to be done, and any relevant details"></textarea>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label>Attachments (optional)</label>
+          <div class="attach-picker">
+            <div class="attach-picker-row">
+              <input type="file" id="nt-attachments" multiple>
+              <button type="button" class="secondary small-btn" id="nt-attachments-btn">+ Add files</button>
+              <p class="attach-upload-note">Saved to SharePoint and linked on the task once submitted.</p>
+            </div>
+            <div class="attach-pending-list" id="nt-attachments-list"></div>
+          </div>
         </div>
       </div>
       <div id="nt-requested-deadline-wrap">
@@ -1705,7 +1741,7 @@ function buildNotificationEvents(){
     const commenter=(c['Comment By']||'').toLowerCase(); if(!commenter||commenter===me) return;
     const requestedBy=(task['Requested By']||'').toLowerCase(); const assignedTo=(task['Assigned To']||'').toLowerCase();
     const relevant=requestedBy===me||assignedTo===me||(currentUserRole==='superadmin'&&!task['Assigned To']); if(!relevant) return;
-    const preview=String(c['Comment Text']||'').replace(/\s+/g,' ').trim();
+    const preview=String(parseCommentAttachments(c['Comment Text']).text||'').replace(/\s+/g,' ').trim();
     add('comment',task,c['Comment Date'],'New comment from '+(c['Comment By']||'user'),taskNumberLabel(task)+(preview?' — '+preview.slice(0,90):''));
   });
   const seen=new Set();
@@ -1771,6 +1807,49 @@ async function loadAllData(silent){
       }
     }
   }
+}
+/* ---- Comment attachments ----
+   Attachments are uploaded to SharePoint (see uploadTaskAttachment below)
+   and the resulting {name, url, size} objects are appended to the plain-text
+   "Comment Text" field after a marker, so no new SharePoint column is
+   needed. commentBodyHtml renders that back out as clickable chips. */
+const ATTACH_MARKER = '\n__ATTACHMENTS_JSON__:';
+function buildCommentText(text, attachments){
+  let base = String(text||'').trim();
+  if(attachments && attachments.length){
+    if(!base) base = attachments.length===1 ? ('📎 Sent 1 file') : ('📎 Sent ' + attachments.length + ' files');
+    base += ATTACH_MARKER + JSON.stringify(attachments);
+  }
+  return base;
+}
+function parseCommentAttachments(commentText){
+  const raw = String(commentText||'');
+  const idx = raw.indexOf(ATTACH_MARKER);
+  if(idx === -1) return { text: raw, attachments: [] };
+  let attachments = [];
+  try{
+    const parsed = JSON.parse(raw.slice(idx + ATTACH_MARKER.length));
+    if(Array.isArray(parsed)) attachments = parsed;
+  }catch(e){ attachments = []; }
+  return { text: raw.slice(0, idx), attachments };
+}
+function formatFileSize(bytes){
+  const n = Number(bytes);
+  if(!Number.isFinite(n) || n <= 0) return '';
+  if(n < 1024) return n + ' B';
+  if(n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/(1024*1024)).toFixed(1) + ' MB';
+}
+function commentBodyHtml(commentText){
+  const parsed = parseCommentAttachments(commentText);
+  const trimmed = parsed.text.trim();
+  const textHtml = trimmed ? '<div class="c-body">'+escapeHtml(trimmed)+'</div>' : '';
+  if(!parsed.attachments.length) return textHtml || '<div class="c-body">'+escapeHtml(commentText||'')+'</div>';
+  const chips = parsed.attachments.map(a=>{
+    const size = formatFileSize(a.size);
+    return '<a class="attachment-chip" href="'+escapeHtml(a.url||'#')+'" target="_blank" rel="noopener">📎 <span class="a-name">'+escapeHtml(a.name||'file')+'</span>'+(size?'<span class="a-size">'+size+'</span>':'')+'</a>';
+  }).join('');
+  return textHtml + '<div class="comment-attachments'+(textHtml?'':' no-text')+'">'+chips+'</div>';
 }
 function taskById(taskId){
   return taskItemsCache.find(t => String(t.id) === String(taskId)) || null;
@@ -2210,6 +2289,29 @@ document.getElementById('nt-direct-assign-toggle').addEventListener('change', fu
   }
 });
 
+/* ---- New task request: attachment picker ---- */
+let ntPendingFiles = [];
+function renderNtPendingFiles(){
+  const el = document.getElementById('nt-attachments-list');
+  if(!el) return;
+  el.innerHTML = ntPendingFiles.map((f,i)=>
+    '<div class="attach-pending-item"><span class="a-name">📎 '+escapeHtml(f.name)+'</span>'+
+    '<button type="button" class="secondary small-btn" data-nt-remove-idx="'+i+'">Remove</button></div>'
+  ).join('');
+  el.querySelectorAll('[data-nt-remove-idx]').forEach(btn=>btn.addEventListener('click', ()=>{
+    ntPendingFiles.splice(Number(btn.dataset.ntRemoveIdx), 1);
+    renderNtPendingFiles();
+  }));
+}
+document.getElementById('nt-attachments-btn').addEventListener('click', ()=>{
+  document.getElementById('nt-attachments').click();
+});
+document.getElementById('nt-attachments').addEventListener('change', function(){
+  ntPendingFiles = ntPendingFiles.concat(Array.from(this.files||[]));
+  this.value = '';
+  renderNtPendingFiles();
+});
+
 document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('new-task-error');
   errEl.style.display = 'none';
@@ -2270,7 +2372,26 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
       payload['Deadline'] = dateInputToIso(directAssignDeadline);
     }
     const created = await createListItem(MAIN_LIST_NAME, payload);
-    await assignTaskNumberToItem(created.id);
+    const newTaskNumber = await assignTaskNumberToItem(created.id);
+    const filesToUpload = ntPendingFiles.slice();
+    ntPendingFiles = [];
+    renderNtPendingFiles();
+    let attachmentWarning = '';
+    if(filesToUpload.length){
+      try{
+        const uploaded = await uploadTaskAttachments(created.id, newTaskNumber, filesToUpload, setStatus);
+        await createListItem(COMMENTS_LIST_NAME, {
+          'Task Item ID': String(created.id),
+          'Comment By': currentAccount.username,
+          'Comment Role': currentUserRole,
+          'Comment Text': buildCommentText('Attached with the original request.', uploaded),
+          'Comment Date': new Date().toISOString()
+        });
+      }catch(attachErr){
+        console.error('Attachment upload failed', attachErr);
+        attachmentWarning = ' Request saved, but attachments could not be uploaded: ' + attachErr.message;
+      }
+    }
     document.getElementById('nt-agreement-id').value = '';
     document.getElementById('nt-company-name').value = '';
     document.getElementById('nt-important-toggle').checked = false;
@@ -2294,7 +2415,7 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     const resetTopAnchor = document.getElementById('nt-request-task-anchor');
     if(resetRow && resetTopAnchor) resetTopAnchor.parentNode.insertBefore(resetRow, resetTopAnchor.nextSibling);
     await loadAllData();
-    setStatus(directAssignOn ? 'Task sent to ' + directAssignEmail + '.' : 'Request submitted successfully.');
+    setStatus((directAssignOn ? 'Task sent to ' + directAssignEmail + '.' : 'Request submitted successfully.') + attachmentWarning);
     if(directAssignOn){
       const v = taskById(created.id);
       if(v){
@@ -2380,7 +2501,21 @@ function canCancelOwnTask(v){
 function canComment(v){
   return currentUserRole === 'superadmin' || currentUserRole === 'admin' || isTaskMine(v);
 }
+let tmPendingFiles = [];
+function renderTmPendingFiles(){
+  const el = document.getElementById('tm-comment-attachments-list');
+  if(!el) return;
+  el.innerHTML = tmPendingFiles.map((f,i)=>
+    '<div class="attach-pending-item"><span class="a-name">📎 '+escapeHtml(f.name)+'</span>'+
+    '<button type="button" class="secondary small-btn" data-tm-remove-idx="'+i+'">Remove</button></div>'
+  ).join('');
+  el.querySelectorAll('[data-tm-remove-idx]').forEach(btn=>btn.addEventListener('click', ()=>{
+    tmPendingFiles.splice(Number(btn.dataset.tmRemoveIdx), 1);
+    renderTmPendingFiles();
+  }));
+}
 function renderTaskModal(taskId){
+  tmPendingFiles = [];
   const v = taskById(taskId);
   if(!v){ document.getElementById('tm-body').innerHTML = '<p class="empty-note">This task could not be found — it may have been removed.</p>'; return; }
   document.getElementById('tm-taskid').textContent = taskNumberValue(v) ? ('#' + taskNumberValue(v)) : '';
@@ -2469,14 +2604,24 @@ function renderTaskModal(taskId){
         const mine = (c['Comment By']||'').toLowerCase() === myEmail;
         return '<div class="comment-bubble'+(mine?' mine':'')+'">'+
           '<div class="c-head"><span>'+escapeHtml(c['Comment By'])+' · '+escapeHtml(ROLE_LABELS[c['Comment Role']]||c['Comment Role'])+'</span><span>'+fmtDateTime(c['Comment Date'])+'</span></div>'+
-          '<div class="c-body">'+escapeHtml(c['Comment Text'])+'</div>'+
+          commentBodyHtml(c['Comment Text'])+
         '</div>';
       }).join('') : '<p class="empty-note">No comments yet.</p>')+
     '</div>';
   if(canComment(v)){
-    html += '<div id="comment-add-row">'+
-      '<textarea id="tm-comment-text" placeholder="Write a comment…"></textarea>'+
-      '<button type="button" id="tm-comment-send">Send</button>'+
+    html += '<div style="display:flex;flex-direction:column;gap:6px;">'+
+      '<div id="comment-add-row">'+
+        '<textarea id="tm-comment-text" placeholder="Write a comment…"></textarea>'+
+        '<button type="button" id="tm-comment-send">Send</button>'+
+      '</div>'+
+      '<div class="attach-picker">'+
+        '<div class="attach-picker-row">'+
+          '<input type="file" id="tm-comment-attachments" multiple>'+
+          '<button type="button" class="secondary small-btn" id="tm-comment-attachments-btn">📎 Attach files</button>'+
+          '<p class="attach-upload-note">Uploads to SharePoint and appears as a link in this comment.</p>'+
+        '</div>'+
+        '<div class="attach-pending-list" id="tm-comment-attachments-list"></div>'+
+      '</div>'+
     '</div>';
   }
   html += '</div>';
@@ -2620,21 +2765,39 @@ function renderTaskModal(taskId){
       statusSave.disabled = false;
     }
   });
+  const tmAttachBtn = document.getElementById('tm-comment-attachments-btn');
+  if(tmAttachBtn) tmAttachBtn.addEventListener('click', ()=>{
+    document.getElementById('tm-comment-attachments').click();
+  });
+  const tmAttachInput = document.getElementById('tm-comment-attachments');
+  if(tmAttachInput) tmAttachInput.addEventListener('change', function(){
+    tmPendingFiles = tmPendingFiles.concat(Array.from(this.files||[]));
+    this.value = '';
+    renderTmPendingFiles();
+  });
+  renderTmPendingFiles();
+
   const commentSend = document.getElementById('tm-comment-send');
   if(commentSend) commentSend.addEventListener('click', async ()=>{
     const textEl = document.getElementById('tm-comment-text');
     const text = textEl.value.trim();
-    if(!text) return;
+    const filesToUpload = tmPendingFiles.slice();
+    if(!text && !filesToUpload.length) return;
     commentSend.disabled = true;
     try{
+      let uploaded = [];
+      if(filesToUpload.length){
+        uploaded = await uploadTaskAttachments(taskId, taskNumberValue(v), filesToUpload, setStatus);
+      }
       await createListItem(COMMENTS_LIST_NAME, {
         'Task Item ID': String(taskId),
         'Comment By': currentAccount.username,
         'Comment Role': currentUserRole,
-        'Comment Text': text,
+        'Comment Text': buildCommentText(text, uploaded),
         'Comment Date': new Date().toISOString()
       });
       textEl.value = '';
+      tmPendingFiles = [];
       await loadAllData();
       setStatus('Comment sent.');
     }catch(err){
@@ -3158,6 +3321,135 @@ const PDF_TEMPLATES = {
 const ROPS_SOURCE_FILENAME = "Master Folder_250923.xlsx";
 const ROPS_SOURCE_UNIQUE_ID = "31614e24-6ed1-45ff-b7fa-3e6bb9ec7b86";
 const ROPS_ASSET_TABLE_NAME = "Assets"; // verified in the provided workbook; Agreement ID is the 16th table column (Excel col P)
+/* ---- Task attachments ----
+   Files attached to a new task request or a comment are uploaded straight
+   to SharePoint, into the "BD Autofill form" document library, under a
+   "Task management files/Task <number>" subfolder — one subfolder per
+   task, shared by everyone who can already see that task (requester,
+   assigned Admin, Super Admin). No new SharePoint list/column is needed:
+   the resulting {name, url, size} is appended to the comment text (see
+   ATTACH_MARKER above) and rendered back out as a clickable chip.
+
+   Graph's simple PUT-to-/content only works up to ~4 MB. Anything larger
+   goes through a resumable upload session instead: an initial POST hands
+   back a one-time uploadUrl, and the file is then PUT to that URL in
+   sequential byte-range chunks (each a multiple of 320 KiB, per Graph's
+   requirement) until the whole file has landed. That uploadUrl is already
+   authorized for the session, so the chunk PUTs don't carry our normal
+   Bearer token. */
+const TASK_ATTACHMENTS_LIBRARY_NAME = "BD Autofill form";
+const TASK_ATTACHMENTS_ROOT_FOLDER = "Task management files";
+const TASK_ATTACHMENT_SIMPLE_LIMIT = 4 * 1024 * 1024;      // Graph's simple-PUT ceiling
+const TASK_ATTACHMENT_CHUNK_SIZE = 10 * 1024 * 1024;       // 10 MiB — a multiple of 320 KiB
+let taskAttachmentsDriveId = null;
+async function resolveTaskAttachmentsDrive(){
+  if(taskAttachmentsDriveId) return taskAttachmentsDriveId;
+  if(!siteId) throw new Error('SharePoint site is not connected yet.');
+  const data = await graphFetch('/sites/'+siteId+'/drives');
+  const drives = (data && data.value) || [];
+  const hit = drives.find(d=>ropsNorm(d.name)===ropsNorm(TASK_ATTACHMENTS_LIBRARY_NAME));
+  if(!hit) throw new Error('Could not find the "'+TASK_ATTACHMENTS_LIBRARY_NAME+'" document library on the Operations site.');
+  taskAttachmentsDriveId = hit.id;
+  return taskAttachmentsDriveId;
+}
+function taskAttachmentSafeName(name){
+  return String(name||'file').trim().replace(/[\/:*?"<>|]+/g,'-') || 'file';
+}
+function taskAttachmentFolder(taskId, taskNumber){
+  return TASK_ATTACHMENTS_ROOT_FOLDER + '/' + (taskNumber ? ('Task ' + taskNumber) : ('Task-item-' + taskId));
+}
+
+/* Creates the resumable session and returns its one-time uploadUrl. */
+async function createTaskAttachmentUploadSession(driveId, path){
+  const session = await graphFetch('/drives/'+driveId+'/root:/'+path+':/createUploadSession', {
+    method: 'POST',
+    body: JSON.stringify({ item: { '@microsoft.graph.conflictBehavior': 'rename' } })
+  });
+  if(!session || !session.uploadUrl) throw new Error('SharePoint did not return an upload session.');
+  return session.uploadUrl;
+}
+
+/* PUTs one byte-range chunk to an upload-session URL, retrying transient
+   failures. Returns the parsed driveItem once Graph reports the file
+   complete (only the final chunk's response body carries it), or null for
+   an intermediate "still uploading" response. */
+async function putTaskAttachmentChunk(uploadUrl, chunk, startByte, endByte, total){
+  const maxAttempts = 3;
+  let lastErr = null;
+  for(let attempt = 0; attempt < maxAttempts; attempt++){
+    try{
+      const res = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Length': String(chunk.size),
+          'Content-Range': 'bytes ' + startByte + '-' + endByte + '/' + total
+        },
+        body: chunk
+      });
+      const text = await res.text().catch(()=> '');
+      if(res.ok) return text ? JSON.parse(text) : null;
+      const transient = res.status === 502 || res.status === 503 || res.status === 504;
+      if(transient && attempt < maxAttempts - 1){
+        await new Promise(r=>setTimeout(r, 800 * (attempt + 1)));
+        continue;
+      }
+      throw new Error('Upload chunk failed (' + res.status + '): ' + text.slice(0, 300));
+    }catch(err){
+      lastErr = err;
+      if(attempt < maxAttempts - 1){ await new Promise(r=>setTimeout(r, 800 * (attempt + 1))); continue; }
+    }
+  }
+  throw lastErr || new Error('Upload chunk failed.');
+}
+
+/* Uploads a large file in sequential chunks over a fresh upload session.
+   onProgress(bytesSent, totalBytes) is called after each chunk, if given. */
+async function uploadTaskAttachmentChunked(driveId, path, file, onProgress){
+  const uploadUrl = await createTaskAttachmentUploadSession(driveId, path);
+  const total = file.size;
+  let start = 0, finalItem = null;
+  while(start < total){
+    const end = Math.min(start + TASK_ATTACHMENT_CHUNK_SIZE, total);
+    const chunk = file.slice(start, end);
+    const item = await putTaskAttachmentChunk(uploadUrl, chunk, start, end - 1, total);
+    if(item) finalItem = item;
+    start = end;
+    if(onProgress) onProgress(start, total);
+  }
+  return finalItem;
+}
+
+async function uploadTaskAttachment(taskId, taskNumber, file, onProgress){
+  const driveId = await resolveTaskAttachmentsDrive();
+  const now = new Date();
+  const pad = n=>String(n).padStart(2,'0');
+  const stamp = now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'_'+pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds());
+  const filename = stamp + '_' + taskAttachmentSafeName(file.name);
+  const path = ropsEncodePath(taskAttachmentFolder(taskId, taskNumber) + '/' + filename);
+  const result = file.size > TASK_ATTACHMENT_SIMPLE_LIMIT
+    ? await uploadTaskAttachmentChunked(driveId, path, file, onProgress)
+    : await ropsGraphBinaryFetch('/drives/'+driveId+'/root:/'+path+':/content', {
+        method: 'PUT', body: file, headers: {'Content-Type': file.type || 'application/octet-stream'}
+      });
+  return { name: file.name, url: (result && result.webUrl) || '', size: file.size };
+}
+
+/* Uploads a list of files one after another, reporting progress across the
+   whole batch (both "file 2 of 5" and, for the current file, percent sent)
+   through onStatus(text), if given. */
+async function uploadTaskAttachments(taskId, taskNumber, files, onStatus){
+  const uploaded = [];
+  for(let i = 0; i < files.length; i++){
+    const file = files[i];
+    const label = 'Uploading ' + (i + 1) + ' of ' + files.length + ' — ' + file.name;
+    if(onStatus) onStatus(label + (file.size > TASK_ATTACHMENT_SIMPLE_LIMIT ? ' (0%)' : ''));
+    uploaded.push(await uploadTaskAttachment(taskId, taskNumber, file, (sent, total)=>{
+      if(onStatus) onStatus(label + ' (' + Math.round(100 * sent / total) + '%)');
+    }));
+  }
+  return uploaded;
+}
+
 const ROPS_BD_LIBRARY_NAME = "BD Usage";
 const ROPS_AUTOFILL_FOLDERS = { MY: "Autofilled Form MY", SG: "Autofilled Form SG" };
 
