@@ -657,10 +657,13 @@
     </div>
   </div>
 
-  <!-- User's own tasks: timeline view -->
+  <!-- User's own tasks: recent-activity strip (full history lives in Analytics) -->
   <div class="card" id="my-tasks-card" style="display:none;">
-    <p class="card-title">My tasks</p>
-    <p class="card-note">Your own task requests — status, deadline, and who it's assigned to. Click a task to see the full timeline and comments.</p>
+    <div class="card-title-row">
+      <p class="card-title" style="margin:0;">My tasks</p>
+      <button type="button" class="secondary small-btn" id="my-tasks-view-all-btn">View all in Analytics →</button>
+    </div>
+    <p class="card-note" id="my-tasks-note">Your most recent task requests — status, deadline, and who it's assigned to. Click a task to see the full timeline and comments.</p>
     <div id="my-tasks-list"><p class="empty-note">Loading…</p></div>
   </div>
   </div>
@@ -2266,12 +2269,31 @@ function importantTasks(){const canSeeAll=currentUserRole==='admin'||currentUser
 function pendingImportantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>hasImportantRequest(t)).filter(t=>canSeeAll||isTaskMine(t));}
 function renderImportantTasks(){const card=document.getElementById('important-tasks-card'),section=document.getElementById('standalone-important-section'),el=document.getElementById('important-tasks-list');if(!el)return;const tasks=importantTasks();if(card)card.style.display=tasks.length?'block':'none';if(section)section.style.display=tasks.length?'block':'none';if(!tasks.length){el.innerHTML='';return;}el.innerHTML=tasks.map(v=>taskCardHtml(v,true)).join('');el.querySelectorAll('[data-task-id]').forEach(card=>card.addEventListener('click',()=>openTaskModal(card.getAttribute('data-task-id'))));}
 
-/* ---- Rendering: My tasks (timeline) ---- */
+/* ---- Rendering: My tasks (recent-activity strip) ----
+   Full history — with filtering, dates and duration — lives in Analytics;
+   this card is just a quick glance at what's moved lately, right on the
+   same tab where a request was just submitted. */
+const MY_TASKS_STRIP_LIMIT = 5;
 function renderMyTasks(){
   const el = document.getElementById('my-tasks-list');
-  const tasks = myTasks();
-  if(!tasks.length){ el.innerHTML = '<p class="empty-note">You haven\'t submitted any task requests yet.</p>'; return; }
-  el.innerHTML = tasks.map(v => taskCardHtml(v, true)).join('');
+  const noteEl = document.getElementById('my-tasks-note');
+  const all = myTasks();
+  if(!all.length){
+    el.innerHTML = '<p class="empty-note">You haven\'t submitted any task requests yet.</p>';
+    if(noteEl) noteEl.textContent = "Your most recent task requests — status, deadline, and who it's assigned to. Click a task to see the full timeline and comments.";
+    return;
+  }
+  const recent = all.slice().sort((a,b)=>{
+    const at = new Date(a['Last Updated Date'] || a['Requested Date']).getTime();
+    const bt = new Date(b['Last Updated Date'] || b['Requested Date']).getTime();
+    return bt - at;
+  }).slice(0, MY_TASKS_STRIP_LIMIT);
+  if(noteEl){
+    noteEl.textContent = all.length > MY_TASKS_STRIP_LIMIT
+      ? ('Showing your ' + recent.length + ' most recently updated tasks, out of ' + all.length + ' total — see "View all in Analytics" for the full list.')
+      : "Your most recent task requests — status, deadline, and who it's assigned to. Click a task to see the full timeline and comments.";
+  }
+  el.innerHTML = recent.map(v => taskCardHtml(v, true)).join('');
   el.querySelectorAll('[data-task-id]').forEach(card=>{
     card.addEventListener('click', ()=> openTaskModal(card.getAttribute('data-task-id')));
   });
@@ -3806,17 +3828,20 @@ function ropsShowStatus(id, msg, ok){
 function ropsHideStatus(id){ const el=document.getElementById(id); if(el) el.className='rops-status'; }
 
 /* ---- Main navigation tabs ---- */
+function switchTaskSubview(name){
+  if(name === 'work' && !isAdmin) return;
+  document.querySelectorAll('.task-subtab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.task-subview').forEach(v=>v.classList.remove('active'));
+  const tabBtn = document.querySelector('.task-subtab-btn[data-task-subview="'+name+'"]');
+  if(tabBtn) tabBtn.classList.add('active');
+  const view = document.getElementById('task-subview-'+name);
+  if(view) view.classList.add('active');
+}
 document.querySelectorAll('.task-subtab-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    // Prevent direct/scripted access to Task Lists for normal users.
-    if(btn.dataset.taskSubview === 'work' && !isAdmin) return;
-    document.querySelectorAll('.task-subtab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.task-subview').forEach(v=>v.classList.remove('active'));
-    btn.classList.add('active');
-    const view = document.getElementById('task-subview-'+btn.dataset.taskSubview);
-    if(view) view.classList.add('active');
-  });
+  btn.addEventListener('click', ()=> switchTaskSubview(btn.dataset.taskSubview));
 });
+const myTasksViewAllBtn = document.getElementById('my-tasks-view-all-btn');
+if(myTasksViewAllBtn) myTasksViewAllBtn.addEventListener('click', ()=> switchTaskSubview('analytics'));
 
 document.querySelectorAll('.main-tab-btn').forEach(btn=>{
   btn.addEventListener('click',()=>{
