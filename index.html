@@ -256,11 +256,31 @@
   .gantt-row-label .gl-title{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .gantt-row-label:hover .gl-title{text-decoration:underline;}
   .gantt-track{position:relative;height:26px;background:var(--surface-2);border-radius:5px;}
-  .gantt-bar{position:absolute;top:3px;bottom:3px;min-width:6px;border-radius:5px;cursor:pointer;display:flex;align-items:center;padding:0 7px;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 0 0 1px rgba(0,0,0,.08);}
+  .gantt-bar{position:absolute;top:3px;bottom:3px;min-width:18px;border-radius:5px;cursor:pointer;display:flex;align-items:center;padding:0 7px;font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 0 0 1px rgba(0,0,0,.08);}
   .gantt-bar.gantt-bar-important{box-shadow:0 0 0 2px var(--danger);}
   .gantt-bar.gantt-bar-ongoing{background-image:repeating-linear-gradient(135deg, rgba(255,255,255,.35) 0 6px, transparent 6px 12px);}
   .gantt-today-line{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--danger);z-index:2;}
   .gantt-today-label{position:absolute;top:-18px;font-size:9px;color:var(--danger);font-weight:600;transform:translateX(-50%);white-space:nowrap;}
+
+  /* ---- Analytics: Timeline / List view toggle ---- */
+  .view-toggle-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .view-toggle-btn{padding:6px 13px;font-size:12px;font-weight:600;border-radius:7px;background:transparent;color:var(--text-secondary);border:1px solid var(--border-strong);}
+  .view-toggle-btn:hover{background:var(--surface-2);}
+  .view-toggle-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .view-toggle-btn.active:hover{background:var(--accent-hover);}
+  .view-toggle-note{font-size:11px;color:var(--text-secondary);}
+
+  /* ---- Analytics: List view table ---- */
+  .gantt-list-outer{overflow-x:auto;}
+  .gantt-list-table{width:100%;border-collapse:collapse;min-width:640px;}
+  .gantt-list-table th{font-size:11px;color:var(--text-secondary);text-align:left;padding:6px 8px;border-bottom:1px solid var(--border-strong);white-space:nowrap;}
+  .gantt-list-table td{font-size:12.5px;padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .gantt-list-table tbody tr{cursor:pointer;}
+  .gantt-list-table tbody tr:hover td{background:var(--surface-2);}
+  .gantt-list-status-dot{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+  .gantt-list-status-dot .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .gantt-list-duration{color:var(--text-secondary);white-space:nowrap;}
+  .gantt-list-task-title{color:var(--text-secondary);font-size:11.5px;}
 
   /* ---- Modal ---- */
   .modal-overlay{
@@ -707,6 +727,11 @@
     <div class="card">
       <div class="card-title-row">
         <p class="card-title" style="margin:0;">Task timeline</p>
+        <div class="view-toggle-row">
+          <button type="button" class="view-toggle-btn" id="an-view-timeline-btn">Timeline</button>
+          <button type="button" class="view-toggle-btn" id="an-view-list-btn">List</button>
+          <span class="view-toggle-note" id="an-view-auto-note"></span>
+        </div>
       </div>
       <p class="card-note" id="analytics-scope-note">Loading…</p>
 
@@ -723,7 +748,7 @@
         <div><button type="button" class="secondary" id="an-filter-date-clear">Clear dates</button></div>
       </div>
 
-      <div class="gantt-outer">
+      <div class="gantt-outer" id="gantt-outer">
         <div class="gantt-inner" id="gantt-inner">
           <div class="gantt-axis-row">
             <div></div>
@@ -731,6 +756,15 @@
           </div>
           <div class="gantt-body" id="gantt-body"><p class="empty-note">Loading…</p></div>
         </div>
+      </div>
+
+      <div class="gantt-list-outer" id="gantt-list-outer" style="display:none;">
+        <table class="gantt-list-table">
+          <thead>
+            <tr><th>Task</th><th>Status</th><th>Requested</th><th>Deadline / resolved</th><th>Duration</th><th>Assigned to</th></tr>
+          </thead>
+          <tbody id="gantt-list-body"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -2043,6 +2077,75 @@ function renderGanttSummary(tasks){
     '<span class="gantt-summary-chip"><span class="dot" style="background:'+ganttColorForStatus(s)+';"></span>'+escapeHtml(s)+': <strong>'+counts[s]+'</strong></span>'
   ).join('');
 }
+/* ---- Analytics: view mode (Timeline vs List) ----
+   'auto' picks List for a handful of tasks (where a Gantt chart is mostly
+   empty space and cramped ticks) and Timeline once there are enough tasks
+   for a real spread to be worth plotting. Either toggle button overrides
+   that and sticks until the person switches again or reloads the page. */
+let analyticsViewMode = 'auto';
+const ANALYTICS_AUTO_LIST_THRESHOLD = 5;
+function formatGanttDuration(startTs, endTs, ongoing){
+  const mins = Math.max(endTs - startTs, 0) / 60000;
+  let out;
+  if(mins < 1) out = '<1m';
+  else if(mins < 60) out = Math.round(mins) + 'm';
+  else if(mins < 60*24) out = Math.round(mins/60) + 'h';
+  else if(mins < 60*24*14) out = Math.round(mins/(60*24)) + 'd';
+  else out = Math.round(mins/(60*24*7)) + 'w';
+  return ongoing ? out + ' so far' : out;
+}
+/* Tick labels adapt to how wide a span they're covering — hours+date when
+   the whole chart covers a day or two (where date-only labels look like
+   duplicates), plain month/day for a normal multi-week spread, and
+   month/year once it stretches past a few months. */
+function formatGanttTick(ts, totalSpanMs){
+  const d = new Date(ts);
+  const dayMs = 24*60*60*1000;
+  if(totalSpanMs <= dayMs*2) return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  if(totalSpanMs <= dayMs*90) return d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+  return d.toLocaleDateString(undefined,{month:'short',year:'numeric'});
+}
+function analyticsEndDate(t){
+  if(t.Status === STATUS_COMPLETED) return t['Completed Date'] || t['Last Updated Date'];
+  if(t.Status === STATUS_REJECTED || t.Status === STATUS_CANCELLED) return t['Last Updated Date'];
+  return t.Deadline || t['Requested Deadline'];
+}
+function analyticsEndLabel(t){
+  if(t.Status === STATUS_COMPLETED) return 'Completed';
+  if(t.Status === STATUS_REJECTED) return 'Rejected';
+  if(t.Status === STATUS_CANCELLED) return 'Cancelled';
+  return 'Deadline';
+}
+function renderAnalyticsList(entries){
+  const listBodyEl = document.getElementById('gantt-list-body');
+  if(!listBodyEl) return;
+  if(!entries.length){
+    listBodyEl.innerHTML = '<tr><td colspan="6" class="empty-note" style="padding:14px 8px;">No tasks match this filter.</td></tr>';
+    return;
+  }
+  listBodyEl.innerHTML = entries.map(({t, r})=>{
+    const important = isImportantTask(t);
+    const pending = isImportantPending(t);
+    const tag = important ? ' · Important' : (pending ? ' · Pending review' : '');
+    const endDate = analyticsEndDate(t);
+    const duration = r ? formatGanttDuration(r.startTs, r.endTs, r.ongoing) : '—';
+    return '<tr data-task-id="'+escapeHtml(t.id)+'">'+
+      '<td><div>'+escapeHtml(taskNumberLabel(t))+escapeHtml(tag)+'</div><div class="gantt-list-task-title">'+escapeHtml(cardTitle(t))+'</div></td>'+
+      '<td><span class="gantt-list-status-dot"><span class="dot" style="background:'+ganttColorForStatus(t.Status)+';"></span>'+escapeHtml(t.Status)+'</span></td>'+
+      '<td>'+(t['Requested Date'] ? fmtDate(t['Requested Date']) : '—')+'</td>'+
+      '<td>'+escapeHtml(analyticsEndLabel(t))+': '+(endDate ? fmtDate(endDate) : '—')+'</td>'+
+      '<td class="gantt-list-duration">'+escapeHtml(duration)+'</td>'+
+      '<td>'+(t['Assigned To'] ? escapeHtml(t['Assigned To']) : '—')+'</td>'+
+    '</tr>';
+  }).join('');
+  listBodyEl.querySelectorAll('[data-task-id]').forEach(row=>{
+    row.addEventListener('click', ()=> openTaskModal(row.getAttribute('data-task-id')));
+  });
+}
+function setAnalyticsViewMode(mode){
+  analyticsViewMode = mode;
+  renderAnalytics();
+}
 function renderAnalytics(){
   const scopeNote = document.getElementById('analytics-scope-note');
   if(!scopeNote) return; // Analytics tab not in the DOM yet
@@ -2056,7 +2159,34 @@ function renderAnalytics(){
   renderGanttSummary(tasks);
   const ticksEl = document.getElementById('gantt-axis-ticks');
   const bodyEl = document.getElementById('gantt-body');
+  const timelineOuter = document.getElementById('gantt-outer');
+  const listOuter = document.getElementById('gantt-list-outer');
+  const timelineBtn = document.getElementById('an-view-timeline-btn');
+  const listBtn = document.getElementById('an-view-list-btn');
+  const autoNote = document.getElementById('an-view-auto-note');
   if(!bodyEl) return;
+
+  const effectiveView = analyticsViewMode === 'auto'
+    ? (tasks.length <= ANALYTICS_AUTO_LIST_THRESHOLD ? 'list' : 'timeline')
+    : analyticsViewMode;
+  if(timelineBtn) timelineBtn.classList.toggle('active', effectiveView === 'timeline');
+  if(listBtn) listBtn.classList.toggle('active', effectiveView === 'list');
+  if(autoNote) autoNote.textContent = analyticsViewMode === 'auto'
+    ? ('Auto-picked (' + tasks.length + ' task' + (tasks.length===1?'':'s') + ') — switch anytime')
+    : '';
+  if(timelineOuter) timelineOuter.style.display = effectiveView === 'timeline' ? '' : 'none';
+  if(listOuter) listOuter.style.display = effectiveView === 'list' ? '' : 'none';
+
+  const allEntries = tasks.map(t => ({ t, r: ganttRange(t) }));
+
+  if(effectiveView === 'list'){
+    const sorted = allEntries.slice().sort((a,b)=>{
+      const as = a.r ? a.r.startTs : Infinity, bs = b.r ? b.r.startTs : Infinity;
+      return as - bs;
+    });
+    renderAnalyticsList(sorted);
+    return;
+  }
 
   if(!tasks.length){
     if(ticksEl) ticksEl.innerHTML = '';
@@ -2064,7 +2194,7 @@ function renderAnalytics(){
     return;
   }
 
-  const ranges = tasks.map(t => ({ t, r: ganttRange(t) })).filter(x => x.r);
+  const ranges = allEntries.filter(x => x.r).sort((a,b)=>a.r.startTs-b.r.startTs);
   if(!ranges.length){
     if(ticksEl) ticksEl.innerHTML = '';
     bodyEl.innerHTML = '<p class="empty-note">No dated tasks to plot yet.</p>';
@@ -2074,9 +2204,12 @@ function renderAnalytics(){
   const nowTs = Date.now();
   let minTs = Math.min(...ranges.map(x=>x.r.startTs), nowTs);
   let maxTs = Math.max(...ranges.map(x=>x.r.endTs), nowTs);
-  const dayMs = 24*60*60*1000;
-  const span = Math.max(maxTs - minTs, dayMs);
-  const pad = Math.max(span * 0.05, dayMs);
+  const hourMs = 60*60*1000;
+  // No forced full-day minimum span anymore — a batch of tasks that all
+  // happened within the same afternoon now gets an hour-scale chart
+  // instead of being padded out to a mostly-empty multi-day one.
+  const span = Math.max(maxTs - minTs, hourMs);
+  const pad = Math.max(span * 0.08, hourMs);
   minTs -= pad; maxTs += pad;
   const totalSpan = maxTs - minTs;
 
@@ -2085,7 +2218,7 @@ function renderAnalytics(){
   for(let i=0;i<=tickCount;i++){
     const ts = minTs + (totalSpan * i / tickCount);
     const pct = (i/tickCount) * 100;
-    ticksHtml += '<span class="gantt-tick" style="left:'+pct+'%;">'+fmtDate(new Date(ts).toISOString())+'</span>';
+    ticksHtml += '<span class="gantt-tick" style="left:'+pct+'%;">'+escapeHtml(formatGanttTick(ts, totalSpan))+'</span>';
   }
   const todayPct = ((nowTs - minTs) / totalSpan) * 100;
   ticksHtml += '<span class="gantt-today-label" style="left:'+todayPct+'%;">Today</span>';
@@ -2093,12 +2226,13 @@ function renderAnalytics(){
 
   bodyEl.innerHTML = ranges.map(({t, r})=>{
     const leftPct = ((r.startTs - minTs) / totalSpan) * 100;
-    const widthPct = Math.max(((r.endTs - r.startTs) / totalSpan) * 100, 0.6);
+    const widthPct = Math.max(((r.endTs - r.startTs) / totalSpan) * 100, 1.2);
     const p=String(t.Priority||'');
     const color=/^(Critical|High)\b/i.test(p)?'#d64545':(/^Medium\b/i.test(p)?'#d6a800':(/^Low\b/i.test(p)?'#3a9d5d':ganttColorForStatus(t.Status)));
     const important = isImportantTask(t);
     const pending = isImportantPending(t);
     const tag = important ? ' · Important' : (pending ? ' · Pending review' : '');
+    const duration = formatGanttDuration(r.startTs, r.endTs, r.ongoing);
     return '<div class="gantt-row">'+
       '<div class="gantt-row-label" data-task-id="'+escapeHtml(t.id)+'">'+
         '<span class="gl-num">'+escapeHtml(taskNumberLabel(t))+escapeHtml(tag)+'</span>'+
@@ -2109,7 +2243,7 @@ function renderAnalytics(){
         '<div class="gantt-bar'+(important?' gantt-bar-important':'')+(r.ongoing?' gantt-bar-ongoing':'')+'" '+
           'data-task-id="'+escapeHtml(t.id)+'" '+
           'style="left:'+leftPct+'%;width:'+widthPct+'%;background:'+color+';" '+
-          'title="'+escapeHtml(taskNumberLabel(t)+' — '+cardTitle(t)+' ('+t.Status+')')+'">'+escapeHtml(t.Status)+
+          'title="'+escapeHtml(taskNumberLabel(t)+' — '+cardTitle(t)+' ('+t.Status+', '+duration+')')+'">'+escapeHtml(t.Status)+' · '+escapeHtml(duration)+
         '</div>'+
       '</div>'+
     '</div>';
@@ -2124,6 +2258,8 @@ function renderAnalytics(){
   if(el) el.addEventListener('change', renderAnalytics);
 });
 const analyticsDateClearBtn=document.getElementById('an-filter-date-clear');if(analyticsDateClearBtn)analyticsDateClearBtn.addEventListener('click',()=>{document.getElementById('an-filter-date-from').value='';document.getElementById('an-filter-date-to').value='';renderAnalytics();});
+const anViewTimelineBtn=document.getElementById('an-view-timeline-btn');if(anViewTimelineBtn)anViewTimelineBtn.addEventListener('click',()=>setAnalyticsViewMode('timeline'));
+const anViewListBtn=document.getElementById('an-view-list-btn');if(anViewListBtn)anViewListBtn.addEventListener('click',()=>setAnalyticsViewMode('list'));
 
 function importantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>isImportantTask(t)&&t.Status!==STATUS_COMPLETED&&t.Status!==STATUS_REJECTED&&t.Status!==STATUS_CANCELLED).filter(t=>canSeeAll||isTaskMine(t)).sort(sortByPriorityThenDeadline);}
 function pendingImportantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>hasImportantRequest(t)).filter(t=>canSeeAll||isTaskMine(t));}
