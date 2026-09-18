@@ -381,6 +381,7 @@
   /* ---- Bulk zip upload ---- */
   .rops-bulk-master-row{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px;}
   .rops-bulk-master-row > div{flex:1;min-width:220px;}
+  .rops-bulk-shared-row{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:10px 0 14px;background:var(--surface-2);}
   .rops-bulk-company-card{border:1px solid var(--border);border-radius:10px;margin-top:14px;overflow:hidden;}
   .rops-bulk-company-head{background:var(--surface-2);padding:12px 14px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid var(--border);}
   .rops-bulk-company-head .grid{flex:1;min-width:220px;}
@@ -791,6 +792,15 @@
           <div><label for="rops-bulk-zip-input">Zip file</label><input type="file" id="rops-bulk-zip-input" accept=".zip,application/zip"></div>
         </div>
         <div class="rops-status" id="rops-bulk-parse-status"></div>
+        <div class="rops-bulk-shared-row">
+          <label style="display:flex;gap:7px;align-items:center;font-weight:600;font-size:12px;margin:0;"><input type="checkbox" id="rops-bulk-shared-toggle" style="width:auto;"> All companies use the same Registry / Country / Type</label>
+          <div class="grid" id="rops-bulk-shared-fields" style="display:none;margin-top:10px;">
+            <div><label for="rops-bulk-shared-registry">Registry</label><select id="rops-bulk-shared-registry"><option value="">Select registry...</option><option value="I-REC">I-REC</option><option value="TIGR">TIGR</option></select></div>
+            <div><label for="rops-bulk-shared-country">Country</label><select id="rops-bulk-shared-country" disabled><option value="">Select country...</option></select></div>
+            <div><label for="rops-bulk-shared-type">Type</label><select id="rops-bulk-shared-type" disabled><option value="">Select type...</option></select></div>
+          </div>
+          <p class="rops-note" id="rops-bulk-shared-note" style="display:none;margin:8px 0 0;">Applied to every company below. Turn this off to set Registry, Country and Type per company instead.</p>
+        </div>
         <div id="rops-bulk-companies"><p class="empty-note" style="padding:12px 0;">Select a .zip file to detect company folders.</p></div>
       </div>
       <div class="card">
@@ -2291,6 +2301,17 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
         notifyTaskAssigned(v, directAssignEmail).catch(e=>{
           console.error('Notify task assigned failed', e);
           setStatus('Task sent, but the email notification could not be sent.');
+        });
+      }
+    }else{
+      // Lands unassigned in the Super Admin queue — email every Super Admin so
+      // it doesn't just sit there unnoticed until someone opens the app.
+      const v = taskById(created.id);
+      if(v){
+        const notifyPromise = importantOn ? notifyImportantReviewRequested(v) : notifySuperadmins(v);
+        notifyPromise.catch(e=>{
+          console.error('Notify superadmin failed', e);
+          setStatus('Request submitted, but the email notification to Super Admin could not be sent.');
         });
       }
     }
@@ -4211,6 +4232,9 @@ async function ropsCreateReviewDocumentationTask(companyName, folderName, upload
   await loadAllData();
   if(newTaskId){
     const createdTask = taskById(newTaskId) || {id:newTaskId, 'Task Number':newTaskNumber, Title:'Review Documentation'};
+    // Also lands unassigned in the Super Admin queue, same as a normal task
+    // request — notify Super Admin the same way so it isn't missed.
+    notifySuperadmins(createdTask).catch(e=>console.error('Notify superadmin failed for Review Documentation task', e));
   }
   return newTaskId;
 }
@@ -4377,6 +4401,23 @@ document.querySelectorAll('[data-rops-rename-mode]').forEach(btn=>{
 let ropsBulkCompanies=[];
 let ropsBulkQueue=[];
 let ropsBulkUidCounter=0;
+let ropsBulkSharedMode=false;
+
+function ropsBulkSharedContext(){
+  return {
+    registry: document.getElementById('rops-bulk-shared-registry').value,
+    country: document.getElementById('rops-bulk-shared-country').value,
+    type: document.getElementById('rops-bulk-shared-type').value
+  };
+}
+function ropsBulkApplySharedToAll(){
+  const ctx=ropsBulkSharedContext();
+  ropsBulkCompanies.forEach(c=>{
+    c.registry=ctx.registry; c.country=ctx.country; c.type=ctx.type;
+    c.mapping=(ctx.registry&&ctx.country&&ctx.type) ? ropsBulkAutoMatch(ropsBulkCompanyDocs(c), c.files) : {};
+  });
+  ropsBulkRenderCompanies();
+}
 
 function ropsBulkCategoryKeywords(category){
   return String(category||'')
@@ -4487,7 +4528,8 @@ async function ropsBulkParseZip(file){
     ropsShowStatus(statusEl,'Could not read zip: '+err.message,false);
     ropsBulkCompanies=[];
   }
-  ropsBulkRenderCompanies();
+  if(ropsBulkSharedMode) ropsBulkApplySharedToAll();
+  else ropsBulkRenderCompanies();
 }
 
 function ropsBulkPopulateCountrySelect(sel,registry){
@@ -4503,6 +4545,14 @@ function ropsBulkPopulateTypeSelect(sel,registry,country){
 function ropsBulkCompanyDocs(c){
   return (c.registry && c.country && c.type && ROPS_RENAME_CHECKLISTS[c.registry] && ROPS_RENAME_CHECKLISTS[c.registry][c.country] && ROPS_RENAME_CHECKLISTS[c.registry][c.country][c.type]) || [];
 }
+function ropsBulkCountryOptionsHtml(registry,selected){
+  const countries=registry ? ['MY','SG','VN','OTHER'] : [];
+  return '<option value="">Select country...</option>'+countries.map(c=>'<option value="'+ropsEsc(c)+'"'+(c===selected?' selected':'')+'>'+ropsEsc(ROPS_COUNTRY_NAMES[c]||c)+'</option>').join('');
+}
+function ropsBulkTypeOptionsHtml(registry,country,selected){
+  const types=(registry && country && ROPS_RENAME_CHECKLISTS[registry] && ROPS_RENAME_CHECKLISTS[registry][country]) ? Object.keys(ROPS_RENAME_CHECKLISTS[registry][country]) : [];
+  return '<option value="">Select type...</option>'+types.map(t=>'<option value="'+ropsEsc(t)+'"'+(t===selected?' selected':'')+'>'+ropsEsc(ROPS_TYPE_LABELS[t]||t)+'</option>').join('');
+}
 
 function ropsBulkRenderCompanies(){
   const wrap=document.getElementById('rops-bulk-companies');
@@ -4515,12 +4565,13 @@ function ropsBulkRenderCompanies(){
       '<div class="rops-bulk-company-head">'+
         '<div class="grid">'+
           '<div><label>Company Name</label><input type="text" data-bulk-field="name" data-bulk-idx="'+c.idx+'" value="'+ropsEsc(c.name)+'"></div>'+
-          '<div><label>Registry</label><select data-bulk-field="registry" data-bulk-idx="'+c.idx+'"><option value="">Select registry...</option><option value="I-REC"'+(c.registry==='I-REC'?' selected':'')+'>I-REC</option><option value="TIGR"'+(c.registry==='TIGR'?' selected':'')+'>TIGR</option></select></div>'+
-          '<div><label>Country</label><select data-bulk-field="country" data-bulk-idx="'+c.idx+'" disabled><option value="">Select country...</option></select></div>'+
-          '<div><label>Type</label><select data-bulk-field="type" data-bulk-idx="'+c.idx+'" disabled><option value="">Select type...</option></select></div>'+
+          '<div><label>Registry</label><select data-bulk-field="registry" data-bulk-idx="'+c.idx+'"'+(ropsBulkSharedMode?' disabled':'')+'><option value="">Select registry...</option><option value="I-REC"'+(c.registry==='I-REC'?' selected':'')+'>I-REC</option><option value="TIGR"'+(c.registry==='TIGR'?' selected':'')+'>TIGR</option></select></div>'+
+          '<div><label>Country</label><select data-bulk-field="country" data-bulk-idx="'+c.idx+'"'+((!c.registry||ropsBulkSharedMode)?' disabled':'')+'>'+ropsBulkCountryOptionsHtml(c.registry,c.country)+'</select></div>'+
+          '<div><label>Type</label><select data-bulk-field="type" data-bulk-idx="'+c.idx+'"'+((!(c.registry&&c.country)||ropsBulkSharedMode)?' disabled':'')+'>'+ropsBulkTypeOptionsHtml(c.registry,c.country,c.type)+'</select></div>'+
         '</div>'+
         '<button type="button" class="secondary small-btn" data-bulk-remove="'+c.idx+'">Remove company</button>'+
       '</div>'+
+      (ropsBulkSharedMode ? '<p class="rops-note" style="padding:8px 14px 0;">Registry / Country / Type are set above for all companies.</p>' : '')+
       '<div class="rops-bulk-company-body">'+
         '<p class="rops-note" style="padding:10px 14px 0;">'+c.files.length+' file(s) found in this folder.</p>'+
         '<div id="rops-bulk-mapping-'+c.idx+'"></div>'+
@@ -4702,6 +4753,28 @@ document.getElementById('rops-bulk-zip-input').addEventListener('change',()=>{
   const input=document.getElementById('rops-bulk-zip-input');
   if(input.files && input.files.length) ropsBulkParseZip(input.files[0]);
 });
+
+document.getElementById('rops-bulk-shared-toggle').addEventListener('change',(e)=>{
+  ropsBulkSharedMode=e.target.checked;
+  document.getElementById('rops-bulk-shared-fields').style.display=ropsBulkSharedMode?'':'none';
+  document.getElementById('rops-bulk-shared-note').style.display=ropsBulkSharedMode?'':'none';
+  if(ropsBulkSharedMode) ropsBulkApplySharedToAll();
+  else ropsBulkRenderCompanies();
+});
+document.getElementById('rops-bulk-shared-registry').addEventListener('change',()=>{
+  const registry=document.getElementById('rops-bulk-shared-registry').value;
+  ropsBulkPopulateCountrySelect(document.getElementById('rops-bulk-shared-country'),registry);
+  const typeSel=document.getElementById('rops-bulk-shared-type');
+  typeSel.innerHTML='<option value="">Select type...</option>'; typeSel.disabled=true;
+  ropsBulkApplySharedToAll();
+});
+document.getElementById('rops-bulk-shared-country').addEventListener('change',()=>{
+  const registry=document.getElementById('rops-bulk-shared-registry').value;
+  const country=document.getElementById('rops-bulk-shared-country').value;
+  ropsBulkPopulateTypeSelect(document.getElementById('rops-bulk-shared-type'),registry,country);
+  ropsBulkApplySharedToAll();
+});
+document.getElementById('rops-bulk-shared-type').addEventListener('change',ropsBulkApplySharedToAll);
 
 document.getElementById('rops-bulk-upload-all').addEventListener('click',async()=>{
   if(!ropsBulkQueue.length){ ropsShowStatus('rops-bulk-upload-status','Queue is empty.',false); return; }
