@@ -43,10 +43,23 @@
   html{background:var(--bg);}
   body{
     margin:0;
-    background:var(--bg);
+    min-height:100vh;
+    background-color:var(--bg);
+    background-image:
+      linear-gradient(rgba(245,245,244,.92), rgba(245,245,244,.92)),
+      url('assets/saxon_task_icon_no_tick.png');
+    background-repeat:no-repeat,no-repeat;
+    background-position:center center,center center;
+    background-size:cover,cover;
+    background-attachment:fixed,fixed;
     color:var(--text);
     padding:32px 16px 64px;
     transition:background .15s ease,color .15s ease;
+  }
+  html[data-theme="dark"] body{
+    background-image:
+      linear-gradient(rgba(28,27,26,.92), rgba(28,27,26,.92)),
+      url('assets/saxon_task_icon_no_tick.png');
   }
   #theme-toggle-btn{
     position:fixed;
