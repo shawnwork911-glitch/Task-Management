@@ -517,6 +517,7 @@
   <!-- New task request: User, Admin and Super Admin -->
   <div class="card" id="new-task-card" style="display:none;">
     <p class="card-title">New task request</p>
+    <p class="card-note" style="margin:2px 0 10px;">Request type, Task and Description are required. Fill in Agreement ID and/or Company Name — at least one is required.</p>
     <div class="grid">
       <div id="nt-request-task-anchor" style="display:none;"></div>
       <div id="nt-request-task-row" style="display:contents;">
@@ -533,18 +534,12 @@
           </select>
         </div>
         <div>
-          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
-            <input type="checkbox" id="nt-agreement-id-toggle" style="width:auto;">
-            Agreement ID
-          </label>
-          <input type="text" id="nt-agreement-id" placeholder="Enter value here" disabled style="margin-top:6px;">
+          <label for="nt-agreement-id">Agreement ID</label>
+          <input type="text" id="nt-agreement-id" placeholder="Enter value here">
         </div>
         <div>
-          <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
-            <input type="checkbox" id="nt-company-name-toggle" style="width:auto;">
-            Company Name
-          </label>
-          <input type="text" id="nt-company-name" placeholder="Enter value here" disabled style="margin-top:6px;">
+          <label for="nt-company-name">Company Name</label>
+          <input type="text" id="nt-company-name" placeholder="Enter value here">
         </div>
         <div style="grid-column:1/-1;">
           <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
@@ -2138,8 +2133,6 @@ function wireOptionalFieldToggle(toggleId, inputId){
     else input.focus();
   });
 }
-wireOptionalFieldToggle('nt-agreement-id-toggle', 'nt-agreement-id');
-wireOptionalFieldToggle('nt-company-name-toggle', 'nt-company-name');
 wireOptionalFieldToggle('nt-important-toggle', 'nt-important-reason');
 document.getElementById('nt-important-toggle').addEventListener('change', function(){
   document.getElementById('nt-important-reason').style.display = this.checked ? 'block' : 'none';
@@ -2172,10 +2165,8 @@ document.getElementById('nt-direct-assign-toggle').addEventListener('change', fu
 document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
   const errEl = document.getElementById('new-task-error');
   errEl.style.display = 'none';
-  const agreementIdOn = document.getElementById('nt-agreement-id-toggle').checked;
-  const companyNameOn = document.getElementById('nt-company-name-toggle').checked;
-  const agreementId = agreementIdOn ? document.getElementById('nt-agreement-id').value.trim() : '';
-  const companyName = companyNameOn ? document.getElementById('nt-company-name').value.trim() : '';
+  const agreementId = document.getElementById('nt-agreement-id').value.trim();
+  const companyName = document.getElementById('nt-company-name').value.trim();
   const importantOn = document.getElementById('nt-important-toggle').checked;
   const importantReason = importantOn ? document.getElementById('nt-important-reason').value.trim() : '';
   const description = document.getElementById('nt-description').value.trim();
@@ -2193,8 +2184,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
 
   if(!requestType){ errEl.textContent = 'Request type is required.'; errEl.style.display = 'block'; return; }
   if(!task){ errEl.textContent = 'Task is required.'; errEl.style.display = 'block'; return; }
-  if(agreementIdOn && !agreementId){ errEl.textContent = 'Agreement ID is ticked — please enter a value, or untick it.'; errEl.style.display = 'block'; return; }
-  if(companyNameOn && !companyName){ errEl.textContent = 'Company Name is ticked — please enter a value, or untick it.'; errEl.style.display = 'block'; return; }
+  if(!description){ errEl.textContent = 'Description is required.'; errEl.style.display = 'block'; return; }
+  if(!agreementId && !companyName){ errEl.textContent = 'Please fill in either Agreement ID or Company Name (at least one is required).'; errEl.style.display = 'block'; return; }
   if(importantOn && !importantReason){ errEl.textContent = 'Important is ticked — please specify why this task is important.'; errEl.style.display = 'block'; return; }
   if(directAssignOn){
     if(!directAssignEmail){ errEl.textContent = 'Choose which user to send this task to.'; errEl.style.display = 'block'; return; }
@@ -2232,12 +2223,8 @@ document.getElementById('submit-task-btn').addEventListener('click', async ()=>{
     }
     const created = await createListItem(MAIN_LIST_NAME, payload);
     await assignTaskNumberToItem(created.id);
-    document.getElementById('nt-agreement-id-toggle').checked = false;
     document.getElementById('nt-agreement-id').value = '';
-    document.getElementById('nt-agreement-id').disabled = true;
-    document.getElementById('nt-company-name-toggle').checked = false;
     document.getElementById('nt-company-name').value = '';
-    document.getElementById('nt-company-name').disabled = true;
     document.getElementById('nt-important-toggle').checked = false;
     document.getElementById('nt-important-reason').value = '';
     document.getElementById('nt-important-reason').disabled = true;
@@ -3566,11 +3553,26 @@ function bookingSetSelectIfOption(id, value){
   const hasOption=Array.from(el.options).some(o=>o.value===v);
   if(hasOption) el.value=v;
 }
+// The "Prod. Start Year" select only offers 2-digit options (20, 24, 25, 26…),
+// but the source sheet's Prod. Start Year column can hold a full 4-digit year
+// (2026, 2024, etc. — sometimes as a number, sometimes as text, occasionally
+// with a trailing ".0" from a numeric read). Reduce either form down to the
+// matching 2-digit option before handing it to bookingSetSelectIfOption, so
+// e.g. 2026 -> "26" and 2024 -> "24".
+function bookingNormalizeProdStartYear(value){
+  const v=String(value==null?'':value).trim();
+  if(!v) return v;
+  const m=v.match(/^(\d{2})(\d{2})(?:\.0+)?$/); // 4-digit year, optionally "2026.0"
+  if(m) return m[2];
+  const n=Number(v);
+  if(!isNaN(n) && n>=1900 && n<3000) return String(Math.trunc(n) % 100).padStart(2,'0');
+  return v; // already 2-digit (or something we don't recognize) — leave as-is
+}
 function bookingAutofillKeyFields(row){
   bookingSetSelectIfOption('booking-tech', row[BOOKING_DEAL_TECH_COL_IDX]);
   bookingSetSelectIfOption('booking-country', row[BOOKING_DEAL_COUNTRY_COL_IDX]);
   bookingSetSelectIfOption('booking-registry', row[BOOKING_DEAL_REGISTRY_COL_IDX]);
-  bookingSetSelectIfOption('booking-year', row[BOOKING_DEAL_PROD_START_YEAR_COL_IDX]);
+  bookingSetSelectIfOption('booking-year', bookingNormalizeProdStartYear(row[BOOKING_DEAL_PROD_START_YEAR_COL_IDX]));
   bookingCheckFormValid();
 }
 
