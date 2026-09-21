@@ -3935,7 +3935,16 @@ const ROPS_ASSET_TABLE_NAME = "Assets"; // verified in the provided workbook; Ag
    requirement) until the whole file has landed. That uploadUrl is already
    authorized for the session, so the chunk PUTs don't carry our normal
    Bearer token. */
-const TASK_ATTACHMENTS_LIBRARY_NAME = "BD Autofill form";
+// This library was originally created as "BD Autofill form" (that's still
+// its underlying URL/list name — see the "BD usage" quick-launch link,
+// which actually points at /sites/Operations/BD Autofill form/) and later
+// renamed for display to "BD usage". Microsoft Graph's /drives listing
+// returns the current DISPLAY name, not the original URL slug, so this
+// constant has to match "BD usage" (the display name) or the lookup in
+// resolveTaskAttachmentsDrive() below never finds it — confirmed against
+// the live site: the same library already has an (empty) "Task management
+// files" folder sitting in it, waiting for exactly this upload path.
+const TASK_ATTACHMENTS_LIBRARY_NAME = "BD usage";
 const TASK_ATTACHMENTS_ROOT_FOLDER = "Task management files";
 const TASK_ATTACHMENT_SIMPLE_LIMIT = 4 * 1024 * 1024;      // Graph's simple-PUT ceiling
 const TASK_ATTACHMENT_CHUNK_SIZE = 10 * 1024 * 1024;       // 10 MiB — a multiple of 320 KiB
