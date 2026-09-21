@@ -134,6 +134,8 @@
   button:hover{background:var(--accent-hover);}
   button.secondary{background:transparent;color:var(--text);border:1px solid var(--border-strong);}
   button.secondary:hover{background:var(--surface-2);}
+  a.secondary{font-family:inherit;font-size:14px;font-weight:600;padding:9px 16px;border-radius:8px;cursor:pointer;background:transparent;color:var(--text);border:1px solid var(--border-strong);text-decoration:none;display:inline-flex;align-items:center;transition:background .15s ease;}
+  a.secondary:hover{background:var(--surface-2);}
   button.danger-btn{background:var(--danger);}
   button.danger-btn:hover{filter:brightness(0.92);}
   button:disabled{opacity:.45;cursor:not-allowed;background:var(--surface-2);color:var(--text-secondary);}
@@ -546,6 +548,7 @@
           <div id="notification-list"><div class="notification-empty">No new updates.</div></div>
         </div>
       </div>
+      <a class="secondary" href="https://shawnwork911-glitch.github.io/trade-confirmation-tool/Trade_Confirmation_Table_Generator_MultiUser.html" target="_blank" rel="noopener noreferrer">Saxon Commercial Approval ↗</a>
       <button type="button" id="refresh-btn" class="secondary">Refresh</button>
       <button type="button" id="signout-btn" class="secondary">Sign out</button>
     </div>
@@ -1043,31 +1046,31 @@
           <label for="booking-country">Country</label>
           <select id="booking-country">
             <option value="">Select country...</option>
-            <option>AU</option>
-            <option>BD</option>
-            <option>BN</option>
-            <option>CH</option>
-            <option>CN</option>
-            <option>Carribean</option>
-            <option>DE</option>
-            <option>ES</option>
-            <option>FR</option>
-            <option>GG</option>
-            <option>ID</option>
-            <option>IE</option>
-            <option>IN</option>
-            <option>IT</option>
-            <option>JE</option>
-            <option>LU</option>
-            <option>MY</option>
-            <option>NL</option>
-            <option>PH</option>
-            <option>SA</option>
-            <option>SE</option>
-            <option>SG</option>
-            <option>TH</option>
-            <option>UK</option>
-            <option>VN</option>
+            <option value="AU">AU - Australia</option>
+            <option value="BD">BD - Bangladesh</option>
+            <option value="BN">BN - Brunei</option>
+            <option value="CH">CH - Switzerland</option>
+            <option value="CN">CN - China</option>
+            <option value="Carribean">Carribean</option>
+            <option value="DE">DE - Germany</option>
+            <option value="ES">ES - Spain</option>
+            <option value="FR">FR - France</option>
+            <option value="GG">GG - Guernsey</option>
+            <option value="ID">ID - Indonesia</option>
+            <option value="IE">IE - Ireland</option>
+            <option value="IN">IN - India</option>
+            <option value="IT">IT - Italy</option>
+            <option value="JE">JE - Jersey</option>
+            <option value="LU">LU - Luxembourg</option>
+            <option value="MY">MY - Malaysia</option>
+            <option value="NL">NL - Netherlands</option>
+            <option value="PH">PH - Philippines</option>
+            <option value="SA">SA - Saudi Arabia</option>
+            <option value="SE">SE - Sweden</option>
+            <option value="SG">SG - Singapore</option>
+            <option value="TH">TH - Thailand</option>
+            <option value="UK">UK - United Kingdom</option>
+            <option value="VN">VN - Vietnam</option>
           </select>
         </div>
         <div>
