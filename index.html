@@ -3368,6 +3368,21 @@ async function ensureSharePointUser(email){
   }
   return String(data.Id);
 }
+// Reads every site user's ID -> email straight from SharePoint's own REST
+// API (the same resource ensureSharePointUser writes to), so it's
+// immediately consistent with someone who was just ensureuser'd in. Used as
+// a fallback in getListItems() when Graph's view of the hidden User
+// Information List hasn't caught up yet with a brand-new entry — see the
+// note there.
+async function getSiteUsersEmailByIdRest(){
+  const data = await spRestFetch('/web/siteusers?$select=Id,Email,LoginName,Title');
+  const emailById = {};
+  (data && data.value || []).forEach(u=>{
+    const email = u.Email || '';
+    if(email) emailById[String(u.Id)] = email;
+  });
+  return emailById;
+}
 async function resolveSite(){
   const site = await graphFetch('/sites/' + SP_HOSTNAME + ':' + SP_SITE_PATH);
   siteId = site.id;
@@ -3551,6 +3566,25 @@ async function getListItems(listName){
           rows.forEach(r=>{ if(r['Assigned To'] && emailById[String(r['Assigned To'])]) r['Assigned To'] = emailById[String(r['Assigned To'])]; });
         }
       }catch(e){ console.warn('Could not resolve Assigned To person values to email addresses', e); }
+      // Anything still a bare numeric ID at this point means Graph's view of
+      // the hidden User Information List hasn't caught up yet with someone
+      // who was just added via ensureSharePointUser (e.g. right after
+      // assigning a task to an admin who'd never opened the SharePoint site
+      // before) — Graph and SharePoint's classic REST API don't always agree
+      // on timing for a brand-new entry. Fall back to reading site users
+      // straight from SharePoint REST, which is immediately consistent with
+      // what ensureuser just wrote.
+      const stillUnresolved = rows.some(r => r['Assigned To'] && /^\d+$/.test(String(r['Assigned To'])));
+      if(stillUnresolved){
+        try{
+          const restEmailById = await getSiteUsersEmailByIdRest();
+          rows.forEach(r=>{
+            if(r['Assigned To'] && /^\d+$/.test(String(r['Assigned To'])) && restEmailById[String(r['Assigned To'])]){
+              r['Assigned To'] = restEmailById[String(r['Assigned To'])];
+            }
+          });
+        }catch(e){ console.warn('Could not resolve remaining Assigned To values via SharePoint REST siteusers', e); }
+      }
     }
   }
   return rows;
