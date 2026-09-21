@@ -119,6 +119,8 @@
     outline-offset:1px;
     border-color:var(--accent);
   }
+  /* dd/mm/yyyy date proxy inputs — see installDdMmYyyyDateInput() */
+  .date-input-invalid{ border-color:#e5484d !important; }
   button{
     font-family:inherit;
     font-size:14px;
@@ -1566,6 +1568,110 @@ function dateInputToIso(dateStr){
   if(!dateStr) return null;
   return dateStr + 'T00:00:00Z';
 }
+
+/* ---- Locale-independent date inputs ----
+   A native <input type="date"> displays its value using whoever's looking
+   at it own browser/OS locale — mm/dd/yyyy, dd/mm/yyyy, or something else
+   entirely — which isn't consistent for a Singapore-based team sharing one
+   app. Every "date" input below is wrapped so the person sees and types a
+   dd/mm/yyyy text field that's always formatted the same way regardless of
+   their machine's locale, while the original <input type=date> stays in
+   the DOM (just hidden) holding the real value in plain yyyy-mm-dd. That
+   means every existing document.getElementById(id).value read or write
+   elsewhere in the app — and any 'change' listener on these ids — keeps
+   working exactly as it did before this wrapping, unchanged. */
+function pad2(n){ return String(n).padStart(2, '0'); }
+function isoDateToDdMmYyyy(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : '';
+}
+function ddMmYyyyToIsoDate(text){
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(text || '').trim());
+  if(!m) return null;
+  const day = parseInt(m[1], 10), month = parseInt(m[2], 10), year = parseInt(m[3], 10);
+  if(month < 1 || month > 12 || year < 1000 || year > 9999) return null;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  if(day < 1 || day > daysInMonth) return null;
+  return year + '-' + pad2(month) + '-' + pad2(day);
+}
+function installDdMmYyyyDateInput(nativeId){
+  const native = document.getElementById(nativeId);
+  if(!native || native.dataset.ddmmyyyyInstalled) return;
+  native.dataset.ddmmyyyyInstalled = '1';
+
+  // Keep the native input fully functional (so every existing .value read
+  // and 'change' listener elsewhere still targets it and still works) —
+  // just take it out of view and out of the tab order.
+  Object.assign(native.style, { position:'absolute', opacity:'0', width:'1px', height:'1px', padding:'0', border:'0', pointerEvents:'none' });
+  native.tabIndex = -1;
+  native.setAttribute('aria-hidden', 'true');
+
+  const proxy = document.createElement('input');
+  proxy.type = 'text';
+  proxy.id = nativeId + '-display';
+  proxy.className = native.className;
+  proxy.placeholder = 'dd/mm/yyyy';
+  proxy.inputMode = 'numeric';
+  proxy.autocomplete = 'off';
+  proxy.maxLength = 10;
+  proxy.value = isoDateToDdMmYyyy(native.value);
+  native.insertAdjacentElement('afterend', proxy);
+
+  // Point any <label for="nativeId"> at the visible proxy instead, so
+  // clicking the label focuses something the person can actually see/use.
+  document.querySelectorAll('label[for="' + nativeId + '"]').forEach(l => l.setAttribute('for', proxy.id));
+
+  // Auto-insert "/" as digits are typed, e.g. "25092026" -> "25/09/2026".
+  proxy.addEventListener('input', function(){
+    const digits = proxy.value.replace(/[^\d]/g, '').slice(0, 8);
+    let out = digits.slice(0, 2);
+    if(digits.length > 2) out += '/' + digits.slice(2, 4);
+    if(digits.length > 4) out += '/' + digits.slice(4, 8);
+    proxy.value = out;
+  });
+  function commit(){
+    const text = proxy.value.trim();
+    if(!text){ native.value = ''; proxy.classList.remove('date-input-invalid'); return; }
+    const iso = ddMmYyyyToIsoDate(text);
+    if(!iso){
+      // Don't leave a stale valid date sitting behind obviously-wrong text —
+      // treat it as cleared until a valid date is entered.
+      native.value = '';
+      proxy.classList.add('date-input-invalid');
+      return;
+    }
+    proxy.classList.remove('date-input-invalid');
+    native.value = iso; // re-runs the setter override below, which re-formats the proxy text (zero-padded) even if the date itself didn't change
+  }
+  function commitAndNotify(){
+    commit();
+    // Native <input type=date> only fires 'change' once the person finishes
+    // picking/editing a date, never on a plain .value assignment — mirror
+    // that here so existing 'change' listeners (e.g. the Analytics date
+    // filters) keep firing exactly when they used to.
+    native.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  proxy.addEventListener('blur', commitAndNotify);
+  proxy.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ commitAndNotify(); proxy.blur(); } });
+
+  // Intercept .value on the (now hidden) native input so ANY existing code
+  // that sets it programmatically — e.g. deadlineFromPriority() suggesting
+  // a deadline, or the several places that reset it to '' after a submit —
+  // keeps the visible proxy text in sync automatically, with no need to
+  // touch those call sites.
+  const nativeValueDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  Object.defineProperty(native, 'value', {
+    configurable: true,
+    get(){ return nativeValueDesc.get.call(native); },
+    set(v){
+      nativeValueDesc.set.call(native, v);
+      proxy.value = isoDateToDdMmYyyy(v);
+      proxy.classList.remove('date-input-invalid');
+    }
+  });
+}
+['nt-requested-deadline', 'nt-direct-assign-deadline', 'an-filter-date-from', 'an-filter-date-to', 'am-deadline']
+  .forEach(installDdMmYyyyDateInput);
 
 const msalInstance = new msal.PublicClientApplication({
   auth: {
