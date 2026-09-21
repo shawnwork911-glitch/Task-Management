@@ -1294,6 +1294,17 @@ const SUPERADMIN_EMAILS = ["shauyuan.tan@saxonrenewables.com"];
 // send its notification asynchronously.
 const GRAPH_SCOPES = ["Sites.ReadWrite.All", "User.Read", "Mail.Send"];
 const MAIL_SCOPES = ["Mail.Send"];
+// SharePoint's classic REST API (as opposed to Graph) is what exposes
+// /_api/web/ensureuser — used to resolve-or-create someone's entry in the
+// site's hidden User Information List on demand, instead of requiring them
+// to have opened the SharePoint site once before they can be assigned a
+// task. That endpoint lives on a different resource/audience than Graph
+// (https://<tenant>.sharepoint.com, not graph.microsoft.com), so it needs
+// its own token scope. This requires the "Task Management" app registration
+// to have the SharePoint "AllSites.Write" delegated permission added and
+// admin-consented in Entra ID — without that, ensureuser calls below will
+// fail with a consent/authorization error (still handled gracefully).
+const SP_REST_SCOPES = ["https://" + SP_HOSTNAME + "/AllSites.Write"];
 
 /* ---- Task statuses (a.k.a. "Progress") ----
    Not Started, In Progress, Blocked, Pending, Completed — must match the
@@ -1981,22 +1992,25 @@ function allTasksFiltered(){
     .sort(sortByPriorityThenDeadline);
 }
 function populateAssigneeDropdowns(){
-  // Assignable pool = everyone with the Admin role plus all Super Admins.
-  // Super Admin can pick themselves or another Super Admin as the doer of a task.
-  // same as any Admin can, not just create/oversee requests.
   const admins = emailsForRole('admin');
   const superadmins = emailsForRole('superadmin');
   const superadminLower = superadmins.map(e=>e.toLowerCase());
-  const pool = superadmins.concat(admins.filter(e => !superadminLower.includes(e.toLowerCase())));
   const optionLabel = e => escapeHtml(e) + (superadminLower.includes(e.toLowerCase()) ? ' (Super Admin)' : '');
+  // Filter pool = everyone with the Admin role plus all Super Admins, so
+  // "Filter by assignee" still covers anyone a task could historically be
+  // assigned to (including tasks assigned before this dropdown was scoped).
+  const filterPool = superadmins.concat(admins.filter(e => !superadminLower.includes(e.toLowerCase())));
   const filterSel = document.getElementById('filter-assignee');
   const currentFilter = filterSel.value;
-  filterSel.innerHTML = '<option value="">All</option>' + pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
+  filterSel.innerHTML = '<option value="">All</option>' + filterPool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('');
   filterSel.value = currentFilter;
+  // Assign pool = only people registered with the Admin role under User
+  // management. Super Admins are intentionally left out of "Assign to" —
+  // it should only ever list Admins actually registered there.
   const amSel = document.getElementById('am-assignee');
-  amSel.innerHTML = pool.length
-    ? pool.map(e=>'<option value="'+escapeHtml(e)+'">'+optionLabel(e)+'</option>').join('')
-    : '<option value="">No Admins assigned yet — add one under User management</option>';
+  amSel.innerHTML = admins.length
+    ? admins.map(e=>'<option value="'+escapeHtml(e)+'">'+escapeHtml(e)+'</option>').join('')
+    : '<option value="">No Admins registered yet — add one under User management</option>';
   populateDirectAssignUserDropdown();
 }
 function populateDirectAssignUserDropdown(){
@@ -3303,8 +3317,56 @@ async function graphFetch(path, options){
       await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
       continue;
     }
-    throw new Error('Graph ' + res.status + ': ' + text.slice(0, 300));
+    // Graph's own error body for a rejected list-item write is almost always
+    // the generic, field-less {"error":{"code":"invalidRequest","message":
+    // "Invalid request", ...}} shown to the person — it never names which
+    // field was wrong. Most of those cases (a Choice value that isn't one of
+    // the column's options, or a required column left empty) are now caught
+    // and named specifically *before* this fetch even runs — see
+    // fieldsPayloadFromDisplayAsync() and assertRequiredColumnsPresent()
+    // below. This is the fallback for anything that slips past those checks
+    // (a bad date/number format, a lookup that doesn't resolve, etc.) — it
+    // surfaces the operation and full response body instead of a 300-char
+    // slice, so there's more to go on than "Invalid request".
+    throw new Error('Graph ' + res.status + ' on ' + (options.method || 'GET') + ' ' + path + ': ' + text.slice(0, 800));
   }
+}
+// SharePoint REST call — separate from graphFetch because ensureuser only
+// exists on SharePoint's own REST API, not on Microsoft Graph, and so needs
+// its own resource token (SP_REST_SCOPES) and base URL.
+async function spRestFetch(path, options){
+  options = options || {};
+  const token = await getAccessToken(options.scopes || SP_REST_SCOPES);
+  const headers = Object.assign({
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/json;odata=nometadata',
+    'Content-Type': 'application/json;odata=nometadata'
+  }, options.headers || {});
+  const res = await fetch('https://' + SP_HOSTNAME + SP_SITE_PATH + '/_api' + path, {
+    method: options.method || 'GET',
+    body: options.body,
+    headers
+  });
+  const text = await res.text().catch(()=> '');
+  if(!res.ok) throw new Error('SharePoint REST ' + res.status + ': ' + text.slice(0, 300));
+  return text ? JSON.parse(text) : null;
+}
+// Resolves an email to a SharePoint site user, creating their entry in the
+// hidden User Information List on the fly if they've never opened the
+// SharePoint site before — this is exactly what a first site visit would
+// otherwise have done. Lets "Assign to" work the first time for someone
+// new, instead of requiring them to visit the site once before they can be
+// assigned a task.
+async function ensureSharePointUser(email){
+  const logonName = 'i:0#.f|membership|' + email;
+  const data = await spRestFetch('/web/ensureuser', {
+    method: 'POST',
+    body: JSON.stringify({ logonName })
+  });
+  if(!data || data.Id === undefined || data.Id === null){
+    throw new Error('SharePoint did not return a user ID for ' + email + '.');
+  }
+  return String(data.Id);
 }
 async function resolveSite(){
   const site = await graphFetch('/sites/' + SP_HOSTNAME + ':' + SP_SITE_PATH);
@@ -3392,8 +3454,16 @@ async function getSharePointUserLookupId(email){
     const candidates = [f.EMail, f.Email, f.UserName, f.Name, f.Title];
     return candidates.some(v => String(v || '').trim().toLowerCase() === email);
   });
-  if(!match) throw new Error('The selected Admin is not known to this SharePoint site yet. Ask the Admin to open the Operations SharePoint site once, then try assigning again.');
-  return String(match.id);
+  if(match) return String(match.id);
+  // Not in the User Information List yet — normally this means the person
+  // has never opened the SharePoint site themselves. Rather than block the
+  // assignment on that, ask SharePoint to resolve/create their entry via
+  // ensureuser, which is exactly what a first site visit would have done.
+  try{
+    return await ensureSharePointUser(email);
+  }catch(e){
+    throw new Error('The selected Admin is not known to this SharePoint site yet, and could not be added automatically (' + e.message + '). Ask the Admin to open the Operations SharePoint site once, then try assigning again.');
+  }
 }
 
 async function fieldsPayloadFromDisplayAsync(map, displayValues){
@@ -3406,6 +3476,18 @@ async function fieldsPayloadFromDisplayAsync(map, displayValues){
     const internal = map.displayToInternal[display] || map.normalizedToInternal[norm];
     if(!internal){ skipped.push(display); continue; }
     const column = map.columnsByDisplay && map.columnsByDisplay[norm];
+    // Fail fast with a field-named message instead of letting SharePoint
+    // reject the whole write later with a generic, field-less "invalidRequest"
+    // 400. A strict Choice column (allowTextEntry: false, i.e. "Allow
+    // 'Fill-in' choices" set to No) only accepts values that exactly match
+    // one of its configured choices — case, spacing, and punctuation all
+    // count as a mismatch.
+    if(column && column.choice && column.choice.allowTextEntry === false && value !== null && value !== ''){
+      const choices = column.choice.choices || [];
+      if(!choices.includes(value)){
+        throw new Error('"' + display + '" is set to "' + value + '", which is not one of the choices allowed by the SharePoint "' + (column.displayName || display) + '" column: ' + choices.join(', ') + '. Add "' + value + '" as a choice in SharePoint (or turn on "Allow \'Fill-in\' choices" for that column), or change the value being sent.');
+      }
+    }
     if(column && column.personOrGroup){
       if(value === null || value === '') fields[internal + 'LookupId'] = null;
       else fields[internal + 'LookupId'] = await getSharePointUserLookupId(value);
@@ -3415,6 +3497,26 @@ async function fieldsPayloadFromDisplayAsync(map, displayValues){
   }
   if(skipped.length) console.warn('A SharePoint list has no column(s) matching these names — skipped: ' + skipped.join(', '));
   return fields;
+}
+// Throws a specific, field-named error when a SharePoint column marked
+// "Require that this column contains information: Yes" would be left empty
+// by this write. Without this check, SharePoint rejects the whole item
+// creation with the same generic, field-less 400 "invalidRequest" this is
+// meant to replace — this only applies to creating a brand-new item
+// (createListItem), never to updateListItem's partial field patches, since
+// those legitimately touch only a few columns at a time.
+function assertRequiredColumnsPresent(map, fields){
+  const missing = [];
+  Object.keys(map.columnsByDisplay || {}).forEach(norm=>{
+    const column = map.columnsByDisplay[norm];
+    if(!column || !column.required) return;
+    const key = column.personOrGroup ? column.name + 'LookupId' : column.name;
+    const has = Object.prototype.hasOwnProperty.call(fields, key) && fields[key] !== null && fields[key] !== '';
+    if(!has) missing.push(map.internalToDisplay[column.name] || column.displayName);
+  });
+  if(missing.length){
+    throw new Error('SharePoint requires a value for ' + missing.map(m=>'"'+m+'"').join(', ') + ', but this request did not include ' + (missing.length > 1 ? 'them' : 'it') + '. Either add ' + (missing.length > 1 ? 'them' : 'it') + ' to the form, or in SharePoint set "Require that this column contains information" to No for ' + (missing.length > 1 ? 'those columns' : 'that column') + ' if it should stay optional until later (e.g. at assignment).');
+  }
 }
 async function getListItems(listName){
   const listId = await getListId(listName);
@@ -3457,6 +3559,7 @@ async function createListItem(listName, displayValues){
   const listId = await getListId(listName);
   const map = await getListColumnMap(listName);
   const fields = await fieldsPayloadFromDisplayAsync(map, displayValues);
+  assertRequiredColumnsPresent(map, fields);
   return graphFetch("/sites/" + siteId + "/lists/" + listId + "/items", {
     method: 'POST',
     body: JSON.stringify({ fields })
