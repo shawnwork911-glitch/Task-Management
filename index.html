@@ -121,6 +121,30 @@
   }
   /* dd/mm/yyyy date proxy inputs — see installDdMmYyyyDateInput() */
   .date-input-invalid{ border-color:#e5484d !important; }
+  .ddmmyyyy-cal-popup{
+    position:fixed;width:264px;padding:10px;background:var(--surface);
+    border:1px solid var(--border-strong);border-radius:10px;
+    box-shadow:0 12px 32px rgba(0,0,0,.28);z-index:1400;font-size:13px;
+  }
+  .ddmmyyyy-cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .ddmmyyyy-cal-label{font-weight:600;font-size:13px;}
+  .ddmmyyyy-cal-nav{
+    width:26px;height:26px;padding:0;border:1px solid var(--border);border-radius:6px;
+    background:var(--surface-2);color:var(--text);font-size:14px;line-height:1;cursor:pointer;
+  }
+  .ddmmyyyy-cal-nav:hover{background:var(--border);}
+  .ddmmyyyy-cal-weekdays,.ddmmyyyy-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;}
+  .ddmmyyyy-cal-weekdays span{color:var(--text-secondary);font-size:11px;padding:2px 0;}
+  .ddmmyyyy-cal-grid button{
+    padding:0;height:28px;border:1px solid transparent;border-radius:6px;background:transparent;
+    color:var(--text);font-size:12px;cursor:pointer;font-weight:400;
+  }
+  .ddmmyyyy-cal-grid button:hover:not(:disabled){background:var(--surface-2);border-color:var(--border);}
+  .ddmmyyyy-cal-grid button.ddmmyyyy-cal-outside{color:var(--text-secondary);opacity:.5;}
+  .ddmmyyyy-cal-grid button.ddmmyyyy-cal-today{border-color:var(--accent);}
+  .ddmmyyyy-cal-grid button.ddmmyyyy-cal-selected{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  .ddmmyyyy-cal-footer{display:flex;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+  .ddmmyyyy-cal-footer button{font-size:12px;padding:5px 10px;}
   button{
     font-family:inherit;
     font-size:14px;
@@ -1594,6 +1618,134 @@ function ddMmYyyyToIsoDate(text){
   if(day < 1 || day > daysInMonth) return null;
   return year + '-' + pad2(month) + '-' + pad2(day);
 }
+/* ---- Shared calendar popup for the dd/mm/yyyy date fields ----
+   One popup element, reused and repositioned under whichever field is
+   currently focused. Appended to <body> (rather than nested inside a
+   field's own wrapper) so it always renders on top of modals and
+   scrollable cards instead of being clipped by their overflow. */
+let ddmmyyyyCalEl = null;
+let ddmmyyyyCalCtx = null; // { proxy, native, commitAndNotify } for the field the popup is currently open for
+let ddmmyyyyCalView = { year: 0, month: 0 };
+function ddmmyyyyCalBuild(){
+  if(ddmmyyyyCalEl) return ddmmyyyyCalEl;
+  const pop = document.createElement('div');
+  pop.className = 'ddmmyyyy-cal-popup';
+  pop.style.display = 'none';
+  pop.innerHTML =
+    '<div class="ddmmyyyy-cal-header">' +
+      '<button type="button" class="ddmmyyyy-cal-nav" data-cal-nav="-1">‹</button>' +
+      '<span class="ddmmyyyy-cal-label"></span>' +
+      '<button type="button" class="ddmmyyyy-cal-nav" data-cal-nav="1">›</button>' +
+    '</div>' +
+    '<div class="ddmmyyyy-cal-weekdays">' + ['Mo','Tu','We','Th','Fr','Sa','Su'].map(d=>'<span>'+d+'</span>').join('') + '</div>' +
+    '<div class="ddmmyyyy-cal-grid"></div>' +
+    '<div class="ddmmyyyy-cal-footer">' +
+      '<button type="button" class="secondary small-btn" data-cal-today>Today</button>' +
+      '<button type="button" class="secondary small-btn" data-cal-clear>Clear</button>' +
+    '</div>';
+  document.body.appendChild(pop);
+  // Keep focus on the field while interacting with the popup, so a 'blur'
+  // never races with (and undoes) the click's own effect.
+  pop.addEventListener('mousedown', e => e.preventDefault());
+  pop.addEventListener('click', function(e){
+    if(!ddmmyyyyCalCtx) return;
+    const nav = e.target.closest('[data-cal-nav]');
+    if(nav){
+      ddmmyyyyCalView.month += parseInt(nav.getAttribute('data-cal-nav'), 10);
+      if(ddmmyyyyCalView.month < 0){ ddmmyyyyCalView.month = 11; ddmmyyyyCalView.year--; }
+      if(ddmmyyyyCalView.month > 11){ ddmmyyyyCalView.month = 0; ddmmyyyyCalView.year++; }
+      ddmmyyyyCalRender();
+      return;
+    }
+    if(e.target.closest('[data-cal-today]')){
+      const t = new Date();
+      ddmmyyyyCalPick(t.getFullYear(), t.getMonth(), t.getDate());
+      return;
+    }
+    if(e.target.closest('[data-cal-clear]')){
+      ddmmyyyyCalCtx.proxy.value = '';
+      ddmmyyyyCalCtx.commitAndNotify();
+      ddmmyyyyCalClose();
+      return;
+    }
+    const dayEl = e.target.closest('[data-cal-day]');
+    if(dayEl){
+      ddmmyyyyCalPick(parseInt(dayEl.getAttribute('data-y'), 10), parseInt(dayEl.getAttribute('data-m'), 10), parseInt(dayEl.getAttribute('data-d'), 10));
+    }
+  });
+  ddmmyyyyCalEl = pop;
+  return pop;
+}
+function ddmmyyyyCalRender(){
+  const pop = ddmmyyyyCalEl;
+  const { year, month } = ddmmyyyyCalView;
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  pop.querySelector('.ddmmyyyy-cal-label').textContent = monthNames[month] + ' ' + year;
+  const selectedIso = ddmmyyyyCalCtx ? ddmmyyyyCalCtx.native.value : '';
+  const today = new Date();
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first grid
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const cells = [];
+  for(let i = startOffset; i > 0; i--) cells.push({ y: month === 0 ? year - 1 : year, m: month === 0 ? 11 : month - 1, d: daysInPrevMonth - i + 1, outside: true });
+  for(let d = 1; d <= daysInMonth; d++) cells.push({ y: year, m: month, d, outside: false });
+  while(cells.length % 7 !== 0 || cells.length < 42) cells.push({ y: month === 11 ? year + 1 : year, m: month === 11 ? 0 : month + 1, d: cells.length - startOffset - daysInMonth + 1, outside: true });
+  const grid = pop.querySelector('.ddmmyyyy-cal-grid');
+  grid.innerHTML = cells.map(c=>{
+    const iso = c.y + '-' + pad2(c.m + 1) + '-' + pad2(c.d);
+    const isToday = c.y === today.getFullYear() && c.m === today.getMonth() && c.d === today.getDate();
+    const isSelected = !!selectedIso && iso === selectedIso;
+    const cls = ['ddmmyyyy-cal-day'];
+    if(c.outside) cls.push('ddmmyyyy-cal-outside');
+    if(isToday) cls.push('ddmmyyyy-cal-today');
+    if(isSelected) cls.push('ddmmyyyy-cal-selected');
+    return '<button type="button" class="' + cls.join(' ') + '" data-cal-day data-y="' + c.y + '" data-m="' + c.m + '" data-d="' + c.d + '">' + c.d + '</button>';
+  }).join('');
+}
+function ddmmyyyyCalPick(y, m, d){
+  if(!ddmmyyyyCalCtx) return;
+  ddmmyyyyCalCtx.proxy.value = pad2(d) + '/' + pad2(m + 1) + '/' + y;
+  ddmmyyyyCalCtx.commitAndNotify();
+  ddmmyyyyCalClose();
+}
+function ddmmyyyyCalReposition(){
+  if(!ddmmyyyyCalCtx) return;
+  const pop = ddmmyyyyCalEl;
+  const rect = ddmmyyyyCalCtx.proxy.getBoundingClientRect();
+  const popH = pop.offsetHeight || 320;
+  const openAbove = (window.innerHeight - rect.bottom) < popH + 8 && rect.top > popH + 8;
+  pop.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 264 - 8)) + 'px';
+  pop.style.top = openAbove ? '' : (rect.bottom + 4) + 'px';
+  pop.style.bottom = openAbove ? (window.innerHeight - rect.top + 4) + 'px' : '';
+}
+function ddmmyyyyCalOutsideClick(e){
+  if(!ddmmyyyyCalCtx) return;
+  if(ddmmyyyyCalEl.contains(e.target) || e.target === ddmmyyyyCalCtx.proxy) return;
+  ddmmyyyyCalClose();
+}
+function ddmmyyyyCalClose(){
+  if(!ddmmyyyyCalCtx) return;
+  ddmmyyyyCalEl.style.display = 'none';
+  ddmmyyyyCalCtx = null;
+  document.removeEventListener('mousedown', ddmmyyyyCalOutsideClick, true);
+  window.removeEventListener('resize', ddmmyyyyCalReposition);
+  window.removeEventListener('scroll', ddmmyyyyCalReposition, true);
+}
+function ddmmyyyyCalOpen(ctx){
+  const pop = ddmmyyyyCalBuild();
+  if(ddmmyyyyCalCtx && ddmmyyyyCalCtx.proxy === ctx.proxy) return; // already open for this field
+  ddmmyyyyCalCtx = ctx;
+  const iso = ctx.native.value;
+  const base = iso ? new Date(iso + 'T00:00:00') : new Date();
+  ddmmyyyyCalView = { year: base.getFullYear(), month: base.getMonth() };
+  pop.style.display = 'block';
+  ddmmyyyyCalRender();
+  ddmmyyyyCalReposition();
+  document.addEventListener('mousedown', ddmmyyyyCalOutsideClick, true);
+  window.addEventListener('resize', ddmmyyyyCalReposition);
+  window.addEventListener('scroll', ddmmyyyyCalReposition, true);
+}
 function installDdMmYyyyDateInput(nativeId){
   const native = document.getElementById(nativeId);
   if(!native || native.dataset.ddmmyyyyInstalled) return;
@@ -1651,8 +1803,19 @@ function installDdMmYyyyDateInput(nativeId){
     // filters) keep firing exactly when they used to.
     native.dispatchEvent(new Event('change', { bubbles: true }));
   }
-  proxy.addEventListener('blur', commitAndNotify);
-  proxy.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ commitAndNotify(); proxy.blur(); } });
+  proxy.addEventListener('blur', function(){
+    commitAndNotify();
+    if(ddmmyyyyCalCtx && ddmmyyyyCalCtx.proxy === proxy) ddmmyyyyCalClose();
+  });
+  proxy.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ commitAndNotify(); proxy.blur(); }
+    else if(e.key === 'Escape'){ if(ddmmyyyyCalCtx && ddmmyyyyCalCtx.proxy === proxy) ddmmyyyyCalClose(); }
+  });
+  // A calendar-picker replacement for the native date input's own popup —
+  // opens the shared dropdown under this field instead.
+  const openCalendar = function(){ ddmmyyyyCalOpen({ proxy, native, commitAndNotify }); };
+  proxy.addEventListener('focus', openCalendar);
+  proxy.addEventListener('click', openCalendar);
 
   // Intercept .value on the (now hidden) native input so ANY existing code
   // that sets it programmatically — e.g. deadlineFromPriority() suggesting
