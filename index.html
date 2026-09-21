@@ -3115,7 +3115,19 @@ async function sendMailGraph(toEmails, subject, htmlBody){
     })
   });
 }
+// Reloads the Roles list immediately before we compute who to email, so a
+// notification is never sent off a copy of the roles cached at sign-in.
+// If the reload fails (e.g. this account still can't read the Roles list),
+// we fall back to whatever is already cached rather than blocking the send.
+async function refreshRolesForNotification(){
+  try{
+    await loadUserRoles();
+  }catch(e){
+    console.warn('Could not refresh roles before sending notification; using cached roles.', e);
+  }
+}
 async function notifyImportantTask(v){
+  await refreshRolesForNotification();
   const recipients = new Set();
   emailsForRole('superadmin').forEach(e=>{ if(e) recipients.add(e); });
   emailsForRole('admin').forEach(e=>{ if(e) recipients.add(e); });
@@ -3133,6 +3145,7 @@ async function notifyImportantReviewRequested(v){
   // Sent when a requester ticks Important on a new task. Only Super Admin
   // can approve/decline (they own task assignment too), so this goes to
   // Super Admin only — it does not itself mark the task Important.
+  await refreshRolesForNotification();
   const toEmails = emailsForRole('superadmin').filter(Boolean);
   if(!toEmails.length) return [];
   const label = taskNumberLabel(v);
@@ -3144,6 +3157,7 @@ async function notifyImportantReviewRequested(v){
   return toEmails;
 }
 async function notifySuperadmins(v){
+  await refreshRolesForNotification();
   const toEmails = emailsForRole('superadmin');
   if(!toEmails.length) return;
   const label = taskNumberLabel(v);
@@ -3184,6 +3198,7 @@ async function notifyTaskRejected(v, reason){
   await sendMailGraph(Array.from(recipients), 'Task rejected — ' + label + ' — ' + v.Title, html);
 }
 async function notifyTaskCancelled(v, reason){
+  await refreshRolesForNotification();
   const recipients = new Set();
   if(v['Assigned To']) recipients.add(v['Assigned To']);
   emailsForRole('superadmin').forEach(e=>{ if(e) recipients.add(e); });
@@ -3203,6 +3218,7 @@ async function notifyHighAlert(v, message){
   // assigned Admin (if any) and every Super Admin so the escalation is seen
   // by the people who can act on it, not just the requester.
   const sender = (currentAccount.username || '').toLowerCase();
+  await refreshRolesForNotification();
   const recipients = new Set();
   if(v['Requested By']) recipients.add(v['Requested By']);
   if(v['Assigned To'] && v['Assigned To'].toLowerCase() !== sender) recipients.add(v['Assigned To']);
@@ -3232,6 +3248,7 @@ async function notifyOnComment(v, text){
   // unassigned task, notify every Super Admin so the message is not missed.
   const requesterIsCommenter = (v['Requested By'] || '').toLowerCase() === commenter;
   if(requesterIsCommenter && !v['Assigned To']){
+    await refreshRolesForNotification();
     emailsForRole('superadmin').forEach(e=>{
       if(e && e.toLowerCase() !== commenter) recipients.add(e);
     });
