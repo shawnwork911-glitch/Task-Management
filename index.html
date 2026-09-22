@@ -1174,6 +1174,13 @@
         <label for="rqa-ask-question">Question</label>
         <textarea id="rqa-ask-question" placeholder="Type your question about this registry..."></textarea>
       </div>
+      <div style="margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
+          <input type="checkbox" id="rqa-ask-both" style="width:auto;">
+          Post this to both I-REC and TIGR
+        </label>
+        <p class="card-note" style="margin:2px 0 0;">Creates two separate entries, one per registry, so each can get its own answer. Registry selection above is ignored when this is ticked.</p>
+      </div>
       <button type="button" id="rqa-ask-submit" style="margin-top:10px;">Submit question</button>
       <div class="rops-status" id="rqa-ask-status"></div>
     </div>
@@ -1196,6 +1203,13 @@
       <div style="margin-top:10px;">
         <label for="rqa-add-answer">Answer</label>
         <textarea id="rqa-add-answer" placeholder="Answer (optional — leave blank to post as unanswered)"></textarea>
+      </div>
+      <div style="margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
+          <input type="checkbox" id="rqa-add-both" style="width:auto;">
+          Post this to both I-REC and TIGR
+        </label>
+        <p class="card-note" style="margin:2px 0 0;">Creates two separate entries with the same question and answer text — edit either one afterward if the answer needs to differ by registry. Registry selection above is ignored when this is ticked.</p>
       </div>
       <button type="button" id="rqa-add-submit" style="margin-top:10px;">Add Q&amp;A</button>
       <div class="rops-status" id="rqa-add-status"></div>
@@ -6499,16 +6513,21 @@ if(rqaSearchInput) rqaSearchInput.addEventListener('input', renderRegistryQaList
 
 const rqaAskSubmitBtn = document.getElementById('rqa-ask-submit');
 if(rqaAskSubmitBtn) rqaAskSubmitBtn.addEventListener('click', async ()=>{
+  const both = document.getElementById('rqa-ask-both').checked;
   const registry = document.getElementById('rqa-ask-registry').value;
   const question = document.getElementById('rqa-ask-question').value.trim();
-  if(!registry || !question){ ropsShowStatus('rqa-ask-status', 'Select a registry and enter your question.', false); return; }
+  if(!question || (!both && !registry)){ ropsShowStatus('rqa-ask-status', 'Select a registry (or tick "Post this to both") and enter your question.', false); return; }
+  const registriesToPost = both ? REGISTRY_OPTIONS.slice() : [registry];
   rqaAskSubmitBtn.disabled = true;
   try{
     const nowIso = new Date().toISOString();
-    await createListItem(REGISTRYQA_LIST_NAME, {'Registry':registry, 'Question':question, 'Asked By':currentAccount.username, 'Asked Date':nowIso});
+    for(const r of registriesToPost){
+      await createListItem(REGISTRYQA_LIST_NAME, {'Registry':r, 'Question':question, 'Asked By':currentAccount.username, 'Asked Date':nowIso});
+    }
     document.getElementById('rqa-ask-question').value = '';
     document.getElementById('rqa-ask-registry').value = '';
-    ropsShowStatus('rqa-ask-status', 'Question submitted.', true);
+    document.getElementById('rqa-ask-both').checked = false;
+    ropsShowStatus('rqa-ask-status', both ? 'Question submitted to both registries.' : 'Question submitted.', true);
     await loadRegistryQaItems();
     renderRegistryQaList();
   }catch(err){ ropsShowStatus('rqa-ask-status', 'Could not submit: ' + err.message, false); }
@@ -6517,20 +6536,25 @@ if(rqaAskSubmitBtn) rqaAskSubmitBtn.addEventListener('click', async ()=>{
 
 const rqaAddSubmitBtn = document.getElementById('rqa-add-submit');
 if(rqaAddSubmitBtn) rqaAddSubmitBtn.addEventListener('click', async ()=>{
+  const both = document.getElementById('rqa-add-both').checked;
   const registry = document.getElementById('rqa-add-registry').value;
   const question = document.getElementById('rqa-add-question').value.trim();
   const answer = document.getElementById('rqa-add-answer').value.trim();
-  if(!registry || !question){ ropsShowStatus('rqa-add-status', 'Select a registry and enter the question.', false); return; }
+  if(!question || (!both && !registry)){ ropsShowStatus('rqa-add-status', 'Select a registry (or tick "Post this to both") and enter the question.', false); return; }
+  const registriesToPost = both ? REGISTRY_OPTIONS.slice() : [registry];
   rqaAddSubmitBtn.disabled = true;
   try{
     const nowIso = new Date().toISOString();
-    const payload = {'Registry':registry, 'Question':question, 'Answer':answer, 'Asked By':currentAccount.username, 'Asked Date':nowIso};
-    if(answer){ payload['Answered By'] = currentAccount.username; payload['Answered Date'] = nowIso; }
-    await createListItem(REGISTRYQA_LIST_NAME, payload);
+    for(const r of registriesToPost){
+      const payload = {'Registry':r, 'Question':question, 'Answer':answer, 'Asked By':currentAccount.username, 'Asked Date':nowIso};
+      if(answer){ payload['Answered By'] = currentAccount.username; payload['Answered Date'] = nowIso; }
+      await createListItem(REGISTRYQA_LIST_NAME, payload);
+    }
     document.getElementById('rqa-add-question').value = '';
     document.getElementById('rqa-add-answer').value = '';
     document.getElementById('rqa-add-registry').value = '';
-    ropsShowStatus('rqa-add-status', 'Added.', true);
+    document.getElementById('rqa-add-both').checked = false;
+    ropsShowStatus('rqa-add-status', both ? 'Added to both registries.' : 'Added.', true);
     await loadRegistryQaItems();
     renderRegistryQaList();
   }catch(err){ ropsShowStatus('rqa-add-status', 'Could not add: ' + err.message, false); }
