@@ -2200,8 +2200,23 @@ function buildNotificationEvents(){
     const preview=String(parseCommentAttachments(c['Comment Text']).text||'').replace(/\s+/g,' ').trim();
     add('comment',task,c['Comment Date'],'New comment from '+(c['Comment By']||'user'),taskNumberLabel(task)+(preview?' — '+preview.slice(0,90):''));
   });
+  const addRqa=(type,id,when,main,sub)=>{ const ms=notificationTimestamp(when); if(id!=null&&ms) events.push({type,kind:'registryqa',rqaId:String(id),when,ms,main,sub:sub||''}); };
+  (registryQaItemsCache||[]).forEach(q=>{
+    const askedBy=(q['Asked By']||'').toLowerCase();
+    const answeredBy=(q['Answered By']||'').toLowerCase();
+    const hasAnswer=!!String(q.Answer||'').trim();
+    const preview=(q.Registry?('['+q.Registry+'] '):'')+String(q.Question||'').replace(/\s+/g,' ').trim().slice(0,90);
+    // Superadmin sees it while it's still unanswered (matches the email sent on submit).
+    if(currentUserRole==='superadmin' && askedBy!==me && !hasAnswer){
+      addRqa('rqa-new', q.id, q['Asked Date'], 'New Registry Q&A question', preview);
+    }
+    // The asker sees it once someone else has answered (matches the email sent on answer).
+    if(askedBy===me && hasAnswer && answeredBy && answeredBy!==me){
+      addRqa('rqa-answered', q.id, q['Answered Date']||q['Asked Date'], 'Your Registry Q&A question was answered', preview);
+    }
+  });
   const seen=new Set();
-  return events.filter(e=>{const k=[e.type,e.taskId,e.ms].join('|'); if(seen.has(k)) return false; seen.add(k); return true;}).sort((a,b)=>b.ms-a.ms).slice(0,60);
+  return events.filter(e=>{const k=[e.type,(e.taskId||e.rqaId),e.ms].join('|'); if(seen.has(k)) return false; seen.add(k); return true;}).sort((a,b)=>b.ms-a.ms).slice(0,60);
 }
 function renderNotificationCenter(){
   const list=document.getElementById('notification-list'), count=document.getElementById('notification-count');
@@ -2210,7 +2225,17 @@ function renderNotificationCenter(){
   if(unread.length){ count.textContent=unread.length>99?'99+':String(unread.length); count.style.display='block'; } else { count.textContent=''; count.style.display='none'; }
   if(!notificationEventsCache.length){ list.innerHTML='<div class="notification-empty">No updates yet.</div>'; return; }
   list.innerHTML=notificationEventsCache.map((e,i)=>'<div class="notification-item'+(e.ms>lastRead?' unread':'')+'" data-notification-index="'+i+'"><div class="n-main">'+escapeHtml(e.main)+'</div><div class="n-sub">'+escapeHtml(e.sub)+' · '+escapeHtml(fmtDateTime(e.when))+'</div></div>').join('');
-  list.querySelectorAll('[data-notification-index]').forEach(el=>el.addEventListener('click',()=>{ const e=notificationEventsCache[Number(el.getAttribute('data-notification-index'))]; if(!e)return; const task=taskById(e.taskId); if(task){ document.getElementById('notification-panel').classList.remove('show'); document.getElementById('notification-bell-btn').setAttribute('aria-expanded','false'); openTaskModal(task.id); } }));
+  list.querySelectorAll('[data-notification-index]').forEach(el=>el.addEventListener('click',()=>{
+    const e=notificationEventsCache[Number(el.getAttribute('data-notification-index'))]; if(!e)return;
+    if(e.kind==='registryqa'){
+      document.getElementById('notification-panel').classList.remove('show');
+      document.getElementById('notification-bell-btn').setAttribute('aria-expanded','false');
+      const rqaTabBtn=document.querySelector('.main-tab-btn[data-main-view="registryqa"]');
+      if(rqaTabBtn) rqaTabBtn.click();
+      return;
+    }
+    const task=taskById(e.taskId); if(task){ document.getElementById('notification-panel').classList.remove('show'); document.getElementById('notification-bell-btn').setAttribute('aria-expanded','false'); openTaskModal(task.id); }
+  }));
 }
 function markAllNotificationsRead(){ localStorage.setItem(notificationStorageKey(),new Date().toISOString()); renderNotificationCenter(); }
 function clearNotifications(){if(!confirm('Clear all notification messages? New notifications will still appear normally.'))return;const now=new Date().toISOString();localStorage.setItem(notificationClearStorageKey(),now);localStorage.setItem(notificationStorageKey(),now);renderNotificationCenter();}
