@@ -1162,7 +1162,14 @@
 
     <div class="card">
       <p class="card-title">Ask a question</p>
-      <div class="grid">
+      <div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
+          <input type="checkbox" id="rqa-ask-both" style="width:auto;">
+          Post this to both I-REC and TIGR
+        </label>
+        <p class="card-note" style="margin:2px 0 0;">Creates two separate entries, one per registry, so each can get its own answer.</p>
+      </div>
+      <div class="grid" id="rqa-ask-registry-row" style="margin-top:10px;">
         <div>
           <label for="rqa-ask-registry">Registry</label>
           <select id="rqa-ask-registry">
@@ -1174,13 +1181,6 @@
         <label for="rqa-ask-question">Question</label>
         <textarea id="rqa-ask-question" placeholder="Type your question about this registry..."></textarea>
       </div>
-      <div style="margin-top:10px;">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
-          <input type="checkbox" id="rqa-ask-both" style="width:auto;">
-          Post this to both I-REC and TIGR
-        </label>
-        <p class="card-note" style="margin:2px 0 0;">Creates two separate entries, one per registry, so each can get its own answer. Registry selection above is ignored when this is ticked.</p>
-      </div>
       <button type="button" id="rqa-ask-submit" style="margin-top:10px;">Submit question</button>
       <div class="rops-status" id="rqa-ask-status"></div>
     </div>
@@ -1188,7 +1188,14 @@
     <div class="card" id="rqa-admin-add-card" style="display:none;">
       <p class="card-title">Add a question &amp; answer</p>
       <p class="card-note">Super Admin/Admin only — posts a question with its answer already filled in.</p>
-      <div class="grid">
+      <div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
+          <input type="checkbox" id="rqa-add-both" style="width:auto;">
+          Post this to both I-REC and TIGR
+        </label>
+        <p class="card-note" style="margin:2px 0 0;">Creates two separate entries with the same question and answer text — edit either one afterward if the answer needs to differ by registry.</p>
+      </div>
+      <div class="grid" id="rqa-add-registry-row" style="margin-top:10px;">
         <div>
           <label for="rqa-add-registry">Registry</label>
           <select id="rqa-add-registry">
@@ -1203,13 +1210,6 @@
       <div style="margin-top:10px;">
         <label for="rqa-add-answer">Answer</label>
         <textarea id="rqa-add-answer" placeholder="Answer (optional — leave blank to post as unanswered)"></textarea>
-      </div>
-      <div style="margin-top:10px;">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
-          <input type="checkbox" id="rqa-add-both" style="width:auto;">
-          Post this to both I-REC and TIGR
-        </label>
-        <p class="card-note" style="margin:2px 0 0;">Creates two separate entries with the same question and answer text — edit either one afterward if the answer needs to differ by registry. Registry selection above is ignored when this is ticked.</p>
       </div>
       <button type="button" id="rqa-add-submit" style="margin-top:10px;">Add Q&amp;A</button>
       <div class="rops-status" id="rqa-add-status"></div>
@@ -1975,6 +1975,7 @@ let assignTargetTaskId = null;
 const initialUrlParams = new URLSearchParams(window.location.search);
 let pendingDeepLinkTaskNumber = initialUrlParams.get('taskNumber');
 let pendingDeepLinkTaskId = initialUrlParams.get('task');
+let pendingDeepLinkView = initialUrlParams.get('view');
 let notificationEventsCache = [];
 let notificationPollTimer = null;
 
@@ -2242,6 +2243,11 @@ async function loadAllData(silent){
   renderNotificationCenter();
   await loadRegistryQaItems();
   renderRegistryQaList();
+  if(pendingDeepLinkView === 'registryqa'){
+    pendingDeepLinkView = null;
+    const rqaTabBtn = document.querySelector('.main-tab-btn[data-main-view="registryqa"]');
+    if(rqaTabBtn) rqaTabBtn.click();
+  }
   if(!silent) setStatus('');
   if(activeTaskId) renderTaskModal(activeTaskId);
 
@@ -3381,6 +3387,8 @@ function renderTaskModal(taskId){
       tmPendingFiles = [];
       await loadAllData();
       setStatus('Comment sent.');
+      const notifyText = text || (uploaded.length ? ('📎 Sent ' + uploaded.length + ' file' + (uploaded.length > 1 ? 's' : '')) : '');
+      if(notifyText) notifyOnComment(v, notifyText).catch(e=>{ console.warn('Comment notification failed', e); setStatus('Comment sent, but the email notification could not be sent.'); });
     }catch(err){
       alert('Could not send comment: ' + err.message);
     }finally{
@@ -3670,6 +3678,41 @@ async function notifyOnComment(v, text){
     '<p><a href="'+link+'">Open '+escapeHtml(label)+' to read the thread and reply</a></p>';
   await sendMailGraph(toEmails, 'New comment — ' + label + ' — ' + v.Title, html);
   return toEmails;
+}
+
+/* ---- Registry Q&A email notifications ----
+   Same pattern as the task notifications above (Graph "sendMail" as
+   whoever took the action; failures are caught/logged by the caller so a
+   missing Mail.Send consent never blocks the underlying save):
+   - New question submitted -> every Super Admin (except the asker, if a
+     Super Admin happened to ask it themselves)
+   - Question answered for the first time -> the original asker (unless
+     they answered their own question) */
+function registryQaDeepLink(){
+  return location.origin + location.pathname + '?view=registryqa';
+}
+async function notifyRegistryQaSubmitted(registry, question, askedBy){
+  await refreshRolesForNotification();
+  const asker = (askedBy||'').toLowerCase();
+  const toEmails = emailsForRole('superadmin').filter(e => e && e.toLowerCase() !== asker);
+  if(!toEmails.length) return [];
+  const link = registryQaDeepLink();
+  const html = '<p>A new Registry Q&A question was submitted under <strong>'+escapeHtml(registry)+'</strong> by '+escapeHtml(askedBy)+':</p>'+
+    '<p style="white-space:pre-wrap;border-left:3px solid #1F4E78;padding-left:10px;">'+escapeHtml(question)+'</p>'+
+    '<p><a href="'+link+'">Open the Registry Q&A tab to answer it</a></p>';
+  await sendMailGraph(toEmails, 'New Registry Q&A question (' + registry + ')', html);
+  return toEmails;
+}
+async function notifyRegistryQaAnswered(item, answer, answeredBy){
+  const askedBy = item['Asked By'];
+  if(!askedBy || askedBy.toLowerCase() === (answeredBy||'').toLowerCase()) return [];
+  const link = registryQaDeepLink();
+  const html = '<p>Your Registry Q&A question under <strong>'+escapeHtml(item.Registry||'')+'</strong> has been answered by '+escapeHtml(answeredBy)+':</p>'+
+    '<p><strong>Question:</strong></p><p style="white-space:pre-wrap;">'+escapeHtml(item.Question||'')+'</p>'+
+    '<p><strong>Answer:</strong></p><p style="white-space:pre-wrap;border-left:3px solid #256b38;padding-left:10px;">'+escapeHtml(answer)+'</p>'+
+    '<p><a href="'+link+'">Open the Registry Q&A tab</a></p>';
+  await sendMailGraph([askedBy], 'Your Registry Q&A question was answered (' + (item.Registry||'') + ')', html);
+  return [askedBy];
 }
 
 /* ---- Microsoft Graph plumbing ---- */
@@ -6341,6 +6384,22 @@ async function registryInit(){
   const filter = document.getElementById('rqa-filter-registry'); if(filter) filter.innerHTML = filterOpts;
 })();
 
+// When "Post to both" is ticked, the registry picker is redundant (both
+// registries get an entry regardless of what's selected) — hide it and
+// clear it so the person isn't left wondering whether it still matters.
+function rqaWireBothToggle(checkboxId, rowId, selectId){
+  const checkbox = document.getElementById(checkboxId);
+  const row = document.getElementById(rowId);
+  const select = document.getElementById(selectId);
+  if(!checkbox || !row || !select) return;
+  checkbox.addEventListener('change', ()=>{
+    row.style.display = checkbox.checked ? 'none' : '';
+    if(checkbox.checked) select.value = '';
+  });
+}
+rqaWireBothToggle('rqa-ask-both', 'rqa-ask-registry-row', 'rqa-ask-registry');
+rqaWireBothToggle('rqa-add-both', 'rqa-add-registry-row', 'rqa-add-registry');
+
 let registryQaItemsCache = [];
 let registryQaLoadError = '';
 let rqaAnsweringId = null;
@@ -6458,10 +6517,12 @@ function renderRegistryQaList(){
     btn.disabled = true;
     try{
       const nowIso = new Date().toISOString();
+      const existing = registryQaItemsCache.find(v=>String(v.id)===String(id));
       await updateListItem(REGISTRYQA_LIST_NAME, id, {'Answer':answer, 'Answered By':currentAccount.username, 'Answered Date':nowIso, 'Last Updated By':currentAccount.username, 'Last Updated Date':nowIso});
       rqaAnsweringId = null;
       await loadRegistryQaItems();
       renderRegistryQaList();
+      if(existing) notifyRegistryQaAnswered(existing, answer, currentAccount.username).catch(e=>console.warn('Registry Q&A answered notification failed', e));
     }catch(err){ if(errEl){errEl.textContent='Could not save: '+err.message;errEl.style.display='block';} btn.disabled = false; }
   }));
   el.querySelectorAll('[data-rqa-edit]').forEach(btn=>btn.addEventListener('click', ()=>{
@@ -6490,6 +6551,10 @@ function renderRegistryQaList(){
       rqaEditingId = null;
       await loadRegistryQaItems();
       renderRegistryQaList();
+      if(existing && answer && !alreadyAnswered){
+        const notifyItem = Object.assign({}, existing, {Registry:registry, Question:question});
+        notifyRegistryQaAnswered(notifyItem, answer, currentAccount.username).catch(e=>console.warn('Registry Q&A answered notification failed', e));
+      }
     }catch(err){ errEl.textContent='Could not save changes: '+err.message; errEl.style.display='block'; btn.disabled = false; }
   }));
   el.querySelectorAll('[data-rqa-delete]').forEach(btn=>btn.addEventListener('click', async ()=>{
@@ -6527,9 +6592,13 @@ if(rqaAskSubmitBtn) rqaAskSubmitBtn.addEventListener('click', async ()=>{
     document.getElementById('rqa-ask-question').value = '';
     document.getElementById('rqa-ask-registry').value = '';
     document.getElementById('rqa-ask-both').checked = false;
+    document.getElementById('rqa-ask-registry-row').style.display = '';
     ropsShowStatus('rqa-ask-status', both ? 'Question submitted to both registries.' : 'Question submitted.', true);
     await loadRegistryQaItems();
     renderRegistryQaList();
+    registriesToPost.forEach(r=>{
+      notifyRegistryQaSubmitted(r, question, currentAccount.username).catch(e=>console.warn('Registry Q&A submitted notification failed', e));
+    });
   }catch(err){ ropsShowStatus('rqa-ask-status', 'Could not submit: ' + err.message, false); }
   finally{ rqaAskSubmitBtn.disabled = false; }
 });
@@ -6554,6 +6623,7 @@ if(rqaAddSubmitBtn) rqaAddSubmitBtn.addEventListener('click', async ()=>{
     document.getElementById('rqa-add-answer').value = '';
     document.getElementById('rqa-add-registry').value = '';
     document.getElementById('rqa-add-both').checked = false;
+    document.getElementById('rqa-add-registry-row').style.display = '';
     ropsShowStatus('rqa-add-status', both ? 'Added to both registries.' : 'Added.', true);
     await loadRegistryQaItems();
     renderRegistryQaList();
