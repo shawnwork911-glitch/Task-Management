@@ -363,6 +363,18 @@
   .comment-bubble.mine{border-color:var(--accent);}
   .comment-attachments{display:flex;flex-direction:column;gap:4px;margin-top:6px;}
   .comment-attachments.no-text{margin-top:0;}
+
+  /* ---- Registry Q&A ---- */
+  #registryqa-list{display:flex;flex-direction:column;gap:12px;}
+  .rqa-item{border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface-2);}
+  .rqa-item .rqa-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .rqa-item .rqa-meta{font-size:11px;color:var(--text-secondary);}
+  .rqa-item .rqa-question{font-size:13.5px;font-weight:600;white-space:pre-wrap;margin:0 0 8px;}
+  .rqa-answer-block{border-left:3px solid var(--accent);padding:6px 0 6px 10px;margin-top:6px;}
+  .rqa-answer-block .rqa-answer-text{font-size:13px;white-space:pre-wrap;}
+  .rqa-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .badge-registry-irec{background:#d7e6fb;color:#264c8c;}
+  .badge-registry-tigr{background:#d9f0dd;color:#256b38;}
   .attachment-chip{
     display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
     padding:5px 9px;border-radius:6px;background:var(--surface);
@@ -596,6 +608,7 @@
     <button type="button" class="main-tab-btn" data-main-view="rename">Asset Document Rename &amp; File</button>
     <button type="button" class="main-tab-btn" data-main-view="autofill">Autofill TIGR DRP</button>
     <button type="button" class="main-tab-btn" data-main-view="booking">Booking Single Trade</button>
+    <button type="button" class="main-tab-btn" data-main-view="registryqa">Registry Q&amp;A</button>
     <button type="button" class="main-tab-btn" id="user-mgmt-tab-btn" data-main-view="users" style="display:none;">User Management</button>
   </div>
 
@@ -1141,6 +1154,77 @@
     </div>
   </section>
 
+  <section id="main-view-registryqa" class="main-view">
+    <div>
+      <h1>Registry Q&amp;A</h1>
+      <p class="subtitle">Ask a question about I-REC or TIGR — everyone can read every question and answer here. Super Admin and Admin answer, edit or remove entries.</p>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Ask a question</p>
+      <div class="grid">
+        <div>
+          <label for="rqa-ask-registry">Registry</label>
+          <select id="rqa-ask-registry">
+            <option value="">Select registry...</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <label for="rqa-ask-question">Question</label>
+        <textarea id="rqa-ask-question" placeholder="Type your question about this registry..."></textarea>
+      </div>
+      <button type="button" id="rqa-ask-submit" style="margin-top:10px;">Submit question</button>
+      <div class="rops-status" id="rqa-ask-status"></div>
+    </div>
+
+    <div class="card" id="rqa-admin-add-card" style="display:none;">
+      <p class="card-title">Add a question &amp; answer</p>
+      <p class="card-note">Super Admin/Admin only — posts a question with its answer already filled in.</p>
+      <div class="grid">
+        <div>
+          <label for="rqa-add-registry">Registry</label>
+          <select id="rqa-add-registry">
+            <option value="">Select registry...</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <label for="rqa-add-question">Question</label>
+        <textarea id="rqa-add-question" placeholder="Question"></textarea>
+      </div>
+      <div style="margin-top:10px;">
+        <label for="rqa-add-answer">Answer</label>
+        <textarea id="rqa-add-answer" placeholder="Answer (optional — leave blank to post as unanswered)"></textarea>
+      </div>
+      <button type="button" id="rqa-add-submit" style="margin-top:10px;">Add Q&amp;A</button>
+      <div class="rops-status" id="rqa-add-status"></div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">All questions &amp; answers</p>
+      <div class="filter-row">
+        <div>
+          <label for="rqa-filter-registry">Registry</label>
+          <select id="rqa-filter-registry"><option value="">All</option></select>
+        </div>
+        <div style="min-width:240px;flex:1;">
+          <label for="rqa-filter-search">Search</label>
+          <input type="text" id="rqa-filter-search" placeholder="Search questions and answers...">
+        </div>
+        <div>
+          <label for="rqa-filter-unanswered">Status</label>
+          <select id="rqa-filter-unanswered">
+            <option value="">All</option>
+            <option value="unanswered">Awaiting answer</option>
+            <option value="answered">Answered</option>
+          </select>
+        </div>
+      </div>
+      <div id="registryqa-list"><p class="empty-note">Loading…</p></div>
+    </div>
+  </section>
+
 </div>
 
 <!-- Task detail modal -->
@@ -1210,7 +1294,7 @@
    notifications) Mail.Send with admin consent, then paste the IDs below.
 
    No Excel workbook is used — every read/write in this app goes straight to
-   three SharePoint Lists (via Graph's /sites/{id}/lists/{id}/items) on the
+   four SharePoint Lists (via Graph's /sites/{id}/lists/{id}/items) on the
    Operations site (https://saxonrenewables.sharepoint.com/sites/Operations).
    The main list, "Job Distribution Tracker", already exists there — make
    sure it has (or add) these columns (Display Name -> type). Column ORDER
@@ -1288,6 +1372,24 @@
         Assigned By     Single line of text
         Assigned Date   Date and Time
 
+   4) "Job Distribution Tracker Registry QA" (create this list) — one item per
+      question posted on the "Registry Q&A" tab:
+        Registry        Choice: I-REC, TIGR
+                         (required — must match REGISTRY_OPTIONS below exactly.
+                          Chosen by whoever is asking, so the question can be
+                          filtered by registry later.)
+        Question        Multiple lines of text   (required)
+        Answer          Multiple lines of text   (optional — blank until a
+                                                   Super Admin/Admin answers it)
+        Asked By        Single line of text
+        Asked Date      Date and Time
+        Answered By     Single line of text
+        Answered Date   Date and Time
+        Last Updated By Single line of text
+        Last Updated Date Date and Time
+      Any signed-in user can post a question here and read every question and
+      answer; only Super Admin and Admin can answer, edit or delete an entry.
+
    NOTE on "Assigned To": per your answer, the requester never picks this —
    it's shown to them read-only. For the Super Admin's own picker, this app
    defaults to a FIXED list: only people you've explicitly given the Admin
@@ -1306,6 +1408,8 @@ const SP_SITE_PATH = "/sites/Operations";
 const MAIN_LIST_NAME = "Job Distribution Tracker";
 const COMMENTS_LIST_NAME = "Job Distribution Tracker Comments";
 const ROLES_LIST_NAME = "Job Distribution Tracker Roles";
+const REGISTRYQA_LIST_NAME = "Job Distribution Tracker Registry QA";
+const REGISTRY_OPTIONS = ["I-REC", "TIGR"];
 
 /* ---- Roles ----
    Assignable roles are 'superadmin', 'admin' and 'user'. The hardcoded
@@ -2029,6 +2133,9 @@ function applyRoleUi(){
 
   const userMgmtTab = document.getElementById('user-mgmt-tab-btn');
   if(userMgmtTab) userMgmtTab.style.display = currentUserRole === 'superadmin' ? '' : 'none';
+  const rqaAdminCard = document.getElementById('rqa-admin-add-card');
+  if(rqaAdminCard) rqaAdminCard.style.display = isAdmin ? 'block' : 'none';
+  renderRegistryQaList();
   document.getElementById('page-subtitle').textContent = currentUserRole === 'user'
     ? 'Create a task request — Super Admin will assign it to an Admin with a deadline.'
     : (currentUserRole === 'admin'
@@ -2119,6 +2226,8 @@ async function loadAllData(silent){
   renderAllTasks();
   renderAnalytics();
   renderNotificationCenter();
+  await loadRegistryQaItems();
+  renderRegistryQaList();
   if(!silent) setStatus('');
   if(activeTaskId) renderTaskModal(activeTaskId);
 
@@ -6200,6 +6309,233 @@ async function registryInit(){
   try{ await ropsResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('rops-autofill-conn').textContent='Excel source: not resolved'; }
   try{ await bookingResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('booking-conn').textContent='Excel source: not resolved'; }
 }
+
+/* =======================================================================
+   REGISTRY Q&A — any signed-in user can post a question about I-REC or
+   TIGR; every question and answer is visible to everyone; only Super Admin
+   and Admin can answer, edit or delete an entry. Backed by the
+   "Job Distribution Tracker Registry QA" SharePoint list (see the schema
+   comment near the top of this file) via the same generic list CRUD
+   (getListItems/createListItem/updateListItem/deleteListItem) the rest of
+   this app uses.
+   ======================================================================= */
+(function populateRegistrySelects(){
+  const opts = '<option value="">Select registry...</option>' + REGISTRY_OPTIONS.map(r=>'<option value="'+r+'">'+r+'</option>').join('');
+  const filterOpts = '<option value="">All</option>' + REGISTRY_OPTIONS.map(r=>'<option value="'+r+'">'+r+'</option>').join('');
+  const ask = document.getElementById('rqa-ask-registry'); if(ask) ask.innerHTML = opts;
+  const add = document.getElementById('rqa-add-registry'); if(add) add.innerHTML = opts;
+  const filter = document.getElementById('rqa-filter-registry'); if(filter) filter.innerHTML = filterOpts;
+})();
+
+let registryQaItemsCache = [];
+let registryQaLoadError = '';
+let rqaAnsweringId = null;
+let rqaEditingId = null;
+
+async function loadRegistryQaItems(){
+  try{
+    registryQaItemsCache = await getListItems(REGISTRYQA_LIST_NAME);
+    registryQaLoadError = '';
+  }catch(err){
+    console.warn('Could not load Registry Q&A list', err);
+    registryQaItemsCache = [];
+    registryQaLoadError = err.message;
+  }
+}
+
+function rqaRegistryBadgeClass(registry){
+  return registry === 'TIGR' ? 'badge-registry-tigr' : (registry === 'I-REC' ? 'badge-registry-irec' : 'badge-not-started');
+}
+
+function rqaCanManage(){
+  return currentUserRole === 'superadmin' || currentUserRole === 'admin';
+}
+
+function rqaSortedFiltered(){
+  const registryFilterEl = document.getElementById('rqa-filter-registry');
+  const statusFilterEl = document.getElementById('rqa-filter-unanswered');
+  const searchEl = document.getElementById('rqa-filter-search');
+  const registryFilter = registryFilterEl ? registryFilterEl.value : '';
+  const statusFilter = statusFilterEl ? statusFilterEl.value : '';
+  const search = (searchEl ? searchEl.value : '').trim().toLowerCase();
+  return registryQaItemsCache.filter(v=>{
+    if(registryFilter && v.Registry !== registryFilter) return false;
+    const hasAnswer = !!String(v.Answer||'').trim();
+    if(statusFilter === 'answered' && !hasAnswer) return false;
+    if(statusFilter === 'unanswered' && hasAnswer) return false;
+    if(search){
+      const hay = (String(v.Question||'')+' '+String(v.Answer||'')).toLowerCase();
+      if(hay.indexOf(search) === -1) return false;
+    }
+    return true;
+  }).sort((a,b)=> new Date(b['Asked Date']||0).getTime() - new Date(a['Asked Date']||0).getTime());
+}
+
+function rqaItemHtml(v){
+  const canManage = rqaCanManage();
+  const hasAnswer = !!String(v.Answer||'').trim();
+  if(rqaEditingId === v.id){
+    return '<div class="rqa-item" data-rqa-id="'+escapeHtml(v.id)+'">'+
+      '<div class="grid"><div><label>Registry</label><select data-rqa-edit-registry>'+
+        REGISTRY_OPTIONS.map(r=>'<option value="'+r+'"'+(r===v.Registry?' selected':'')+'>'+r+'</option>').join('')+
+      '</select></div></div>'+
+      '<div style="margin-top:8px;"><label>Question</label><textarea data-rqa-edit-question>'+escapeHtml(v.Question||'')+'</textarea></div>'+
+      '<div style="margin-top:8px;"><label>Answer</label><textarea data-rqa-edit-answer placeholder="Leave blank to mark as unanswered">'+escapeHtml(v.Answer||'')+'</textarea></div>'+
+      '<div class="field-error" data-rqa-edit-error></div>'+
+      '<div class="rqa-actions">'+
+        '<button type="button" data-rqa-save="'+escapeHtml(v.id)+'">Save</button>'+
+        '<button type="button" class="secondary" data-rqa-cancel="'+escapeHtml(v.id)+'">Cancel</button>'+
+      '</div></div>';
+  }
+  let html = '<div class="rqa-item" data-rqa-id="'+escapeHtml(v.id)+'">'+
+    '<div class="rqa-head">'+
+      '<span class="badge '+rqaRegistryBadgeClass(v.Registry)+'">'+escapeHtml(v.Registry||'Registry')+'</span>'+
+      (hasAnswer ? '<span class="badge badge-completed">Answered</span>' : '<span class="badge badge-important-pending">Awaiting answer</span>')+
+    '</div>'+
+    '<p class="rqa-question">'+escapeHtml(v.Question||'')+'</p>'+
+    '<p class="rqa-meta">Asked by '+escapeHtml(v['Asked By']||'')+(v['Asked Date']?(' · '+fmtDateTime(v['Asked Date'])):'')+'</p>';
+  if(hasAnswer){
+    html += '<div class="rqa-answer-block"><p class="rqa-answer-text">'+escapeHtml(v.Answer)+'</p>'+
+      '<p class="rqa-meta">Answered by '+escapeHtml(v['Answered By']||'')+(v['Answered Date']?(' · '+fmtDateTime(v['Answered Date'])):'')+'</p></div>';
+  }else if(canManage && rqaAnsweringId === v.id){
+    html += '<div class="rqa-answer-block">'+
+      '<textarea data-rqa-answer-text placeholder="Type the answer..."></textarea>'+
+      '<div class="field-error" data-rqa-answer-error></div>'+
+      '<div class="rqa-actions">'+
+        '<button type="button" data-rqa-answer-save="'+escapeHtml(v.id)+'">Save answer</button>'+
+        '<button type="button" class="secondary" data-rqa-answer-cancel="'+escapeHtml(v.id)+'">Cancel</button>'+
+      '</div></div>';
+  }
+  if(canManage){
+    html += '<div class="rqa-actions">'+
+      (!hasAnswer && rqaAnsweringId !== v.id ? '<button type="button" class="secondary small-btn" data-rqa-answer="'+escapeHtml(v.id)+'">Answer</button>' : '')+
+      '<button type="button" class="secondary small-btn" data-rqa-edit="'+escapeHtml(v.id)+'">Edit</button>'+
+      '<button type="button" class="secondary small-btn" data-rqa-delete="'+escapeHtml(v.id)+'">Delete</button>'+
+    '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderRegistryQaList(){
+  const el = document.getElementById('registryqa-list');
+  if(!el) return;
+  if(registryQaLoadError){
+    el.innerHTML = '<p class="empty-note">Could not load Registry Q&amp;A: '+escapeHtml(registryQaLoadError)+'</p>';
+    return;
+  }
+  const items = rqaSortedFiltered();
+  if(!items.length){ el.innerHTML = '<p class="empty-note">No questions yet.</p>'; return; }
+  el.innerHTML = items.map(rqaItemHtml).join('');
+
+  el.querySelectorAll('[data-rqa-answer]').forEach(btn=>btn.addEventListener('click', ()=>{
+    rqaAnsweringId = btn.getAttribute('data-rqa-answer'); rqaEditingId = null; renderRegistryQaList();
+  }));
+  el.querySelectorAll('[data-rqa-answer-cancel]').forEach(btn=>btn.addEventListener('click', ()=>{
+    rqaAnsweringId = null; renderRegistryQaList();
+  }));
+  el.querySelectorAll('[data-rqa-answer-save]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const id = btn.getAttribute('data-rqa-answer-save');
+    const item = el.querySelector('[data-rqa-id="'+id+'"]');
+    const textarea = item ? item.querySelector('[data-rqa-answer-text]') : null;
+    const errEl = item ? item.querySelector('[data-rqa-answer-error]') : null;
+    const answer = textarea ? textarea.value.trim() : '';
+    if(!answer){ if(errEl){errEl.textContent='Enter an answer before saving.';errEl.style.display='block';} return; }
+    btn.disabled = true;
+    try{
+      const nowIso = new Date().toISOString();
+      await updateListItem(REGISTRYQA_LIST_NAME, id, {'Answer':answer, 'Answered By':currentAccount.username, 'Answered Date':nowIso, 'Last Updated By':currentAccount.username, 'Last Updated Date':nowIso});
+      rqaAnsweringId = null;
+      await loadRegistryQaItems();
+      renderRegistryQaList();
+    }catch(err){ if(errEl){errEl.textContent='Could not save: '+err.message;errEl.style.display='block';} btn.disabled = false; }
+  }));
+  el.querySelectorAll('[data-rqa-edit]').forEach(btn=>btn.addEventListener('click', ()=>{
+    rqaEditingId = btn.getAttribute('data-rqa-edit'); rqaAnsweringId = null; renderRegistryQaList();
+  }));
+  el.querySelectorAll('[data-rqa-cancel]').forEach(btn=>btn.addEventListener('click', ()=>{
+    rqaEditingId = null; renderRegistryQaList();
+  }));
+  el.querySelectorAll('[data-rqa-save]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const id = btn.getAttribute('data-rqa-save');
+    const item = el.querySelector('[data-rqa-id="'+id+'"]');
+    const errEl = item.querySelector('[data-rqa-edit-error]');
+    const registry = item.querySelector('[data-rqa-edit-registry]').value;
+    const question = item.querySelector('[data-rqa-edit-question]').value.trim();
+    const answer = item.querySelector('[data-rqa-edit-answer]').value.trim();
+    if(!registry || !question){ errEl.textContent='Registry and question are required.'; errEl.style.display='block'; return; }
+    btn.disabled = true;
+    try{
+      const nowIso = new Date().toISOString();
+      const existing = registryQaItemsCache.find(v=>String(v.id)===String(id));
+      const alreadyAnswered = existing && !!String(existing.Answer||'').trim();
+      const payload = {'Registry':registry, 'Question':question, 'Answer':answer, 'Last Updated By':currentAccount.username, 'Last Updated Date':nowIso};
+      if(answer && !alreadyAnswered){ payload['Answered By'] = currentAccount.username; payload['Answered Date'] = nowIso; }
+      if(!answer){ payload['Answered By'] = ''; payload['Answered Date'] = null; }
+      await updateListItem(REGISTRYQA_LIST_NAME, id, payload);
+      rqaEditingId = null;
+      await loadRegistryQaItems();
+      renderRegistryQaList();
+    }catch(err){ errEl.textContent='Could not save changes: '+err.message; errEl.style.display='block'; btn.disabled = false; }
+  }));
+  el.querySelectorAll('[data-rqa-delete]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const id = btn.getAttribute('data-rqa-delete');
+    if(!confirm('Delete this question and its answer? This cannot be undone.')) return;
+    btn.disabled = true;
+    try{
+      await deleteListItem(REGISTRYQA_LIST_NAME, id);
+      await loadRegistryQaItems();
+      renderRegistryQaList();
+    }catch(err){ alert('Could not delete: ' + err.message); btn.disabled = false; }
+  }));
+}
+
+['rqa-filter-registry','rqa-filter-unanswered'].forEach(id=>{
+  const elx = document.getElementById(id);
+  if(elx) elx.addEventListener('change', renderRegistryQaList);
+});
+const rqaSearchInput = document.getElementById('rqa-filter-search');
+if(rqaSearchInput) rqaSearchInput.addEventListener('input', renderRegistryQaList);
+
+const rqaAskSubmitBtn = document.getElementById('rqa-ask-submit');
+if(rqaAskSubmitBtn) rqaAskSubmitBtn.addEventListener('click', async ()=>{
+  const registry = document.getElementById('rqa-ask-registry').value;
+  const question = document.getElementById('rqa-ask-question').value.trim();
+  if(!registry || !question){ ropsShowStatus('rqa-ask-status', 'Select a registry and enter your question.', false); return; }
+  rqaAskSubmitBtn.disabled = true;
+  try{
+    const nowIso = new Date().toISOString();
+    await createListItem(REGISTRYQA_LIST_NAME, {'Registry':registry, 'Question':question, 'Asked By':currentAccount.username, 'Asked Date':nowIso});
+    document.getElementById('rqa-ask-question').value = '';
+    document.getElementById('rqa-ask-registry').value = '';
+    ropsShowStatus('rqa-ask-status', 'Question submitted.', true);
+    await loadRegistryQaItems();
+    renderRegistryQaList();
+  }catch(err){ ropsShowStatus('rqa-ask-status', 'Could not submit: ' + err.message, false); }
+  finally{ rqaAskSubmitBtn.disabled = false; }
+});
+
+const rqaAddSubmitBtn = document.getElementById('rqa-add-submit');
+if(rqaAddSubmitBtn) rqaAddSubmitBtn.addEventListener('click', async ()=>{
+  const registry = document.getElementById('rqa-add-registry').value;
+  const question = document.getElementById('rqa-add-question').value.trim();
+  const answer = document.getElementById('rqa-add-answer').value.trim();
+  if(!registry || !question){ ropsShowStatus('rqa-add-status', 'Select a registry and enter the question.', false); return; }
+  rqaAddSubmitBtn.disabled = true;
+  try{
+    const nowIso = new Date().toISOString();
+    const payload = {'Registry':registry, 'Question':question, 'Answer':answer, 'Asked By':currentAccount.username, 'Asked Date':nowIso};
+    if(answer){ payload['Answered By'] = currentAccount.username; payload['Answered Date'] = nowIso; }
+    await createListItem(REGISTRYQA_LIST_NAME, payload);
+    document.getElementById('rqa-add-question').value = '';
+    document.getElementById('rqa-add-answer').value = '';
+    document.getElementById('rqa-add-registry').value = '';
+    ropsShowStatus('rqa-add-status', 'Added.', true);
+    await loadRegistryQaItems();
+    renderRegistryQaList();
+  }catch(err){ ropsShowStatus('rqa-add-status', 'Could not add: ' + err.message, false); }
+  finally{ rqaAddSubmitBtn.disabled = false; }
+});
 </script>
 
 </body>
