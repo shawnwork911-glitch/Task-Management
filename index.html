@@ -598,7 +598,7 @@
       <p class="card-title" style="margin:0;">Important tasks</p>
       <span class="badge badge-important">Important</span>
     </div>
-    <p class="card-note">Only Super Admin-approved Important tasks are pinned here. The section stays hidden when there are no applicable Important tasks.</p>
+    <p class="card-note">Only Super Admin-approved Important tasks are pinned here, and only for the Super Admin, the assigned person and the requester. The section stays hidden when there are no applicable Important tasks.</p>
     <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
   </div>
   </section>
@@ -2716,8 +2716,17 @@ const analyticsDateClearBtn=document.getElementById('an-filter-date-clear');if(a
 const anViewTimelineBtn=document.getElementById('an-view-timeline-btn');if(anViewTimelineBtn)anViewTimelineBtn.addEventListener('click',()=>setAnalyticsViewMode('timeline'));
 const anViewListBtn=document.getElementById('an-view-list-btn');if(anViewListBtn)anViewListBtn.addEventListener('click',()=>setAnalyticsViewMode('list'));
 
-function importantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>isImportantTask(t)&&t.Status!==STATUS_COMPLETED&&t.Status!==STATUS_REJECTED&&t.Status!==STATUS_CANCELLED).filter(t=>canSeeAll||isTaskMine(t)).sort(sortByPriorityThenDeadline);}
-function pendingImportantTasks(){const canSeeAll=currentUserRole==='admin'||currentUserRole==='superadmin';return taskItemsCache.filter(t=>hasImportantRequest(t)).filter(t=>canSeeAll||isTaskMine(t));}
+/* Important tasks are only surfaced to the Super Admin, the person the task
+   is assigned to, and the person who requested it. Other Admins don't see them
+   in the pinned Important section. */
+function canSeeImportantTask(t){
+  if(currentUserRole==='superadmin') return true;
+  const me=(currentAccount&&currentAccount.username||'').toLowerCase();
+  if(!me||!t) return false;
+  return (t['Requested By']||'').toLowerCase()===me || (t['Assigned To']||'').toLowerCase()===me;
+}
+function importantTasks(){return taskItemsCache.filter(t=>isImportantTask(t)&&t.Status!==STATUS_COMPLETED&&t.Status!==STATUS_REJECTED&&t.Status!==STATUS_CANCELLED).filter(canSeeImportantTask).sort(sortByPriorityThenDeadline);}
+function pendingImportantTasks(){return taskItemsCache.filter(t=>hasImportantRequest(t)).filter(canSeeImportantTask);}
 function renderImportantTasks(){const card=document.getElementById('important-tasks-card'),section=document.getElementById('standalone-important-section'),el=document.getElementById('important-tasks-list');if(!el)return;const tasks=importantTasks();if(card)card.style.display=tasks.length?'block':'none';if(section)section.style.display=tasks.length?'block':'none';if(!tasks.length){el.innerHTML='';return;}el.innerHTML=tasks.map(v=>taskCardHtml(v,true)).join('');el.querySelectorAll('[data-task-id]').forEach(card=>card.addEventListener('click',()=>openTaskModal(card.getAttribute('data-task-id'))));}
 
 /* ---- Rendering: My tasks (recent-activity strip) ----
