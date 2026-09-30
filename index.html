@@ -4357,6 +4357,15 @@ async function uploadTaskAttachments(taskId, taskNumber, files, onStatus){
 
 const ROPS_BD_LIBRARY_NAME = "BD Usage";
 const ROPS_AUTOFILL_FOLDERS = { MY: "Autofilled Form MY", SG: "Autofilled Form SG" };
+// Every file filed through Asset Document Rename & File (single and bulk)
+// lives under this folder in BD Usage:
+// /sites/Operations/BD Autofill form/Asset Document Rename & File/
+// ropsFolderName() stays relative to it (Master/Company_Registry_Country_Type)
+// so the activity log and queue logic are unchanged; ropsRenamePath() adds
+// the root only where SharePoint is actually read or written.
+const ROPS_RENAME_ROOT_FOLDER = "Asset Document Rename & File";
+function ropsRenamePath(folder){ return ROPS_RENAME_ROOT_FOLDER + (folder ? '/' + folder : ''); }
+function ropsRenameDisplay(folder){ return 'BD Usage / ' + ROPS_RENAME_ROOT_FOLDER + (folder ? ' / ' + folder : ''); }
 
 const ROPS_FIELD_MAP = [
   { id:"2",  label:"Asset Name",                       group:"Asset details" },
@@ -5394,7 +5403,7 @@ async function ropsReplaceExistingSharePointFile(category, existingIndex, file){
   if(!confirm('Replace "'+oldName+'" with "'+file.name+'"? Only this selected SharePoint file will be replaced.')) return;
   ropsShowStatus('rops-folder-status','Replacing '+oldName+'…',true);
   try{
-    const uploadRes=await ropsUploadBlob(folder,targetName,file,file.type||'application/octet-stream');
+    const uploadRes=await ropsUploadBlob(ropsRenamePath(folder),targetName,file,file.type||'application/octet-stream');
     if(targetName.toLowerCase()!==oldName.toLowerCase()){
       try{
         await ropsDeleteDriveItem(oldItem);
@@ -5444,12 +5453,12 @@ function ropsQueueCategoryFiles(category,fileList){
 function ropsRenderQueue(){
   const list=document.getElementById('rops-queue-list');
   if(!ropsUploadQueue.length){list.innerHTML='<p class="empty-note">No new files queued. Existing SharePoint files still count toward checklist completion.</p>';return;}
-  list.innerHTML=ropsUploadQueue.map(x=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.folder)+'</span></span></div>').join('');
+  list.innerHTML=ropsUploadQueue.map(x=>'<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.category)+' · '+ropsEsc(ropsRenameDisplay(x.folder))+'</span></span></div>').join('');
 }
 async function ropsListFolderFiles(folderName){
   const driveId=await ropsResolveBdDrive();
   try{
-    const data=await graphFetch('/drives/'+driveId+'/root:/'+ropsEncodePath(folderName)+':/children?$select=id,name,webUrl,file,folder&$top=999');
+    const data=await graphFetch('/drives/'+driveId+'/root:/'+ropsEncodePath(ropsRenamePath(folderName))+':/children?$select=id,name,webUrl,file,folder&$top=999');
     return (data&&data.value)||[];
   }catch(err){
     if(String(err&&err.message||err).includes('Graph 404')) return [];
@@ -5462,7 +5471,7 @@ async function ropsCheckExistingFolder(){
   const key=ropsContextKey(); ropsChecklistContextKey=key;
   const btn=document.getElementById('rops-check-folder'); btn.disabled=true;
   const folderName=ropsFolderName(c);
-  ropsShowStatus('rops-folder-status','Checking BD Usage / '+folderName+' for existing required documents…',true);
+  ropsShowStatus('rops-folder-status','Checking '+ropsRenameDisplay(folderName)+' for existing required documents…',true);
   try{
     const files=await ropsListFolderFiles(folderName);
     if(ropsContextKey()!==key) return;
@@ -5474,7 +5483,7 @@ async function ropsCheckExistingFolder(){
       if(hits.length) ropsExistingCategoryFiles[storageCategory]=hits;
     }
     const existingCount=docs.reduce((n,_,i)=>n+(ropsRequiredOccurrenceIsComplete(docs,i)?1:0),0);
-    ropsShowStatus('rops-folder-status','SharePoint check complete: '+existingCount+' of '+docs.length+' required document(s) already found in BD Usage / '+folderName+'.',true);
+    ropsShowStatus('rops-folder-status','SharePoint check complete: '+existingCount+' of '+docs.length+' required document(s) already found in '+ropsRenameDisplay(folderName)+'.',true);
     ropsRenderRequiredChecklist();
   }catch(err){
     console.error(err); ropsShowStatus('rops-folder-status','Could not check the folder. '+err.message,false);
@@ -5506,7 +5515,7 @@ async function ropsCreateReviewDocumentationTask(companyName, folderName, upload
   const fileNames = (uploadedItems || []).map(i => i.renamed).filter(Boolean);
   const description = 'Review documentation uploaded through Rename & File.\n' +
     'Company: ' + (companyName || '—') + '\n' +
-    'SharePoint folder: BD Usage / ' + (folderName || '') + '\n' +
+    'SharePoint folder: ' + ropsRenameDisplay(folderName || '') + '\n' +
     'Uploaded files (' + count + '):' + (fileNames.length ? '\n- ' + fileNames.join('\n- ') : ' —');
   const created = await createListItem(MAIN_LIST_NAME, {
     'Title': 'Review Documentation',
@@ -5612,7 +5621,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
     for(const item of batchItems){
       ropsShowStatus('rops-upload-status','Uploading '+(done+1)+' of '+total+': '+item.renamed,true);
       try{
-        const uploadRes=await ropsUploadBlob(item.folder, item.renamed, item.file, item.file.type||'application/octet-stream');
+        const uploadRes=await ropsUploadBlob(ropsRenamePath(item.folder), item.renamed, item.file, item.file.type||'application/octet-stream');
         uploadedItems.push(item);
         ropsAppendLog(item, uploadRes && uploadRes.webUrl);
         done++;
@@ -5652,7 +5661,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       const remaining=Math.max(0,docs.length-complete);
       const retryMessage=uploadError ? ' '+(total-done)+' file(s) remain queued for retry.' : '';
       ropsShowStatus('rops-upload-status',
-        'Uploaded '+done+' document(s) to BD Usage / '+folderAtStart+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+
+        'Uploaded '+done+' document(s) to '+ropsRenameDisplay(folderAtStart)+'. Checklist progress: '+complete+' / '+docs.length+' complete.'+
         (remaining?' '+remaining+' item(s) can be uploaded later.':' All required documents are complete.')+
         taskMessage+retryMessage,
         !uploadError
@@ -6032,7 +6041,7 @@ function ropsRenderBulkQueue(){
     return;
   }
   list.innerHTML=ropsBulkQueue.map(x=>(
-    '<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.company)+' · '+ropsEsc(x.category)+' · BD Usage / '+ropsEsc(x.folder)+'</span></span>'+
+    '<div class="rops-queue-item"><span class="rops-qname">'+ropsEsc(x.renamed)+'<br><span class="rops-note">'+ropsEsc(x.company)+' · '+ropsEsc(x.category)+' · '+ropsEsc(ropsRenameDisplay(x.folder))+'</span></span>'+
     '<button type="button" class="secondary small-btn" data-bulk-queue-remove="'+x.uid+'">Remove</button></div>'
   )).join('');
   list.querySelectorAll('[data-bulk-queue-remove]').forEach(btn=>btn.addEventListener('click',()=>{
@@ -6081,7 +6090,7 @@ document.getElementById('rops-bulk-upload-all').addEventListener('click',async()
     for(const item of batchItems){
       ropsShowStatus('rops-bulk-upload-status','Uploading '+(done+1)+' of '+total+': '+item.company+' / '+item.renamed,true);
       try{
-        const uploadRes=await ropsUploadBlob(item.folder,item.renamed,item.file,item.file.type||'application/octet-stream');
+        const uploadRes=await ropsUploadBlob(ropsRenamePath(item.folder),item.renamed,item.file,item.file.type||'application/octet-stream');
         uploadedItems.push(item);
         ropsAppendLog(item, uploadRes && uploadRes.webUrl);
         done++;
