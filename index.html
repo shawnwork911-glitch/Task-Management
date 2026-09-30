@@ -3814,7 +3814,9 @@ async function getAccessToken(scopes){
     const result = await msalInstance.acquireTokenSilent({ scopes, account: currentAccount });
     return result.accessToken;
   }catch(e){
-    const result = await msalInstance.acquireTokenPopup({ scopes });
+    // Pin the popup to the signed-in account so a different cached
+    // Microsoft account in the browser can't silently supply the token.
+    const result = await msalInstance.acquireTokenPopup({ scopes, account: currentAccount, loginHint: currentAccount && currentAccount.username });
     return result.accessToken;
   }
 }
@@ -4679,7 +4681,24 @@ async function ropsGraphBinaryFetch(path, options){
   const token=await getAccessToken(options.scopes || GRAPH_SCOPES);
   const headers=Object.assign({'Authorization':'Bearer '+token}, options.headers||{});
   const res=await fetch('https://graph.microsoft.com/v1.0'+path,{method:options.method||'GET',body:options.body,headers});
-  if(!res.ok){ const t=await res.text().catch(()=> ''); throw new Error('Graph '+res.status+': '+t.slice(0,350)); }
+  if(!res.ok){
+    const t=await res.text().catch(()=> '');
+    let diag='';
+    if(res.status===401 || res.status===403){
+      // Diagnostic detail: who the token belongs to and which permissions it
+      // carries, plus the exact request, so a 403 can be traced without DevTools.
+      try{
+        const b64=token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+        const claims=JSON.parse(decodeURIComponent(escape(atob(b64+'==='.slice((b64.length+3)%4)))));
+        diag='\nSigned in as: '+(claims.upn||claims.preferred_username||claims.unique_name||'unknown')+
+             '\nToken scopes: '+(claims.scp||'(none)')+
+             '\nApp: '+(claims.app_displayname||claims.appid||'unknown');
+      }catch(e){ diag='\n(Could not read token details.)'; }
+      let shownPath=path; try{ shownPath=decodeURIComponent(path); }catch(e){}
+      diag='\nRequest: '+(options.method||'GET')+' '+shownPath+diag;
+    }
+    throw new Error('Graph '+res.status+': '+t.slice(0,350)+diag);
+  }
   if(res.status===204) return null;
   const ct=res.headers.get('content-type')||'';
   if(ct.includes('application/json')) return await res.json();
