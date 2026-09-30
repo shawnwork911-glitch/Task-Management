@@ -897,7 +897,7 @@
           <div class="rops-required-wrap" id="rops-required-wrap">
             <div class="rops-required-head">
               <div><strong style="font-size:13px;">Required documents</strong><div class="rops-note">Upload any available items now. Missing items can be completed later; existing files in the same Company Name folder (and Master Company folder, if set) will be detected automatically.</div></div>
-              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="rops-progress" id="rops-required-progress">Select Registry, Country and Type</span><button type="button" class="secondary small-btn" id="rops-download-checklist" style="display:none;">Download checklist PDF</button><button type="button" class="secondary small-btn" id="rops-check-folder" disabled>Check SharePoint folder</button></div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="rops-progress" id="rops-required-progress">Select Registry, Country and Type</span><button type="button" class="secondary small-btn" id="rops-download-checklist" style="display:none;">Download checklist PDF</button><button type="button" class="secondary small-btn" id="rops-check-folder" disabled>Check SharePoint folder</button><button type="button" class="secondary small-btn" id="rops-download-folder" disabled>Download folder (.zip)</button></div>
             </div>
             <div id="rops-required-list"><p class="empty-note" style="padding:12px;">Select Registry, Country and Type to load the required document checklist.</p></div>
           </div>
@@ -5271,6 +5271,8 @@ function ropsRenderRequiredChecklist(){
   const c=ropsCurrentContext();
   const checkBtn=document.getElementById('rops-check-folder');
   checkBtn.disabled=!(c.company&&c.registry&&c.country&&c.type);
+  const dlBtn=document.getElementById('rops-download-folder');
+  if(dlBtn && !ropsFolderDownloadBusy) dlBtn.disabled=checkBtn.disabled;
   if(!docs.length){
     list.innerHTML='<p class="empty-note" style="padding:12px;">Select Registry, Country and Type to load the required document checklist.</p>';
     progress.textContent='Select Registry, Country and Type';
@@ -5505,6 +5507,92 @@ document.getElementById('rops-type').addEventListener('change',ropsOnTypeChange)
 document.getElementById('rops-company-name').addEventListener('input',ropsOnCompanyInput);
 document.getElementById('rops-master-company').addEventListener('input',ropsResetChecklistForContext);
 document.getElementById('rops-check-folder').addEventListener('click',ropsCheckExistingFolder);
+
+/* ---- Download the current company folder as a .zip ----
+   Walks BD Usage / Asset Document Rename & File / <folder> (including any
+   subfolders), downloads every file through its pre-authorised
+   @microsoft.graph.downloadUrl, and bundles them with JSZip, keeping the
+   renamed file names and folder structure. */
+var ropsFolderDownloadBusy=false; // var (not let) so the checklist renderer can read it before this line runs
+async function ropsListFolderTree(driveId, relPath, prefix, out){
+  const items=await graphFetchAll('/drives/'+driveId+'/root:/'+ropsEncodePath(relPath)+':/children?$top=999');
+  for(const it of items){
+    if(it.folder){
+      await ropsListFolderTree(driveId, relPath+'/'+it.name, prefix+it.name+'/', out);
+    }else if(it.file){
+      out.push({ id:it.id, zipPath:prefix+it.name, size:it.size||0, url:it['@microsoft.graph.downloadUrl']||'' });
+    }
+  }
+  return out;
+}
+async function ropsFetchFileBytes(driveId, entry){
+  let url=entry.url;
+  if(!url){
+    const meta=await graphFetch('/drives/'+driveId+'/items/'+encodeURIComponent(entry.id)+'?select=id,@microsoft.graph.downloadUrl');
+    url=meta && meta['@microsoft.graph.downloadUrl'];
+  }
+  if(!url) throw new Error('SharePoint did not return a download link for '+entry.zipPath+'.');
+  let lastErr=null;
+  for(let attempt=0; attempt<3; attempt++){
+    try{
+      const res=await fetch(url);
+      if(res.ok) return await res.arrayBuffer();
+      lastErr=new Error('Download failed ('+res.status+') for '+entry.zipPath+'.');
+    }catch(e){ lastErr=e; }
+    await new Promise(r=>setTimeout(r, 800*(attempt+1)));
+  }
+  throw lastErr;
+}
+async function ropsDownloadCurrentFolder(){
+  const c=ropsCurrentContext();
+  if(!(c.company&&c.registry&&c.country&&c.type)){
+    ropsShowStatus('rops-folder-status','Enter Company Name and select Registry, Country and Type first.',false); return;
+  }
+  if(typeof JSZip==='undefined'){
+    ropsShowStatus('rops-folder-status','Zip support failed to load. Check your internet connection and reload the page.',false); return;
+  }
+  const folder=ropsFolderName(c);
+  const btn=document.getElementById('rops-download-folder');
+  ropsFolderDownloadBusy=true; btn.disabled=true;
+  ropsShowStatus('rops-folder-status','Listing files in '+ropsRenameDisplay(folder)+'…',true);
+  try{
+    const driveId=await ropsResolveBdDrive();
+    let files;
+    try{
+      files=await ropsListFolderTree(driveId, ropsRenamePath(folder), '', []);
+    }catch(err){
+      if(String(err&&err.message||err).includes('Graph 404')) files=[];
+      else throw err;
+    }
+    if(!files.length){
+      ropsShowStatus('rops-folder-status','No files found in '+ropsRenameDisplay(folder)+' yet.',false); return;
+    }
+    const zip=new JSZip();
+    for(let i=0;i<files.length;i++){
+      ropsShowStatus('rops-folder-status','Downloading '+(i+1)+' of '+files.length+': '+files[i].zipPath,true);
+      zip.file(files[i].zipPath, await ropsFetchFileBytes(driveId, files[i]));
+    }
+    ropsShowStatus('rops-folder-status','Building zip…',true);
+    const blob=await zip.generateAsync({type:'blob'}, meta=>{
+      ropsShowStatus('rops-folder-status','Building zip… '+Math.round(meta.percent)+'%',true);
+    });
+    const leaf=folder.split('/').pop()||'folder';
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=leaf+'.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 60000);
+    ropsShowStatus('rops-folder-status','Downloaded '+files.length+' file(s) from '+ropsRenameDisplay(folder)+' as '+leaf+'.zip.',true);
+  }catch(err){
+    console.error(err);
+    ropsShowStatus('rops-folder-status','Could not download the folder. '+err.message,false);
+  }finally{
+    ropsFolderDownloadBusy=false;
+    const cc=ropsCurrentContext();
+    btn.disabled=!(cc.company&&cc.registry&&cc.country&&cc.type);
+  }
+}
+document.getElementById('rops-download-folder').addEventListener('click',ropsDownloadCurrentFolder);
 
 function ropsDownloadFile(file, filename){
   const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
