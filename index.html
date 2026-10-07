@@ -2309,7 +2309,7 @@ async function loadAllData(silent){
     switchRqaSubview('all');
   }
   if(!silent) setStatus('');
-  if(activeTaskId) renderTaskModal(activeTaskId);
+  if(activeTaskId) renderTaskModal(activeTaskId, true);
 
   // Email notifications use the visible Task Number in the URL. Legacy
   // ?task=<SharePoint item id> links still work for older emails.
@@ -3176,8 +3176,30 @@ function renderTmPendingFiles(){
     renderTmPendingFiles();
   }));
 }
-function renderTaskModal(taskId){
-  tmPendingFiles = [];
+function renderTaskModal(taskId, keepDraft){
+  // keepDraft = true when this is a background refresh (the 60s poll in
+  // loadAllData) of the modal that is already open. Re-rendering rebuilds the
+  // whole modal, which would wipe whatever the user is typing, so capture the
+  // draft first and put it back after the new HTML is in place.
+  let draft = null;
+  if(keepDraft){
+    const oldText = document.getElementById('tm-comment-text');
+    const oldStatus = document.getElementById('tm-status-select');
+    const oldThread = document.getElementById('comment-thread');
+    const body = document.getElementById('tm-body');
+    draft = {
+      text: oldText ? oldText.value : null,
+      focused: !!oldText && document.activeElement === oldText,
+      selStart: oldText ? oldText.selectionStart : 0,
+      selEnd: oldText ? oldText.selectionEnd : 0,
+      textScroll: oldText ? oldText.scrollTop : 0,
+      status: oldStatus ? oldStatus.value : null,
+      threadScroll: oldThread ? oldThread.scrollTop : 0,
+      threadAtBottom: oldThread ? (oldThread.scrollHeight - oldThread.scrollTop - oldThread.clientHeight < 8) : false,
+      bodyScroll: body ? body.scrollTop : 0
+    };
+  }
+  if(!keepDraft) tmPendingFiles = [];
   const v = taskById(taskId);
   if(!v){ document.getElementById('tm-body').innerHTML = '<p class="empty-note">This task could not be found — it may have been removed.</p>'; return; }
   document.getElementById('tm-taskid').textContent = taskNumberValue(v) ? ('#' + taskNumberValue(v)) : '';
@@ -3472,6 +3494,24 @@ function renderTaskModal(taskId){
     renderTmPendingFiles();
   });
   renderTmPendingFiles();
+
+  if(draft){
+    const newText = document.getElementById('tm-comment-text');
+    if(newText && draft.text){
+      newText.value = draft.text;
+      newText.scrollTop = draft.textScroll;
+      if(draft.focused){
+        newText.focus();
+        try{ newText.setSelectionRange(draft.selStart, draft.selEnd); }catch(e){}
+      }
+    }
+    const newStatus = document.getElementById('tm-status-select');
+    if(newStatus && draft.status !== null && newStatus.querySelector('option[value="'+draft.status+'"]')) newStatus.value = draft.status;
+    const newThread = document.getElementById('comment-thread');
+    if(newThread) newThread.scrollTop = draft.threadAtBottom ? newThread.scrollHeight : draft.threadScroll;
+    const newBody = document.getElementById('tm-body');
+    if(newBody) newBody.scrollTop = draft.bodyScroll;
+  }
 
   const commentSend = document.getElementById('tm-comment-send');
   if(commentSend) commentSend.addEventListener('click', async ()=>{
