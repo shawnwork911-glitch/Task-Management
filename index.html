@@ -5255,7 +5255,7 @@ function ropsPopulateCountries(){
   const typeSel=document.getElementById('rops-type');
   const companyEl=document.getElementById('rops-company-name');
   const masterEl=document.getElementById('rops-master-company');
-  const countries=registry ? ['MY','SG','VN','OTHER'] : [];
+  const countries=registry ? ['MY','SG','ID','VN','OTHER'] : [];
   countrySel.innerHTML='<option value="">Select country...</option>'+countries.map(c=>'<option value="'+ropsEsc(c)+'">'+ropsEsc(ROPS_COUNTRY_NAMES[c]||c)+'</option>').join('');
   countrySel.value='';
   typeSel.innerHTML='<option value="">Select type...</option>';
@@ -6014,7 +6014,7 @@ async function ropsBulkParseZip(file){
 }
 
 function ropsBulkPopulateCountrySelect(sel,registry){
-  const countries=registry ? ['MY','SG','VN','OTHER'] : [];
+  const countries=registry ? ['MY','SG','ID','VN','OTHER'] : [];
   sel.innerHTML='<option value="">Select country...</option>'+countries.map(c=>'<option value="'+ropsEsc(c)+'">'+ropsEsc(ROPS_COUNTRY_NAMES[c]||c)+'</option>').join('');
   sel.disabled=!registry;
 }
@@ -6027,7 +6027,7 @@ function ropsBulkCompanyDocs(c){
   return (c.registry && c.country && c.type && ROPS_RENAME_CHECKLISTS[c.registry] && ROPS_RENAME_CHECKLISTS[c.registry][c.country] && ROPS_RENAME_CHECKLISTS[c.registry][c.country][c.type]) || [];
 }
 function ropsBulkCountryOptionsHtml(registry,selected){
-  const countries=registry ? ['MY','SG','VN','OTHER'] : [];
+  const countries=registry ? ['MY','SG','ID','VN','OTHER'] : [];
   return '<option value="">Select country...</option>'+countries.map(c=>'<option value="'+ropsEsc(c)+'"'+(c===selected?' selected':'')+'>'+ropsEsc(ROPS_COUNTRY_NAMES[c]||c)+'</option>').join('');
 }
 function ropsBulkTypeOptionsHtml(registry,country,selected){
