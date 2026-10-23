@@ -6928,9 +6928,67 @@ ropsPopulateCountries();
 ropsUpdateFileDetailsFlow();
 
 // When the shared sign-in finishes, resolve the two Registry Ops destinations/source lazily in the background.
+/* One-time clean-up of saved folder locations (activity log + Review
+   Documentation tasks) after folders were moved out of "Bulk ZIP" and/or
+   renamed from the long company name to the 3-letter code format:
+     Bulk ZIP/SIP_TIGR_ID_SOLAR                      -> SIP_TIGR_ID_SOLAR
+     PT_Investasi_Hijau_Satu_TIGR_ID_SOLAR           -> IHS_TIGR_ID_SOLAR
+   A location is rewritten ONLY if the new folder really exists in SharePoint. */
+const ROPS_LEGACY_BULK_PREFIX='Bulk ZIP/';
+async function ropsFixLegacyBulkZipLocations(){
+  const existsCache={};
+  async function folderExists(folder){
+    if(!(folder in existsCache)){
+      try{ existsCache[folder]=(await ropsListFolderFiles(folder)).length>0; }catch(e){ existsCache[folder]=false; }
+    }
+    return existsCache[folder];
+  }
+  // Returns the current-format folder for a saved one, or null if unchanged / not found.
+  async function modernFolder(saved, companyHint){
+    let f=String(saved||'').trim(); if(!f) return null;
+    if(f.startsWith(ROPS_LEGACY_BULK_PREFIX)) f=f.slice(ROPS_LEGACY_BULK_PREFIX.length);
+    const segs=f.split('/'); const sub=segs.pop(); const prefix=segs.length ? segs.join('/')+'/' : '';
+    const parts=sub.split('_');
+    let candidate=f;
+    if(parts.length>=4){
+      const tail=parts.slice(-3).join('_');                    // Registry_Country_Type
+      const namePart=parts.slice(0,-3).join(' ');
+      const code=ropsCompanyCode(companyHint || namePart);
+      candidate=prefix+code+'_'+tail;
+    }
+    if(candidate===saved) return null;
+    return (await folderExists(candidate)) ? candidate : null;
+  }
+  let logFixed=0, taskFixed=0;
+  // 1) Activity log (this user's browser)
+  for(const e of ropsActivityLog){
+    const nf=await modernFolder(e.folder, '');
+    if(nf){ e.folder=nf; e.webUrl=''; logFixed++; }
+  }
+  if(logFixed){ ropsSaveActivityLog(); ropsRenderActivityLog(); }
+  // 2) Review Documentation tasks in the shared task list
+  const base=ropsRenameDisplay('');                            // "BD Usage / Asset Document Rename & File"
+  for(const t of (taskItemsCache||[])){
+    if(t.Title!=='Review Documentation') continue;
+    const d=String(t.Description||'');
+    const lineM=d.match(/SharePoint folder: BD Usage \/ Asset Document Rename & File \/ ([^\n]+)/);
+    if(!lineM) continue;
+    const oldFolder=lineM[1].trim();
+    const companyM=d.match(/^Company: ([^\n]+)/m);
+    const nf=await modernFolder(oldFolder, companyM ? companyM[1].trim() : '');
+    if(!nf) continue;
+    const updated=d.replace(lineM[0],'SharePoint folder: '+base+' / '+nf);
+    try{
+      await updateListItem(MAIN_LIST_NAME, t.id, {'Description':updated});
+      t.Description=updated; taskFixed++;
+    }catch(err){ console.warn('Could not update task location for task '+t.id, err); }
+  }
+  if(logFixed||taskFixed) console.info('Folder clean-up: '+logFixed+' log entr(ies), '+taskFixed+' task(s) updated.');
+}
 async function registryInit(){
   ropsLoadActivityLog();
   try{ await ropsResolveBdDrive(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
+  try{ if(!(taskItemsCache||[]).length){ await new Promise(r=>setTimeout(r,2500)); } await ropsFixLegacyBulkZipLocations(); }catch(e){ console.warn('Bulk ZIP clean-up skipped', e); }
   try{ await ropsResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('rops-autofill-conn').textContent='Excel source: not resolved'; }
   try{ await bookingResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('booking-conn').textContent='Excel source: not resolved'; }
 }
