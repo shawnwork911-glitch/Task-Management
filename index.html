@@ -5297,8 +5297,88 @@ function ropsOnCompanyInput(){
 }
 function ropsSafeNamePart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/\s+/g,'_'); }
 function ropsSafeFolderPart(s){ return String(s||'').trim().replace(/[\/:*?"<>|]+/g,'-').replace(/[. ]+$/g,''); }
+/* ---- Folder-code collision protection ----
+   Two different companies can produce the same 3-letter code. Each company
+   folder carries an empty marker file "_company__<Company_Name>.txt" recording
+   who owns it. Before filing, the owner is compared with the current company:
+   same -> fine; different -> user must choose another 3-letter code. */
+const ROPS_OWNER_PREFIX='_company__';
+let ropsCodeOverrides={};
+try{ ropsCodeOverrides=JSON.parse(localStorage.getItem('rops_code_overrides')||'{}')||{}; }catch(e){ ropsCodeOverrides={}; }
+const ropsMarkedFolders=new Set();
+function ropsNormCompany(n){ return String(n||'').toLowerCase().replace(/^\d+\s*[.)-]\s*/,'').replace(/[^a-z0-9]/g,''); }
+function ropsSetCodeOverride(company,code){
+  ropsCodeOverrides[ropsNormCompany(company)]=String(code).toUpperCase();
+  try{ localStorage.setItem('rops_code_overrides',JSON.stringify(ropsCodeOverrides)); }catch(e){}
+}
+function ropsSuggestAltCode(company,current){
+  const letters=ropsNormCompany(company).replace(/[^a-z]/g,'').toUpperCase();
+  const base=String(current||'').slice(0,2);
+  for(const ch of letters){ const cand=base+ch; if(cand!==current) return cand; }
+  return base+'2';
+}
+// pendingOwnerFn(folder) -> company name already queued for that folder (or '')
+async function ropsResolveFolderOwner(c, interactive, pendingOwnerFn){
+  for(let attempt=0; attempt<6; attempt++){
+    const folder=ropsFolderName(c);
+    const code=ropsCompanyCode(c.company);
+    let owner='', legacyCount=0;
+    const pend=pendingOwnerFn ? pendingOwnerFn(folder) : '';
+    if(pend && ropsNormCompany(pend)!==ropsNormCompany(c.company)) owner=pend;
+    if(!owner){
+      const files=await ropsListFolderFiles(folder);
+      if(!files.length) return {folder,status:'new'};
+      const marker=files.find(f=>f.file && String(f.name||'').startsWith(ROPS_OWNER_PREFIX));
+      if(marker){
+        const o=String(marker.name).slice(ROPS_OWNER_PREFIX.length).replace(/\.txt$/i,'');
+        if(ropsNormCompany(o)===ropsNormCompany(c.company)) return {folder,status:'ok'};
+        owner=o.replace(/_/g,' ');
+      }else{
+        legacyCount=files.length;
+        if(!interactive) return {folder,status:'legacy'};
+        if(confirm('Folder "'+ropsRenameDisplay(folder)+'" already has '+legacyCount+' file(s) but no company record.\n\nIs it for "'+c.company+'"?\n\nOK = yes, same company\nCancel = no, use a different code')) return {folder,status:'legacy'};
+        owner='(unknown company)';
+      }
+    }
+    if(!interactive) return {folder,status:'collision',owner};
+    const entered=prompt('Code collision: folder "'+folder.split('/').pop()+'" already belongs to "'+owner+'", not "'+c.company+'".\n\nEnter a different 3-letter code for "'+c.company+'":',ropsSuggestAltCode(c.company,code));
+    if(entered===null) return {folder,status:'cancelled',owner};
+    if(!/^[A-Za-z0-9]{3}$/.test(entered.trim())){ alert('The code must be exactly 3 letters/numbers.'); continue; }
+    if(entered.trim().toUpperCase()===code){ alert('That is the same code that collided. Choose a different one.'); continue; }
+    ropsSetCodeOverride(c.company,entered.trim());
+  }
+  return {folder:ropsFolderName(c),status:'cancelled',owner:''};
+}
+async function ropsMarkFolderOwner(folder, company){
+  if(ropsMarkedFolders.has(folder)) return;
+  try{
+    const safe=ropsSafeFolderPart(ropsSafeNamePart(company)).slice(0,100)||'company';
+    await ropsUploadBlob(ropsRenamePath(folder), ROPS_OWNER_PREFIX+safe+'.txt', new Blob([''],{type:'text/plain'}), 'text/plain');
+    ropsMarkedFolders.add(folder);
+  }catch(err){ console.error('Could not write folder owner marker for '+folder, err); }
+}
+function ropsCompanyCode(name){
+  const ov=ropsCodeOverrides[ropsNormCompany(name)]; if(ov) return ov;
+  // Folder code = 3 letters. Already a 3-letter code (e.g. "APL") -> keep it.
+  // Otherwise: first letter of the first 3 meaningful words, skipping legal
+  // suffixes/prefixes (PT, Pte, Ltd, Sdn, Bhd...) and leading numbering ("1.").
+  // A single-word name uses its first 3 letters.
+  const raw=String(name||'').trim().replace(/^\d+\s*[.)-]\s*/,'');
+  if(/^[A-Za-z]{3}$/.test(raw)) return raw.toUpperCase();
+  const skip=new Set(['PT','PTE','LTD','LIMITED','SDN','BHD','INC','CORP','CORPORATION','CO','LLC','LLP','PLC','THE','AND','OF','CV','TBK']);
+  let words=raw.replace(/[^A-Za-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
+  const core=words.filter(w=>!skip.has(w.toUpperCase()));
+  if(core.length) words=core;
+  let code;
+  if(words.length===1) code=words[0].slice(0,3);
+  else{
+    code=words.slice(0,3).map(w=>w[0]).join('');
+    if(code.length<3) code=(code+words[0].slice(1)).slice(0,3); // 2-word names: pad from first word
+  }
+  return (code||'CMP').toUpperCase();
+}
 function ropsFolderName(c){
-  const sub=ropsSafeNamePart(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type);
+  const sub=ropsCompanyCode(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type);
   return c.master ? ropsSafeFolderPart(c.master)+'/'+sub : sub;
 }
 function ropsBuildFilename(file, category, index){
@@ -5562,9 +5642,16 @@ async function ropsCheckExistingFolder(){
   if(!(c.company&&c.registry&&c.country&&c.type&&docs.length)) return;
   const key=ropsContextKey(); ropsChecklistContextKey=key;
   const btn=document.getElementById('rops-check-folder'); btn.disabled=true;
-  const folderName=ropsFolderName(c);
+  let folderName=ropsFolderName(c);
   ropsShowStatus('rops-folder-status','Checking '+ropsRenameDisplay(folderName)+' for existing required documents…',true);
   try{
+    const own=await ropsResolveFolderOwner(c,true);
+    if(ropsContextKey()!==key) return;
+    if(own.status==='cancelled'||own.status==='collision'){
+      ropsShowStatus('rops-folder-status','Folder code collision: '+ropsRenameDisplay(own.folder)+' belongs to "'+(own.owner||'another company')+'". Choose a different 3-letter code before uploading (press Check folder again).',false);
+      return;
+    }
+    folderName=own.folder;
     const files=await ropsListFolderFiles(folderName);
     if(ropsContextKey()!==key) return;
     ropsExistingCategoryFiles={};
@@ -5654,6 +5741,7 @@ async function ropsDownloadCurrentFolder(){
       if(String(err&&err.message||err).includes('Graph 404')) files=[];
       else throw err;
     }
+    files=files.filter(f=>!String(f.name||f.zipPath||'').split('/').pop().startsWith(ROPS_OWNER_PREFIX));
     if(!files.length){
       ropsShowStatus('rops-folder-status','No files found in '+ropsRenameDisplay(folder)+' yet.',false); return;
     }
@@ -5796,10 +5884,16 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
   let uploadError=null;
 
   try{
+    const ownCheck=await ropsResolveFolderOwner(ropsCurrentContext(),false);
+    if(ownCheck.status==='collision'){
+      ropsShowStatus('rops-upload-status','Upload blocked: folder code collision with "'+ownCheck.owner+'". Re-select the company details to choose a different code.',false);
+      btn.disabled=false; return;
+    }
     for(const item of batchItems){
       ropsShowStatus('rops-upload-status','Uploading '+(done+1)+' of '+total+': '+item.renamed,true);
       try{
         const uploadRes=await ropsUploadBlob(ropsRenamePath(item.folder), item.renamed, item.file, item.file.type||'application/octet-stream');
+        await ropsMarkFolderOwner(item.folder, item.company||companyAtStart);
         uploadedItems.push(item);
         ropsAppendLog(item, uploadRes && uploadRes.webUrl);
         done++;
@@ -5996,7 +6090,8 @@ async function ropsBulkParseZip(file){
       }];
       ropsShowStatus(statusEl,'No subfolders found in '+file.name+' — treating it as a single company ("'+baseName+'") with '+rootFiles.length+' file(s). Master Company was left blank; fill it in only if this company belongs to a group.',true);
     }else{
-      if(!masterInput.value.trim()) masterInput.value=baseName;
+      // Do NOT default Master Company to the zip name: that created a stray
+      // 'Bulk ZIP' folder. Company folders go straight under the main folder.
       ropsBulkCompanies=companyNames.map((name,idx)=>({
         idx, name, registry:'', country:'', type:'', mapping:{},
         files:byCompany[name].map((f,fi)=>({key:'f'+idx+'_'+fi,name:f.path.split('/').pop(),relPath:f.path,entry:f.entry}))
@@ -6178,10 +6273,26 @@ async function ropsBulkAddCompanyToQueue(idx){
     ropsShowStatus('rops-bulk-parse-status','Complete Company Name, Registry, Country and Type for "'+(company||'this company')+'" first.',false);
     return;
   }
-  const folder=ropsFolderName({company,master,registry:c.registry,country:c.country,type:c.type});
+  let folder=ropsFolderName({company,master,registry:c.registry,country:c.country,type:c.type});
+  let existingFiles=[];
+  try{
+    const own=await ropsResolveFolderOwner({company,master,registry:c.registry,country:c.country,type:c.type},true,
+      f=>{ const q=ropsBulkQueue.find(x=>x.folder===f); return q ? q.company : ''; });
+    if(own.status==='cancelled'||own.status==='collision'){
+      ropsShowStatus('rops-bulk-parse-status','Folder code collision for "'+company+'" ('+own.folder.split('/').pop()+' belongs to "'+(own.owner||'another company')+'"). Not added — choose a different 3-letter code and click Add again.',false);
+      return;
+    }
+    folder=own.folder;
+    existingFiles=await ropsListFolderFiles(folder);
+  }
+  catch(err){ console.error(err); ropsShowStatus('rops-bulk-parse-status','Could not check '+ropsRenameDisplay(folder)+' for existing files. '+err.message,false); return; }
+  const skipped=[];
   const entries=[];
   Object.keys(c.mapping).forEach(cat=>{
     const storageCat=ropsCategoryStorageName(cat);
+    const catKey=ropsSafeNamePart(storageCat).toLowerCase();
+    const already=existingFiles.some(f=>{ const n=String(f.name||'').toLowerCase(); return n.startsWith(catKey+'.')||n.startsWith(catKey+'_'); });
+    if(already && (c.mapping[cat]||[]).length){ skipped.push(storageCat); return; }
     const alreadyInQueue=ropsBulkQueue.filter(x=>x.folder===folder && ropsCategoryStorageName(x.category)===storageCat).length;
     (c.mapping[cat]||[]).forEach((key,i)=>{
       const f=c.files.find(x=>x.key===key);
@@ -6189,7 +6300,7 @@ async function ropsBulkAddCompanyToQueue(idx){
     });
   });
   if(!entries.length){
-    ropsShowStatus('rops-bulk-parse-status','No files are mapped for "'+company+'" yet.',false);
+    ropsShowStatus('rops-bulk-parse-status',skipped.length ? 'Everything mapped for "'+company+'" already exists in '+ropsRenameDisplay(folder)+' (skipped: '+skipped.join(', ')+').' : 'No files are mapped for "'+company+'" yet.',skipped.length>0);
     return;
   }
   ropsShowStatus('rops-bulk-parse-status','Preparing '+entries.length+' file(s) for '+company+'…',true);
@@ -6204,7 +6315,7 @@ async function ropsBulkAddCompanyToQueue(idx){
       });
     }
     ropsRenderBulkQueue();
-    ropsShowStatus('rops-bulk-parse-status','Added '+entries.length+' file(s) for '+company+' to the bulk upload queue.',true);
+    ropsShowStatus('rops-bulk-parse-status','Added '+entries.length+' file(s) for '+company+' to the bulk upload queue.'+(skipped.length?' Already in SharePoint, skipped: '+skipped.join(', ')+'.':''),true);
   }catch(err){
     console.error(err);
     ropsShowStatus('rops-bulk-parse-status','Could not prepare files for '+company+'. '+err.message,false);
@@ -6269,6 +6380,7 @@ document.getElementById('rops-bulk-upload-all').addEventListener('click',async()
       ropsShowStatus('rops-bulk-upload-status','Uploading '+(done+1)+' of '+total+': '+item.company+' / '+item.renamed,true);
       try{
         const uploadRes=await ropsUploadBlob(ropsRenamePath(item.folder),item.renamed,item.file,item.file.type||'application/octet-stream');
+        await ropsMarkFolderOwner(item.folder, item.company);
         uploadedItems.push(item);
         ropsAppendLog(item, uploadRes && uploadRes.webUrl);
         done++;
