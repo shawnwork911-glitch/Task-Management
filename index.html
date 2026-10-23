@@ -917,6 +917,13 @@
             <div id="rops-required-list"><p class="empty-note" style="padding:12px;">Select Registry, Country and Type to load the required document checklist.</p></div>
           </div>
           <div class="rops-status" id="rops-folder-status"></div>
+          <details style="margin-top:12px;">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600;">Company names (code → full name, shared)</summary>
+            <p class="rops-note" style="margin:8px 0;">One per line, e.g. <code>SIP = Sun Island Power Sdn Bhd</code>. Saved to SharePoint so everyone sees the same names; used on Review Documentation tasks, and existing tasks are updated when you save.</p>
+            <textarea id="rops-directory-text" rows="8" style="width:100%;box-sizing:border-box;" placeholder="SIP = Sun Island Power Sdn Bhd"></textarea>
+            <div style="margin-top:8px;"><button type="button" class="secondary small-btn" id="rops-directory-save">Save company names</button></div>
+            <div class="rops-status" id="rops-directory-status"></div>
+          </details>
         </div>
         <div class="card">
           <p class="card-title">Upload queue</p>
@@ -5311,6 +5318,76 @@ function ropsSetCodeOverride(company,code){
   ropsCodeOverrides[ropsNormCompany(company)]=String(code).toUpperCase();
   try{ localStorage.setItem('rops_code_overrides',JSON.stringify(ropsCodeOverrides)); }catch(e){}
 }
+/* Company directory: 3-letter code -> full company name, so tasks show
+   "Sun Island Power" instead of "SIP". The source of truth is a shared JSON file
+   in SharePoint (<Asset Document Rename & File>/_company_directory.json) so every
+   user sees the same names; localStorage is only an offline cache. */
+const ROPS_DIRECTORY_FILE='_company_directory.json';
+let ropsFullNames={};
+try{ ropsFullNames=JSON.parse(localStorage.getItem('rops_company_fullnames')||'{}')||{}; }catch(e){ ropsFullNames={}; }
+function ropsCacheDirectory(){ try{ localStorage.setItem('rops_company_fullnames',JSON.stringify(ropsFullNames)); }catch(e){} }
+function ropsFullNameFor(codeOrName){ return ropsFullNames[ropsNormCompany(codeOrName)]||''; }
+async function ropsReadSharedDirectory(){
+  const driveId=await ropsResolveBdDrive();
+  const token=await getAccessToken(GRAPH_SCOPES);
+  const res=await fetch('https://graph.microsoft.com/v1.0/drives/'+driveId+'/root:/'+ropsEncodePath(ropsRenamePath('')+'/'+ROPS_DIRECTORY_FILE)+':/content',{headers:{'Authorization':'Bearer '+token}});
+  if(res.status===404) return {};
+  if(!res.ok) throw new Error('Graph '+res.status+' reading company directory');
+  const obj=JSON.parse(await res.text()||'{}');
+  return (obj && typeof obj==='object') ? obj : {};
+}
+async function ropsWriteSharedDirectory(obj){
+  await ropsUploadBlob(ropsRenamePath(''), ROPS_DIRECTORY_FILE, new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}), 'application/json');
+}
+// Pull the shared directory (shared names win over this browser's cache).
+async function ropsLoadSharedDirectory(){
+  const shared=await ropsReadSharedDirectory();
+  ropsFullNames=Object.assign({}, ropsFullNames, shared);
+  ropsCacheDirectory();
+  ropsRenderDirectoryEditor();
+}
+// Add one name: read shared file, merge, write back (so concurrent users don't overwrite each other).
+async function ropsRememberFullName(codeOrName, full){
+  const f=String(full||'').trim(); if(!f) return;
+  let key=ropsNormCompany(codeOrName);
+  if(key.length>3) key=ropsNormCompany(ropsCompanyCode(f));
+  if(ropsFullNames[key]===f) return;
+  ropsFullNames[key]=f; ropsCacheDirectory();
+  try{
+    const shared=await ropsReadSharedDirectory();
+    if(shared[key]!==f){ shared[key]=f; await ropsWriteSharedDirectory(shared); }
+  }catch(err){ console.warn('Company directory not saved to SharePoint', err); }
+  ropsRenderDirectoryEditor();
+}
+function ropsDirectoryToText(){
+  return Object.keys(ropsFullNames).sort().map(k=>k.toUpperCase()+' = '+ropsFullNames[k]).join('\n');
+}
+function ropsRenderDirectoryEditor(){
+  const ta=document.getElementById('rops-directory-text'); if(!ta || document.activeElement===ta) return;
+  ta.value=ropsDirectoryToText();
+}
+async function ropsSaveDirectoryFromEditor(){
+  const ta=document.getElementById('rops-directory-text'); if(!ta) return;
+  const btn=document.getElementById('rops-directory-save'); btn.disabled=true;
+  const next={}; const bad=[];
+  ta.value.split(/\r?\n/).forEach((line,i)=>{
+    if(!line.trim()) return;
+    const m=line.match(/^\s*([^=]+?)\s*=\s*(.+?)\s*$/);
+    const key=m ? ropsNormCompany(m[1]) : '';
+    if(!m || !key){ bad.push(i+1); return; }
+    next[key]=m[2];
+  });
+  if(bad.length){ ropsShowStatus('rops-directory-status','Line(s) '+bad.join(', ')+' not understood. Use: CODE = Full company name',false); btn.disabled=false; return; }
+  try{
+    ropsShowStatus('rops-directory-status','Saving to SharePoint…',true);
+    await ropsWriteSharedDirectory(next);
+    ropsFullNames=next; ropsCacheDirectory();
+    ropsShowStatus('rops-directory-status','Saved '+Object.keys(next).length+' company name(s). Updating existing tasks…',true);
+    let fixed=0; try{ fixed=await ropsFixLegacyBulkZipLocations(); }catch(e){ console.warn(e); }
+    ropsShowStatus('rops-directory-status','Saved '+Object.keys(next).length+' company name(s) to SharePoint.'+(fixed?' Updated '+fixed+' existing task(s)/log entr(ies).':''),true);
+  }catch(err){ console.error(err); ropsShowStatus('rops-directory-status','Could not save: '+err.message,false); }
+  btn.disabled=false;
+}
 function ropsSuggestAltCode(company,current){
   const letters=ropsNormCompany(company).replace(/[^a-z]/g,'').toUpperCase();
   const base=String(current||'').slice(0,2);
@@ -5328,11 +5405,14 @@ async function ropsResolveFolderOwner(c, interactive, pendingOwnerFn){
     if(!owner){
       const files=await ropsListFolderFiles(folder);
       if(!files.length) return {folder,status:'new'};
-      const marker=files.find(f=>f.file && String(f.name||'').startsWith(ROPS_OWNER_PREFIX));
-      if(marker){
-        const o=String(marker.name).slice(ROPS_OWNER_PREFIX.length).replace(/\.txt$/i,'');
-        if(ropsNormCompany(o)===ropsNormCompany(c.company)) return {folder,status:'ok'};
-        owner=o.replace(/_/g,' ');
+      const me=ropsNormCompany(c.ownerName||c.company);
+      const owners=files.filter(f=>f.file && String(f.name||'').startsWith(ROPS_OWNER_PREFIX))
+        .map(f=>String(f.name).slice(ROPS_OWNER_PREFIX.length).replace(/\.txt$/i,''));
+      if(owners.some(o=>ropsNormCompany(o)===me)) return {folder,status:'ok'};
+      // A marker holding only a bare 3-letter code (written by bulk upload) cannot prove identity.
+      const named=owners.filter(o=>ropsNormCompany(o).length>3);
+      if(named.length){
+        owner=named[0].replace(/_/g,' ');
       }else{
         legacyCount=files.length;
         if(!interactive) return {folder,status:'legacy'};
@@ -5894,6 +5974,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
       try{
         const uploadRes=await ropsUploadBlob(ropsRenamePath(item.folder), item.renamed, item.file, item.file.type||'application/octet-stream');
         await ropsMarkFolderOwner(item.folder, item.company||companyAtStart);
+        ropsRememberFullName(ropsCompanyCode(item.company||companyAtStart), item.company||companyAtStart);  // async, non-blocking
         uploadedItems.push(item);
         ropsAppendLog(item, uploadRes && uploadRes.webUrl);
         done++;
@@ -6140,7 +6221,8 @@ function ropsBulkRenderCompanies(){
     '<div class="rops-bulk-company-card" data-bulk-card="'+c.idx+'">'+
       '<div class="rops-bulk-company-head">'+
         '<div class="grid">'+
-          '<div><label>Company Name</label><input type="text" data-bulk-field="name" data-bulk-idx="'+c.idx+'" value="'+ropsEsc(c.name)+'"></div>'+
+          '<div><label>Company Name <span style="opacity:.65">(folder code, e.g. SIP)</span></label><input type="text" data-bulk-field="name" data-bulk-idx="'+c.idx+'" value="'+ropsEsc(c.name)+'"></div>'+
+          '<div><label>Full company name <span style="opacity:.65">(shown on task)</span></label><input type="text" data-bulk-field="fullName" data-bulk-idx="'+c.idx+'" placeholder="e.g. Sun Island Power Sdn Bhd" value="'+ropsEsc(c.fullName||ropsFullNameFor(c.name))+'"></div>'+
           '<div><label>Registry</label><select data-bulk-field="registry" data-bulk-idx="'+c.idx+'"'+(ropsBulkSharedMode?' disabled':'')+'><option value="">Select registry...</option><option value="I-REC"'+(c.registry==='I-REC'?' selected':'')+'>I-REC</option><option value="TIGR"'+(c.registry==='TIGR'?' selected':'')+'>TIGR</option></select></div>'+
           '<div><label>Country</label><select data-bulk-field="country" data-bulk-idx="'+c.idx+'"'+((!c.registry||ropsBulkSharedMode)?' disabled':'')+'>'+ropsBulkCountryOptionsHtml(c.registry,c.country)+'</select></div>'+
           '<div><label>Type</label><select data-bulk-field="type" data-bulk-idx="'+c.idx+'"'+((!(c.registry&&c.country)||ropsBulkSharedMode)?' disabled':'')+'>'+ropsBulkTypeOptionsHtml(c.registry,c.country,c.type)+'</select></div>'+
@@ -6163,6 +6245,10 @@ function ropsBulkRenderCompanies(){
     const idx=Number(btn.getAttribute('data-bulk-remove'));
     ropsBulkCompanies=ropsBulkCompanies.filter(c=>c.idx!==idx);
     ropsBulkRenderCompanies();
+  }));
+  wrap.querySelectorAll('[data-bulk-field="fullName"]').forEach(inp=>inp.addEventListener('input',()=>{
+    const c=ropsBulkCompanies.find(x=>x.idx===Number(inp.getAttribute('data-bulk-idx')));
+    if(c) c.fullName=inp.value;
   }));
   wrap.querySelectorAll('[data-bulk-field="name"]').forEach(inp=>inp.addEventListener('input',()=>{
     const c=ropsBulkCompanies.find(x=>x.idx===Number(inp.getAttribute('data-bulk-idx')));
@@ -6273,10 +6359,11 @@ async function ropsBulkAddCompanyToQueue(idx){
     ropsShowStatus('rops-bulk-parse-status','Complete Company Name, Registry, Country and Type for "'+(company||'this company')+'" first.',false);
     return;
   }
+  const fullName=String(c.fullName||ropsFullNameFor(company)||'').trim()||company;
   let folder=ropsFolderName({company,master,registry:c.registry,country:c.country,type:c.type});
   let existingFiles=[];
   try{
-    const own=await ropsResolveFolderOwner({company,master,registry:c.registry,country:c.country,type:c.type},true,
+    const own=await ropsResolveFolderOwner({company,ownerName:fullName,master,registry:c.registry,country:c.country,type:c.type},true,
       f=>{ const q=ropsBulkQueue.find(x=>x.folder===f); return q ? q.company : ''; });
     if(own.status==='cancelled'||own.status==='collision'){
       ropsShowStatus('rops-bulk-parse-status','Folder code collision for "'+company+'" ('+own.folder.split('/').pop()+' belongs to "'+(own.owner||'another company')+'"). Not added — choose a different 3-letter code and click Add again.',false);
@@ -6310,7 +6397,7 @@ async function ropsBulkAddCompanyToQueue(idx){
       const renamed=ropsBuildFilename({name:e.fileMeta.name},ropsCategoryStorageName(e.category),e.offset);
       const fileObj=new File([blob], e.fileMeta.name, {type:blob.type||''});
       ropsBulkQueue.push({
-        file:fileObj, renamed, company, master, registry:c.registry, country:c.country, type:c.type,
+        file:fileObj, renamed, company, companyFull:fullName, master, registry:c.registry, country:c.country, type:c.type,
         category:e.category, folder, uid:'b'+(++ropsBulkUidCounter)
       });
     }
@@ -6380,7 +6467,8 @@ document.getElementById('rops-bulk-upload-all').addEventListener('click',async()
       ropsShowStatus('rops-bulk-upload-status','Uploading '+(done+1)+' of '+total+': '+item.company+' / '+item.renamed,true);
       try{
         const uploadRes=await ropsUploadBlob(ropsRenamePath(item.folder),item.renamed,item.file,item.file.type||'application/octet-stream');
-        await ropsMarkFolderOwner(item.folder, item.company);
+        await ropsMarkFolderOwner(item.folder, item.companyFull||item.company);
+        if(item.companyFull && item.companyFull!==item.company) ropsRememberFullName(item.company, item.companyFull);
         uploadedItems.push(item);
         ropsAppendLog(item, uploadRes && uploadRes.webUrl);
         done++;
@@ -6395,7 +6483,7 @@ document.getElementById('rops-bulk-upload-all').addEventListener('click',async()
       // uploaded this run (mirrors the single-upload flow's one-task-per-batch
       // behaviour, just grouped across the several companies/folders involved).
       const byFolder={};
-      uploadedItems.forEach(item=>{ (byFolder[item.folder]=byFolder[item.folder]||{company:item.company,items:[]}).items.push(item); });
+      uploadedItems.forEach(item=>{ (byFolder[item.folder]=byFolder[item.folder]||{company:item.companyFull||item.company,items:[]}).items.push(item); });
       let taskErrors=0;
       for(const folder of Object.keys(byFolder)){
         try{ await ropsCreateReviewDocumentationTask(byFolder[folder].company, folder, byFolder[folder].items); }
@@ -6926,6 +7014,8 @@ document.getElementById('rops-save-sp-btn').addEventListener('click',async()=>{
 
 ropsPopulateCountries();
 ropsUpdateFileDetailsFlow();
+document.getElementById('rops-directory-save').addEventListener('click',ropsSaveDirectoryFromEditor);
+ropsRenderDirectoryEditor();
 
 // When the shared sign-in finishes, resolve the two Registry Ops destinations/source lazily in the background.
 /* One-time clean-up of saved folder locations (activity log + Review
@@ -6983,11 +7073,25 @@ async function ropsFixLegacyBulkZipLocations(){
       t.Description=updated; taskFixed++;
     }catch(err){ console.warn('Could not update task location for task '+t.id, err); }
   }
+  // 3) Old tasks whose Company is only a 3-letter code: show the full name if known
+  for(const t of (taskItemsCache||[])){
+    if(t.Title!=='Review Documentation') continue;
+    const cur=String(t['Company Name']||'').trim();
+    if(!cur || ropsNormCompany(cur).length>3) continue;
+    const full=ropsFullNameFor(cur); if(!full || full===cur) continue;
+    const d=String(t.Description||'').replace(/^Company: [^\n]*/m,'Company: '+full);
+    try{
+      await updateListItem(MAIN_LIST_NAME, t.id, {'Company Name':full,'Description':d});
+      t['Company Name']=full; t.Description=d; taskFixed++;
+    }catch(err){ console.warn('Could not update company name on task '+t.id, err); }
+  }
   if(logFixed||taskFixed) console.info('Folder clean-up: '+logFixed+' log entr(ies), '+taskFixed+' task(s) updated.');
+  return logFixed+taskFixed;
 }
 async function registryInit(){
   ropsLoadActivityLog();
   try{ await ropsResolveBdDrive(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
+  try{ await ropsLoadSharedDirectory(); }catch(e){ console.warn('Company directory not loaded', e); }
   try{ if(!(taskItemsCache||[]).length){ await new Promise(r=>setTimeout(r,2500)); } await ropsFixLegacyBulkZipLocations(); }catch(e){ console.warn('Bulk ZIP clean-up skipped', e); }
   try{ await ropsResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('rops-autofill-conn').textContent='Excel source: not resolved'; }
   try{ await bookingResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('booking-conn').textContent='Excel source: not resolved'; }
