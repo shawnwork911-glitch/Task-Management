@@ -5323,10 +5323,20 @@ function ropsSetCodeOverride(company,code){
    in SharePoint (<Asset Document Rename & File>/_company_directory.json) so every
    user sees the same names; localStorage is only an offline cache. */
 const ROPS_DIRECTORY_FILE='_company_directory.json';
+// A "code" is 3 letters, optionally followed by a number to tell apart companies that share
+// the letters, e.g. APL, SIP, SAI_175, SAI_750.
+function ropsIsCode(n){ return /^[A-Za-z]{3}([\s_-]?\d{2,4})?$/.test(String(n||'').trim()); }
+function ropsFormatCode(n){ return String(n||'').trim().toUpperCase().replace(/^([A-Z]{3})[\s_-]?(\d{2,4})$/,'$1_$2'); }
+function ropsCodeKey(n){ return ropsFormatCode(n).toLowerCase(); }
+function ropsCodeFromDirectory(fullName){
+  const me=ropsNormCompany(fullName); if(!me) return '';
+  for(const k of Object.keys(ropsFullNames)){ if(ropsNormCompany(ropsFullNames[k])===me) return ropsFormatCode(k); }
+  return '';
+}
 let ropsFullNames={};
 try{ ropsFullNames=JSON.parse(localStorage.getItem('rops_company_fullnames')||'{}')||{}; }catch(e){ ropsFullNames={}; }
 function ropsCacheDirectory(){ try{ localStorage.setItem('rops_company_fullnames',JSON.stringify(ropsFullNames)); }catch(e){} }
-function ropsFullNameFor(codeOrName){ return ropsFullNames[ropsNormCompany(codeOrName)]||''; }
+function ropsFullNameFor(codeOrName){ return ropsFullNames[ropsCodeKey(codeOrName)]||''; }
 async function ropsReadSharedDirectory(){
   const driveId=await ropsResolveBdDrive();
   const token=await getAccessToken(GRAPH_SCOPES);
@@ -5347,10 +5357,11 @@ async function ropsLoadSharedDirectory(){
   ropsRenderDirectoryEditor();
 }
 // Add one name: read shared file, merge, write back (so concurrent users don't overwrite each other).
-async function ropsRememberFullName(codeOrName, full){
+async function ropsRememberFullName(codeOrName, full, forceKey){
   const f=String(full||'').trim(); if(!f) return;
-  let key=ropsNormCompany(codeOrName);
-  if(key.length>3) key=ropsNormCompany(ropsCompanyCode(f));
+  let key=ropsCodeKey(codeOrName);
+  if(forceKey) key=ropsCodeKey(forceKey);
+  else if(!ropsIsCode(codeOrName)) key=ropsCodeKey(ropsCompanyCode(f));
   if(ropsFullNames[key]===f) return;
   ropsFullNames[key]=f; ropsCacheDirectory();
   try{
@@ -5373,7 +5384,7 @@ async function ropsSaveDirectoryFromEditor(){
   ta.value.split(/\r?\n/).forEach((line,i)=>{
     if(!line.trim()) return;
     const m=line.match(/^\s*([^=]+?)\s*=\s*(.+?)\s*$/);
-    const key=m ? ropsNormCompany(m[1]) : '';
+    const key=m ? ropsCodeKey(m[1]) : '';
     if(!m || !key){ bad.push(i+1); return; }
     next[key]=m[2];
   });
@@ -5410,7 +5421,7 @@ async function ropsResolveFolderOwner(c, interactive, pendingOwnerFn){
         .map(f=>String(f.name).slice(ROPS_OWNER_PREFIX.length).replace(/\.txt$/i,''));
       if(owners.some(o=>ropsNormCompany(o)===me)) return {folder,status:'ok'};
       // A marker holding only a bare 3-letter code (written by bulk upload) cannot prove identity.
-      const named=owners.filter(o=>ropsNormCompany(o).length>3);
+      const named=owners.filter(o=>!ropsIsCode(o.replace(/_/g,' ')) && !ropsIsCode(o));
       if(named.length){
         owner=named[0].replace(/_/g,' ');
       }else{
@@ -5421,11 +5432,15 @@ async function ropsResolveFolderOwner(c, interactive, pendingOwnerFn){
       }
     }
     if(!interactive) return {folder,status:'collision',owner};
-    const entered=prompt('Code collision: folder "'+folder.split('/').pop()+'" already belongs to "'+owner+'", not "'+c.company+'".\n\nEnter a different 3-letter code for "'+c.company+'":',ropsSuggestAltCode(c.company,code));
+    const entered=prompt('Folder name already in use: "'+folder.split('/').pop()+'" belongs to "'+owner+'", not "'+c.company+'".\n\nType your own folder name for "'+c.company+'".\nThis replaces the company part, e.g. SAI_175 gives SAI_175_'+folder.split('/').pop().split('_').slice(-3).join('_')+'\n(letters, numbers, _ or -; 3 to 30 characters):',ropsSuggestAltCode(c.company,code));
     if(entered===null) return {folder,status:'cancelled',owner};
-    if(!/^[A-Za-z0-9]{3}$/.test(entered.trim())){ alert('The code must be exactly 3 letters/numbers.'); continue; }
-    if(entered.trim().toUpperCase()===code){ alert('That is the same code that collided. Choose a different one.'); continue; }
-    ropsSetCodeOverride(c.company,entered.trim());
+    const custom=ropsFormatCode(entered.trim());
+    if(!/^[A-Z0-9][A-Z0-9_-]{1,28}[A-Z0-9]$/.test(custom)){ alert('Use 3 to 30 letters, numbers, _ or - (no spaces or other symbols).'); continue; }
+    if(custom===code){ alert('That is the same name that is already taken. Type a different one.'); continue; }
+    ropsSetCodeOverride(c.company,custom);
+    // Share it, so everyone files this company into the same folder from now on.
+    const shareName=String(c.ownerName||c.company||'').trim();
+    if(shareName && ropsCodeKey(shareName)!==ropsCodeKey(custom)) ropsRememberFullName(custom, shareName, custom);
   }
   return {folder:ropsFolderName(c),status:'cancelled',owner:''};
 }
@@ -5444,7 +5459,8 @@ function ropsCompanyCode(name){
   // suffixes/prefixes (PT, Pte, Ltd, Sdn, Bhd...) and leading numbering ("1.").
   // A single-word name uses its first 3 letters.
   const raw=String(name||'').trim().replace(/^\d+\s*[.)-]\s*/,'');
-  if(/^[A-Za-z]{3}$/.test(raw)) return raw.toUpperCase();
+  if(ropsIsCode(raw)) return ropsFormatCode(raw);
+  const dirCode=ropsCodeFromDirectory(raw); if(dirCode) return dirCode;
   const skip=new Set(['PT','PTE','LTD','LIMITED','SDN','BHD','INC','CORP','CORPORATION','CO','LLC','LLP','PLC','THE','AND','OF','CV','TBK']);
   let words=raw.replace(/[^A-Za-z0-9\s]/g,' ').split(/\s+/).filter(Boolean);
   const core=words.filter(w=>!skip.has(w.toUpperCase()));
@@ -7077,7 +7093,7 @@ async function ropsFixLegacyBulkZipLocations(){
   for(const t of (taskItemsCache||[])){
     if(t.Title!=='Review Documentation') continue;
     const cur=String(t['Company Name']||'').trim();
-    if(!cur || ropsNormCompany(cur).length>3) continue;
+    if(!cur || !ropsIsCode(cur)) continue;
     const full=ropsFullNameFor(cur); if(!full || full===cur) continue;
     const d=String(t.Description||'').replace(/^Company: [^\n]*/m,'Company: '+full);
     try{
