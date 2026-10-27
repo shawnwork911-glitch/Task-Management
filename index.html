@@ -7150,7 +7150,8 @@ async function ropsFixLegacyBulkZipLocations(){
    - Activity log (this user's browser): "Open" links are refreshed from the file's real new location.
    - Review Documentation tasks written in the old shared format (no owner in the path) are rewritten
      to the user's personal path, only if that folder really exists under the user's own folder. */
-async function ropsFixLocationLinks(){
+async function ropsFixLocationLinks(opts){
+  opts=opts||{};
   const me=ropsUserFolder();
   if(!me) throw new Error('Sign in first.');
   const cache={};
@@ -7162,35 +7163,72 @@ async function ropsFixLocationLinks(){
     let d=String(u||''); try{ d=decodeURIComponent(d); }catch(e){}
     return d.toLowerCase().indexOf('/'+me+'/')>=0;
   }
-  let logFixed=0, logMissing=0, taskFixed=0;
+  let logFixed=0, logMissing=0, taskFixed=0, taskAmbiguous=0, foldersUnreadable=0;
   for(const e of ropsActivityLog){
     if(!e.folder || !e.renamed || (e.webUrl && inMyFolder(e.webUrl))) continue;
     const hit=(await files(e.folder)).find(f=>f.file && f.name===e.renamed);
     if(hit && hit.webUrl){ e.webUrl=hit.webUrl; logFixed++; } else logMissing++;
   }
   if(logFixed){ ropsSaveActivityLog(); ropsRenderActivityLog(); }
-  const base=ropsRenameDisplay('');   // "BD Usage / Asset Document Rename & File / <me>"
+  if(opts.logOnly) return {logFixed, logMissing, taskFixed:0, taskAmbiguous:0, foldersUnreadable:0};
+  const isSuper=(typeof currentUserRole!=='undefined' && currentUserRole==='superadmin');
+  // Super Admin: build an index of every user's folder (<email>/<Master>/<Company>) so each
+  // old-format task can be pointed at the person who really owns that folder.
+  const ownerIndex={};   // relative folder path -> [owner emails]
+  if(isSuper){
+    const driveId=await ropsResolveBdDrive();
+    async function listPath(path){
+      const data=await graphFetch('/drives/'+driveId+'/root:/'+ropsEncodePath(path)+':/children?$select=id,name,folder&$top=999');
+      return (data&&data.value)||[];
+    }
+    let top=[];
+    try{ top=await listPath(ROPS_RENAME_ROOT_FOLDER); }catch(err){ throw new Error('Could not read '+ROPS_RENAME_ROOT_FOLDER+': '+err.message); }
+    for(const u of top.filter(x=>x.folder && x.name.indexOf('@')>0)){
+      try{
+        const lvl1=await listPath(ROPS_RENAME_ROOT_FOLDER+'/'+u.name);
+        for(const c of lvl1.filter(x=>x.folder)){
+          (ownerIndex[c.name]=ownerIndex[c.name]||[]).push(u.name);          // e.g. APL_TIGR_ID_SOLAR
+          try{
+            const lvl2=await listPath(ROPS_RENAME_ROOT_FOLDER+'/'+u.name+'/'+c.name);
+            for(const g of lvl2.filter(x=>x.folder)){
+              const rel=c.name+'/'+g.name;                                  // e.g. Master/Company
+              (ownerIndex[rel]=ownerIndex[rel]||[]).push(u.name);
+            }
+          }catch(e2){ foldersUnreadable++; }
+        }
+      }catch(e1){ foldersUnreadable++; }
+    }
+  }
   for(const t of (taskItemsCache||[])){
     if(t.Title!=='Review Documentation') continue;
     const d=String(t.Description||'');
     const m=d.match(/SharePoint folder: BD Usage \/ Asset Document Rename & File \/ (?:([^\s\/]+@[^\s\/]+) \/ )?([^\n]+)/);
     if(!m || m[1]) continue;
     const folder=m[2].trim();
-    if(!(await files(folder)).length) continue;
+    let base;
+    if(isSuper){
+      const owners=Array.from(new Set(ownerIndex[folder]||[]));
+      if(!owners.length) continue;
+      if(owners.length>1){ taskAmbiguous++; continue; }
+      base='BD Usage / '+ROPS_RENAME_ROOT_FOLDER+' / '+owners[0];
+    }else{
+      if(!(await files(folder)).length) continue;
+      base=ropsRenameDisplay('');   // "BD Usage / Asset Document Rename & File / <me>"
+    }
     try{
       const updated=d.replace(m[0],'SharePoint folder: '+base+' / '+folder);
       await updateListItem(MAIN_LIST_NAME, t.id, {'Description':updated});
       t.Description=updated; taskFixed++;
     }catch(err){ console.warn('Could not update task location for task '+t.id, err); }
   }
-  return {logFixed, logMissing, taskFixed};
+  return {logFixed, logMissing, taskFixed, taskAmbiguous, foldersUnreadable};
 }
 document.getElementById('rops-fix-links-btn').addEventListener('click',async()=>{
   const btn=document.getElementById('rops-fix-links-btn'); btn.disabled=true;
   ropsShowStatus('rops-fix-links-status','Checking your personal folder for moved files…',true);
   try{
     const r=await ropsFixLocationLinks();
-    ropsShowStatus('rops-fix-links-status','Updated '+r.logFixed+' activity link(s) and '+r.taskFixed+' Review Documentation task(s).'+(r.logMissing?' '+r.logMissing+' older entr'+(r.logMissing===1?'y was':'ies were')+' not found in your personal folder yet - move that folder first, then run this again.':''),true);
+    ropsShowStatus('rops-fix-links-status','Updated '+r.logFixed+' activity link(s) and '+r.taskFixed+' Review Documentation task(s).'+(r.taskAmbiguous?' '+r.taskAmbiguous+' task(s) skipped because the same folder exists under more than one user.':'')+(r.foldersUnreadable?' '+r.foldersUnreadable+' user folder(s) could not be read (check that the Owners group has access).':'')+(r.logMissing?' '+r.logMissing+' older entr'+(r.logMissing===1?'y was':'ies were')+' not found in your personal folder yet - move that folder first, then run this again.':''),true);
   }catch(err){ console.error(err); ropsShowStatus('rops-fix-links-status','Could not fix links: '+err.message,false); }
   finally{ btn.disabled=false; }
 });
@@ -7198,6 +7236,7 @@ async function registryInit(){
   ropsLoadActivityLog();
   try{ await ropsResolveBdDrive(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
   try{ await ropsLoadSharedDirectory(); }catch(e){ console.warn('Company directory not loaded', e); }
+  try{ await ropsFixLocationLinks({logOnly:true}); }catch(e){ console.warn('Activity link refresh skipped', e); }
   try{ if(!(taskItemsCache||[]).length){ await new Promise(r=>setTimeout(r,2500)); } await ropsFixLegacyBulkZipLocations(); }catch(e){ console.warn('Bulk ZIP clean-up skipped', e); }
   try{ await ropsResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('rops-autofill-conn').textContent='Excel source: not resolved'; }
   try{ await bookingResolveWorkbook(); }catch(e){ console.warn(e); document.getElementById('booking-conn').textContent='Excel source: not resolved'; }
