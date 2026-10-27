@@ -964,6 +964,11 @@
 
     <div class="card">
       <p class="card-title">Recent activity</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <button type="button" class="secondary small-btn" id="rops-fix-links-btn" title="After moving old folders into your personal folder, point the Open links and Review Documentation tasks at the new location">Fix links after moving folders</button>
+        <span class="empty-note">Run this after moving older company folders into your personal folder.</span>
+      </div>
+      <div class="rops-status" id="rops-fix-links-status"></div>
       <div style="overflow:auto;">
         <table class="rops-activity"><thead><tr><th>Filed as</th><th>Registry</th><th>Country / Type</th><th>Category</th><th>Master Folder</th><th>Subfolder</th><th>Time</th><th>Open</th><th>Remove</th></tr></thead><tbody id="rops-log-body"><tr><td colspan="9" class="empty-note">Nothing filed yet.</td></tr></tbody></table>
       </div>
@@ -7114,9 +7119,9 @@ async function ropsFixLegacyBulkZipLocations(){
   for(const t of (taskItemsCache||[])){
     if(t.Title!=='Review Documentation') continue;
     const d=String(t.Description||'');
-    const lineM=d.match(/SharePoint folder: BD Usage \/ Asset Document Rename & File \/ (?:[^\s\/]+@[^\s\/]+ \/ )?([^\n]+)/);
-    if(!lineM) continue;
-    const oldFolder=lineM[1].trim();
+    const lineM=d.match(/SharePoint folder: BD Usage \/ Asset Document Rename & File \/ (?:([^\s\/]+@[^\s\/]+) \/ )?([^\n]+)/);
+    if(!lineM || lineM[1]) continue;   // already points into someone's personal folder
+    const oldFolder=lineM[2].trim();
     const companyM=d.match(/^Company: ([^\n]+)/m);
     const nf=await modernFolder(oldFolder, companyM ? companyM[1].trim() : '');
     if(!nf) continue;
@@ -7141,6 +7146,54 @@ async function ropsFixLegacyBulkZipLocations(){
   if(logFixed||taskFixed) console.info('Folder clean-up: '+logFixed+' log entr(ies), '+taskFixed+' task(s) updated.');
   return logFixed+taskFixed;
 }
+/* Fix links after folders were moved into the signed-in user's personal folder.
+   - Activity log (this user's browser): "Open" links are refreshed from the file's real new location.
+   - Review Documentation tasks written in the old shared format (no owner in the path) are rewritten
+     to the user's personal path, only if that folder really exists under the user's own folder. */
+async function ropsFixLocationLinks(){
+  const me=ropsUserFolder();
+  if(!me) throw new Error('Sign in first.');
+  const cache={};
+  async function files(folder){
+    if(!(folder in cache)){ try{ cache[folder]=await ropsListFolderFiles(folder); }catch(e){ cache[folder]=[]; } }
+    return cache[folder];
+  }
+  function inMyFolder(u){
+    let d=String(u||''); try{ d=decodeURIComponent(d); }catch(e){}
+    return d.toLowerCase().indexOf('/'+me+'/')>=0;
+  }
+  let logFixed=0, logMissing=0, taskFixed=0;
+  for(const e of ropsActivityLog){
+    if(!e.folder || !e.renamed || (e.webUrl && inMyFolder(e.webUrl))) continue;
+    const hit=(await files(e.folder)).find(f=>f.file && f.name===e.renamed);
+    if(hit && hit.webUrl){ e.webUrl=hit.webUrl; logFixed++; } else logMissing++;
+  }
+  if(logFixed){ ropsSaveActivityLog(); ropsRenderActivityLog(); }
+  const base=ropsRenameDisplay('');   // "BD Usage / Asset Document Rename & File / <me>"
+  for(const t of (taskItemsCache||[])){
+    if(t.Title!=='Review Documentation') continue;
+    const d=String(t.Description||'');
+    const m=d.match(/SharePoint folder: BD Usage \/ Asset Document Rename & File \/ (?:([^\s\/]+@[^\s\/]+) \/ )?([^\n]+)/);
+    if(!m || m[1]) continue;
+    const folder=m[2].trim();
+    if(!(await files(folder)).length) continue;
+    try{
+      const updated=d.replace(m[0],'SharePoint folder: '+base+' / '+folder);
+      await updateListItem(MAIN_LIST_NAME, t.id, {'Description':updated});
+      t.Description=updated; taskFixed++;
+    }catch(err){ console.warn('Could not update task location for task '+t.id, err); }
+  }
+  return {logFixed, logMissing, taskFixed};
+}
+document.getElementById('rops-fix-links-btn').addEventListener('click',async()=>{
+  const btn=document.getElementById('rops-fix-links-btn'); btn.disabled=true;
+  ropsShowStatus('rops-fix-links-status','Checking your personal folder for moved files…',true);
+  try{
+    const r=await ropsFixLocationLinks();
+    ropsShowStatus('rops-fix-links-status','Updated '+r.logFixed+' activity link(s) and '+r.taskFixed+' Review Documentation task(s).'+(r.logMissing?' '+r.logMissing+' older entr'+(r.logMissing===1?'y was':'ies were')+' not found in your personal folder yet - move that folder first, then run this again.':''),true);
+  }catch(err){ console.error(err); ropsShowStatus('rops-fix-links-status','Could not fix links: '+err.message,false); }
+  finally{ btn.disabled=false; }
+});
 async function registryInit(){
   ropsLoadActivityLog();
   try{ await ropsResolveBdDrive(); }catch(e){ console.warn(e); document.getElementById('rops-rename-conn').textContent='SharePoint: '+e.message; }
