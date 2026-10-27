@@ -4453,8 +4453,32 @@ const ROPS_AUTOFILL_FOLDERS = { MY: "Autofilled Form MY", SG: "Autofilled Form S
 // so the activity log and queue logic are unchanged; ropsRenamePath() adds
 // the root only where SharePoint is actually read or written.
 const ROPS_RENAME_ROOT_FOLDER = "Asset Document Rename & File";
-function ropsRenamePath(folder){ return ROPS_RENAME_ROOT_FOLDER + (folder ? '/' + folder : ''); }
-function ropsRenameDisplay(folder){ return 'BD Usage / ' + ROPS_RENAME_ROOT_FOLDER + (folder ? ' / ' + folder : ''); }
+// PER-USER FOLDERS: everything a person files lives under their own folder,
+//   BD Usage / Asset Document Rename & File / <their email> / <Master>/<Company folder>
+// SharePoint permissions on that <email> folder (set by the Power Automate flow)
+// restrict it to its creator + admins. Only shared bookkeeping (the company-name
+// directory) lives in the shared folder below, which everyone can read.
+const ROPS_SHARED_FOLDER = "_shared";
+function ropsUserFolder(){
+  const e=(typeof currentAccount!=='undefined' && currentAccount && currentAccount.username) || '';
+  return String(e).trim().toLowerCase().replace(/[\\\/:*?"<>|#%~&{}]/g,'_');
+}
+function ropsRenamePath(folder){
+  const u=ropsUserFolder();
+  if(!u) throw new Error('Sign in first - your personal folder cannot be determined.');
+  return ROPS_RENAME_ROOT_FOLDER + '/' + u + (folder ? '/' + folder : '');
+}
+function ropsSharedPath(){ return ROPS_RENAME_ROOT_FOLDER + '/' + ROPS_SHARED_FOLDER; }
+function ropsRenameDisplay(folder){
+  const u=ropsUserFolder();
+  return 'BD Usage / ' + ROPS_RENAME_ROOT_FOLDER + (u ? ' / ' + u : '') + (folder ? ' / ' + folder : '');
+}
+// Friendly message when SharePoint says the folder belongs to someone else.
+function ropsAccessMsg(err){
+  return /Graph 403/.test(String(err&&err.message||err))
+    ? 'Access denied: this folder is private to the user who created it. You can only open your own filed documents.'
+    : '';
+}
 
 const ROPS_FIELD_MAP = [
   { id:"2",  label:"Asset Name",                       group:"Asset details" },
@@ -4851,9 +4875,14 @@ async function ropsUploadBlob(folder, filename, blobOrBytes, contentType){
   const driveId=await ropsResolveBdDrive();
   const path=ropsEncodePath(folder+'/'+filename);
   const body=blobOrBytes instanceof Blob ? blobOrBytes : new Blob([blobOrBytes],{type:contentType||'application/octet-stream'});
-  return await ropsGraphBinaryFetch('/drives/'+driveId+'/root:/'+path+':/content',{
-    method:'PUT', body, headers:{'Content-Type':contentType||body.type||'application/octet-stream'}
-  });
+  try{
+    return await ropsGraphBinaryFetch('/drives/'+driveId+'/root:/'+path+':/content',{
+      method:'PUT', body, headers:{'Content-Type':contentType||body.type||'application/octet-stream'}
+    });
+  }catch(err){
+    if(folder.indexOf(ROPS_RENAME_ROOT_FOLDER)===0 && ropsAccessMsg(err)) throw new Error(ropsAccessMsg(err));
+    throw err;
+  }
 }
 
 /* ---- Booking tab: writes rows into Live inventory.xlsx / "Booking Log" / table "Booking" ---- */
@@ -5340,14 +5369,20 @@ function ropsFullNameFor(codeOrName){ return ropsFullNames[ropsCodeKey(codeOrNam
 async function ropsReadSharedDirectory(){
   const driveId=await ropsResolveBdDrive();
   const token=await getAccessToken(GRAPH_SCOPES);
-  const res=await fetch('https://graph.microsoft.com/v1.0/drives/'+driveId+'/root:/'+ropsEncodePath(ropsRenamePath('')+'/'+ROPS_DIRECTORY_FILE)+':/content',{headers:{'Authorization':'Bearer '+token}});
-  if(res.status===404) return {};
+  const res=await fetch('https://graph.microsoft.com/v1.0/drives/'+driveId+'/root:/'+ropsEncodePath(ropsSharedPath()+'/'+ROPS_DIRECTORY_FILE)+':/content',{headers:{'Authorization':'Bearer '+token}});
+  if(res.status===404){
+    // one-time fallback: directory saved in the old shared root before per-user folders
+    const old=await fetch('https://graph.microsoft.com/v1.0/drives/'+driveId+'/root:/'+ropsEncodePath(ROPS_RENAME_ROOT_FOLDER+'/'+ROPS_DIRECTORY_FILE)+':/content',{headers:{'Authorization':'Bearer '+token}});
+    if(!old.ok) return {};
+    const o=JSON.parse(await old.text()||'{}');
+    return (o && typeof o==='object') ? o : {};
+  }
   if(!res.ok) throw new Error('Graph '+res.status+' reading company directory');
   const obj=JSON.parse(await res.text()||'{}');
   return (obj && typeof obj==='object') ? obj : {};
 }
 async function ropsWriteSharedDirectory(obj){
-  await ropsUploadBlob(ropsRenamePath(''), ROPS_DIRECTORY_FILE, new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}), 'application/json');
+  await ropsUploadBlob(ropsSharedPath(), ROPS_DIRECTORY_FILE, new Blob([JSON.stringify(obj,null,2)],{type:'application/json'}), 'application/json');
 }
 // Pull the shared directory (shared names win over this browser's cache).
 async function ropsLoadSharedDirectory(){
@@ -5730,6 +5765,7 @@ async function ropsListFolderFiles(folderName){
     return (data&&data.value)||[];
   }catch(err){
     if(String(err&&err.message||err).includes('Graph 404')) return [];
+    if(ropsAccessMsg(err)) throw new Error(ropsAccessMsg(err));
     throw err;
   }
 }
@@ -5835,6 +5871,7 @@ async function ropsDownloadCurrentFolder(){
       files=await ropsListFolderTree(driveId, ropsRenamePath(folder), '', []);
     }catch(err){
       if(String(err&&err.message||err).includes('Graph 404')) files=[];
+      else if(ropsAccessMsg(err)) throw new Error(ropsAccessMsg(err));
       else throw err;
     }
     files=files.filter(f=>!String(f.name||f.zipPath||'').split('/').pop().startsWith(ROPS_OWNER_PREFIX));
@@ -7077,7 +7114,7 @@ async function ropsFixLegacyBulkZipLocations(){
   for(const t of (taskItemsCache||[])){
     if(t.Title!=='Review Documentation') continue;
     const d=String(t.Description||'');
-    const lineM=d.match(/SharePoint folder: BD Usage \/ Asset Document Rename & File \/ ([^\n]+)/);
+    const lineM=d.match(/SharePoint folder: BD Usage \/ Asset Document Rename & File \/ (?:[^\s\/]+@[^\s\/]+ \/ )?([^\n]+)/);
     if(!lineM) continue;
     const oldFolder=lineM[1].trim();
     const companyM=d.match(/^Company: ([^\n]+)/m);
