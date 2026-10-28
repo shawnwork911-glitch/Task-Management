@@ -5517,9 +5517,15 @@ function ropsFolderName(c){
   const sub=ropsCompanyCode(c.company)+'_'+ropsSafeNamePart(c.registry)+'_'+ropsSafeNamePart(c.country)+'_'+ropsSafeNamePart(c.type);
   return c.master ? ropsSafeFolderPart(c.master)+'/'+sub : sub;
 }
+/* JPEG and JPG are the same format - only the extension differs. Always file
+   them with the shorter .jpg extension (lower-case). Other extensions are untouched. */
+function ropsNormalizeExt(ext){
+  const e=String(ext||'');
+  return /^jpe?g$/i.test(e) ? 'jpg' : e;
+}
 function ropsBuildFilename(file, category, index){
   const name=file ? file.name : 'file.pdf';
-  const dot=name.lastIndexOf('.'); const ext=dot>=0 ? name.slice(dot+1) : 'pdf';
+  const dot=name.lastIndexOf('.'); const ext=ropsNormalizeExt(dot>=0 ? name.slice(dot+1) : 'pdf');
   const suffix=(index && index>0) ? ('_'+(index+1)) : '';
   return ropsSafeNamePart(category)+suffix+'.'+ext;
 }
@@ -5706,7 +5712,8 @@ async function ropsReplaceExistingSharePointFile(category, existingIndex, file){
   const oldName=String(oldItem.name||'');
   const oldParts=ropsNameParts(oldName);
   const newParts=ropsNameParts(file.name);
-  const targetName=oldParts.base+(newParts.ext?'.'+newParts.ext:(oldParts.ext?'.'+oldParts.ext:''));
+  const newExt=ropsNormalizeExt(newParts.ext), oldExt=ropsNormalizeExt(oldParts.ext);
+  const targetName=oldParts.base+(newExt?'.'+newExt:(oldExt?'.'+oldExt:''));
   const folder=ropsFolderName(c);
   if(!confirm('Replace "'+oldName+'" with "'+file.name+'"? Only this selected SharePoint file will be replaced.')) return;
   ropsShowStatus('rops-folder-status','Replacing '+oldName+'…',true);
