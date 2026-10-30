@@ -678,6 +678,11 @@ table.task-table tr.clickable:hover,.gantt-list-table tbody tr:hover td{backgrou
 .rops-dropzone:hover{border-color:var(--accent);}
 .rops-progress{font-family:'JetBrains Mono',ui-monospace,Consolas,monospace;}
 
+/* ---- Important Tasks tab ---- */
+#desk-important-count{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--danger);color:#fff;font-size:11px;font-weight:700;display:none;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;}
+#desk-important-count.show{display:inline-flex;}
+#main-tabs #desk-important-tab-btn .ico{color:var(--danger);font-weight:800;}
+
 /* ---- responsive: icon rail ---- */
 @media (max-width:900px){
   :root{--side-w:52px;}
@@ -686,6 +691,8 @@ table.task-table tr.clickable:hover,.gantt-list-table tbody tr:hover td{backgrou
   #main-tabs .main-tab-btn{font-size:0;justify-content:center;padding:10px 0;border-left-width:0;}
   #main-tabs .main-tab-btn .ico{font-size:17px;width:auto;}
   #main-tabs .main-tab-btn.active{box-shadow:inset 3px 0 0 var(--accent);}
+  #main-tabs .main-tab-btn{position:relative;}
+  #desk-important-count.show{position:absolute;top:2px;right:2px;min-width:16px;height:16px;font-size:9px;padding:0 4px;}
   .wrap{padding-left:16px;padding-right:16px;}
   #desk-brand span,#status-line{display:none;}
   #all-tasks-card{overflow-x:auto;}
@@ -744,20 +751,11 @@ table.task-table tr.clickable:hover,.gantt-list-table tbody tr:hover td{backgrou
     </div>
   </div>
 
-  <section id="standalone-important-section">
-  <div class="card" id="important-tasks-card">
-    <div class="card-title-row">
-      <p class="card-title" style="margin:0;">Important tasks</p>
-      <span class="badge badge-important">Important</span>
-    </div>
-    <p class="card-note">Only Super Admin-approved Important tasks are pinned here, and only for the Super Admin, the assigned person and the requester. The section stays hidden when there are no applicable Important tasks.</p>
-    <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
-  </div>
-  </section>
 
   <div class="main-tabs" id="main-tabs" role="tablist" aria-label="Operations tools">
     <div class="grp">Tasks</div>
     <button type="button" class="main-tab-btn active" data-main-view="task"><span class="ico">&#10003;</span>Task Management</button>
+    <button type="button" class="main-tab-btn" id="desk-important-tab-btn" data-main-view="important"><span class="ico">!</span>Important Tasks<span id="desk-important-count"></span></button>
     <div class="grp">Tools</div>
     <button type="button" class="main-tab-btn" data-main-view="rename"><span class="ico">&#9636;</span>Asset Document Rename &amp; File</button>
     <button type="button" class="main-tab-btn" data-main-view="autofill"><span class="ico">&#9998;</span>Autofill TIGR DRP</button>
@@ -766,6 +764,25 @@ table.task-table tr.clickable:hover,.gantt-list-table tbody tr:hover td{backgrou
     <div class="grp">Admin</div>
     <button type="button" class="main-tab-btn" id="user-mgmt-tab-btn" data-main-view="users" style="display:none;"><span class="ico">&#9786;</span>User Management</button>
   </div>
+
+  <!-- Important tasks: own sidebar tab (the app still fills and shows/hides the card below) -->
+  <section id="main-view-important" class="main-view">
+    <div>
+      <h1>Important Tasks</h1>
+      <p class="subtitle">Super Admin-approved Important tasks, visible to the Super Admin, the assigned person and the requester.</p>
+    </div>
+  <section id="standalone-important-section">
+  <div class="card" id="important-tasks-card">
+    <div class="card-title-row">
+      <p class="card-title" style="margin:0;">Important tasks</p>
+      <span class="badge badge-important">Important</span>
+    </div>
+    <p class="card-note">Click a task to open its details, timeline and comments.</p>
+    <div id="important-tasks-list"><p class="empty-note">Loading…</p></div>
+  </div>
+  </section>
+    <div class="card" id="desk-important-empty" style="display:none;"><p class="empty-note" style="margin:0;">No Important tasks for you right now.</p></div>
+  </section>
 
   <section id="main-view-task" class="main-view active">
 
@@ -7663,6 +7680,22 @@ if(rqaAddSubmitBtn) rqaAddSubmitBtn.addEventListener('click', async ()=>{
   new MutationObserver(sync).observe(em,{childList:true,characterData:true,subtree:true}); sync();
   document.addEventListener('click',function(e){ if(menu.open && !menu.contains(e.target)) menu.open=false; });
   menu.querySelector('.menu').addEventListener('click',function(e){ if(e.target.closest('button,a')) setTimeout(function(){menu.open=false;},0); });
+})();
+</script>
+<script>
+/* Desk: Important Tasks tab count + empty state (visual only; reads what renderImportantTasks draws) */
+(function(){
+  var list=document.getElementById('important-tasks-list'), sec=document.getElementById('standalone-important-section'),
+      empty=document.getElementById('desk-important-empty'), badge=document.getElementById('desk-important-count');
+  if(!list||!sec||!empty||!badge) return;
+  function sync(){
+    var n=list.querySelectorAll('[data-task-id]').length, loading=!!list.querySelector('.empty-note') && !n;
+    badge.textContent=n>99?'99+':String(n); badge.classList.toggle('show',n>0);
+    empty.style.display = (!n && !loading) ? '' : 'none';
+  }
+  new MutationObserver(sync).observe(list,{childList:true});
+  new MutationObserver(sync).observe(sec,{attributes:true,attributeFilter:['style']});
+  sync();
 })();
 </script>
 </body>
