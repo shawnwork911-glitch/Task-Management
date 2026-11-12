@@ -720,6 +720,35 @@ button.secondary,.btn,.tab-btn,.main-tab-btn,.subtab-btn,.task-subtab-btn,.rqa-s
 .main-tabs#main-tabs{transition:transform .2s ease;}
 html.desk-nav-hidden{--side-w:0px;}
 html.desk-nav-hidden .main-tabs#main-tabs{transform:translateX(-100%);visibility:hidden;}
+/* ---- Phone fixes: keep notification panel, task table and modals inside the screen ---- */
+@media (max-width:900px){
+  /* All-tasks table: scroll sideways instead of squeezing 10 columns into the screen */
+  #all-tasks-card,#all-tasks-list{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  #all-tasks-list table.task-table{min-width:820px;}
+}
+@media (max-width:600px){
+  #user-bar{padding:0 56px 0 8px;gap:6px;}
+  #user-bar .right{gap:6px;}
+  #theme-toggle-btn{right:10px;}
+  /* Notification panel: pin to the screen, not to the bell, so it can't run off the left edge */
+  .notification-wrap{position:static;}
+  #notification-panel{
+    position:fixed;left:8px;right:8px;top:calc(var(--topbar-h) + 6px);
+    width:auto;max-height:calc(100vh - var(--topbar-h) - 20px);
+    max-height:calc(100dvh - var(--topbar-h) - 20px);z-index:1250;
+  }
+  .notification-head{flex-wrap:wrap;}
+  /* Account menu: never wider than the screen */
+  #desk-user-menu .menu{min-width:0;width:min(280px,calc(100vw - 16px));}
+  /* Modals: fit the visible screen (iOS toolbars) and use less padding */
+  .modal-overlay{padding:8px;}
+  .modal-box{padding:16px;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);}
+  .detail-row{flex-wrap:wrap;}
+  .detail-row .k{min-width:0;flex-basis:100%;}
+  .wrap{padding-left:10px;padding-right:10px;}
+  .card{padding:16px 14px;}
+}
+
 </style>
 <script>
 (function(){
