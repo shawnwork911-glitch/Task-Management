@@ -1395,12 +1395,11 @@ html.desk-nav-hidden .main-tabs#main-tabs{transform:translateX(-100%);visibility
     </div>
 
     <div class="rqa-subtabs" id="rqa-subtabs" role="tablist" aria-label="Registry Q&amp;A views">
-      <button type="button" class="rqa-subtab-btn active" data-rqa-subview="ask">Ask a question</button>
-      <button type="button" class="rqa-subtab-btn" data-rqa-subview="admin" style="display:none;">Admin Q&amp;A setup</button>
-      <button type="button" class="rqa-subtab-btn" data-rqa-subview="all">All questions &amp; answers</button>
+      <button type="button" class="rqa-subtab-btn active" data-rqa-subview="all">All questions &amp; answers</button>
+      <button type="button" class="rqa-subtab-btn" data-rqa-subview="ask">Ask a question</button>
     </div>
 
-    <div id="rqa-subview-ask" class="rqa-subview active">
+    <div id="rqa-subview-ask" class="rqa-subview">
     <div class="card">
       <p class="card-title">Ask a question</p>
       <div>
@@ -1428,39 +1427,7 @@ html.desk-nav-hidden .main-tabs#main-tabs{transform:translateX(-100%);visibility
 
     </div>
 
-    <div id="rqa-subview-admin" class="rqa-subview">
-    <div class="card" id="rqa-admin-add-card" style="display:none;">
-      <p class="card-title">Add a question &amp; answer</p>
-      <p class="card-note">Super Admin/Admin only — posts a question with its answer already filled in.</p>
-      <div>
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);">
-          <input type="checkbox" id="rqa-add-both" style="width:auto;">
-          Post this to both I-REC and TIGR
-        </label>
-        <p class="card-note" style="margin:2px 0 0;">Creates two separate entries with the same question and answer text — edit either one afterward if the answer needs to differ by registry.</p>
-      </div>
-      <div class="grid" id="rqa-add-registry-row" style="margin-top:10px;">
-        <div>
-          <label for="rqa-add-registry">Registry</label>
-          <select id="rqa-add-registry">
-            <option value="">Select registry...</option>
-          </select>
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <label for="rqa-add-question">Question</label>
-        <textarea id="rqa-add-question" placeholder="Question"></textarea>
-      </div>
-      <div style="margin-top:10px;">
-        <label for="rqa-add-answer">Answer</label>
-        <textarea id="rqa-add-answer" placeholder="Answer (optional — leave blank to post as unanswered)"></textarea>
-      </div>
-      <button type="button" id="rqa-add-submit" style="margin-top:10px;">Add Q&amp;A</button>
-      <div class="rops-status" id="rqa-add-status"></div>
-    </div>
-    </div>
-
-    <div id="rqa-subview-all" class="rqa-subview">
+    <div id="rqa-subview-all" class="rqa-subview active">
     <div class="card">
       <p class="card-title">All questions &amp; answers</p>
       <div class="filter-row">
