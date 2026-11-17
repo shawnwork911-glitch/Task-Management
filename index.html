@@ -6127,13 +6127,53 @@ document.getElementById('rops-download-folder').addEventListener('click',ropsDow
 function ropsDownloadFile(file, filename){
   const url=URL.createObjectURL(file); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
+let ropsLastReviewTaskMerged=false;
+/* One Review Documentation task per uploader per folder.
+   If the signed-in user already has a task for this exact SharePoint folder that is
+   still "Not Started", the new file names are added to that task instead of creating
+   another one. Started / completed tasks are never touched, so new files always get
+   a fresh review. */
 async function ropsCreateReviewDocumentationTask(companyName, folderName, uploadedItems){
+  ropsLastReviewTaskMerged=false;
   const nowIso = new Date().toISOString();
-  const count = Array.isArray(uploadedItems) ? uploadedItems.length : 0;
   const fileNames = (uploadedItems || []).map(i => i.renamed).filter(Boolean);
+  const folderLine = 'SharePoint folder: ' + ropsRenameDisplay(folderName || '');
+  const me = String((currentAccount && currentAccount.username) || '').trim().toLowerCase();
+
+  // Refresh first so a task started/completed by the reviewer a moment ago is not reused.
+  try{ await loadAllData(true); }catch(e){ console.warn('Could not refresh tasks before merge check', e); }
+  const existing = me ? (taskItemsCache || []).find(t =>
+    t.Title === 'Review Documentation' &&
+    t.Status === STATUS_NOT_STARTED &&
+    String(t['Requested By'] || '').trim().toLowerCase() === me &&
+    String(t.Description || '').split('\n').some(l => l.trim() === folderLine)
+  ) : null;
+
+  if(existing){
+    const d = String(existing.Description || '');
+    const m = d.match(/^Uploaded files \(\d+\):[^\n]*(?:\n- [^\n]*)*/m);
+    const head = m ? d.slice(0, m.index).replace(/\s+$/, '') : d.replace(/\s+$/, '');
+    const oldFiles = m ? m[0].split('\n').slice(1).map(l => l.replace(/^- /, '').trim()).filter(Boolean) : [];
+    const seen = new Set(oldFiles.map(f => f.toLowerCase()));
+    const merged = oldFiles.slice();
+    fileNames.forEach(f => { if(!seen.has(f.toLowerCase())){ seen.add(f.toLowerCase()); merged.push(f); } });
+    const tail = d.slice(m ? m.index + m[0].length : d.length);
+    const description = head + '\nUploaded files (' + merged.length + '):' +
+      (merged.length ? '\n- ' + merged.join('\n- ') : ' —') + tail;
+    await updateListItem(MAIN_LIST_NAME, existing.id, {
+      'Description': description,
+      'Last Updated By': currentAccount.username,
+      'Last Updated Date': nowIso
+    });
+    ropsLastReviewTaskMerged = true;
+    await loadAllData();
+    return existing.id;
+  }
+
+  const count = fileNames.length;
   const description = 'Review documentation uploaded through Rename & File.\n' +
     'Company: ' + (companyName || '—') + '\n' +
-    'SharePoint folder: ' + ropsRenameDisplay(folderName || '') + '\n' +
+    folderLine + '\n' +
     'Uploaded files (' + count + '):' + (fileNames.length ? '\n- ' + fileNames.join('\n- ') : ' —');
   const created = await createListItem(MAIN_LIST_NAME, {
     'Title': 'Review Documentation',
@@ -6271,7 +6311,7 @@ document.getElementById('rops-upload-all').addEventListener('click',async()=>{
         const reviewTask=reviewTaskId ? taskById(reviewTaskId) : null;
         const reviewNumber=reviewTask ? taskNumberValue(reviewTask) : '';
         taskMessage=reviewTaskId
-          ? ' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+' was created and sent to Super Admin.'
+          ? ' Review Documentation task '+(reviewNumber ? '#'+reviewNumber : '')+(ropsLastReviewTaskMerged ? ' was updated with the new file(s) (existing open task for this folder).' : ' was created and sent to Super Admin.')
           : ' Review Documentation task was created and sent to Super Admin.';
       }catch(taskErr){
         console.error('Files uploaded, but Review Documentation task creation failed', taskErr);
@@ -6762,7 +6802,7 @@ document.getElementById('rops-bulk-upload-all').addEventListener('click',async()
         catch(taskErr){ console.error('Bulk upload succeeded, but the Review Documentation task failed for '+folder,taskErr); taskErrors++; }
       }
       const retryMessage=uploadError ? ' '+(total-done)+' file(s) remain queued for retry.' : '';
-      const taskMessage=taskErrors ? ' '+taskErrors+' review task(s) could not be created — check those companies manually.' : ' Review Documentation task(s) were created and sent to Super Admin.';
+      const taskMessage=taskErrors ? ' '+taskErrors+' review task(s) could not be created — check those companies manually.' : ' Review Documentation task(s) were created or updated (one open task per folder).';
       ropsShowStatus('rops-bulk-upload-status','Uploaded '+done+' document(s) across '+Object.keys(byFolder).length+' company folder(s).'+taskMessage+retryMessage,!taskErrors && !uploadError);
     }else if(uploadError){
       ropsShowStatus('rops-bulk-upload-status','Upload failed: '+uploadError.message,false);
